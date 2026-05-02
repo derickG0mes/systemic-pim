@@ -6,13 +6,36 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig(() => ({
   server: {
     host: "0.0.0.0",
     port: 8080,
     hmr: {
       overlay: false,
     },
+  },
+  optimizeDeps: {
+    include: [
+      "react",
+      "react-dom",
+      "react/jsx-runtime",
+      "react-router-dom",
+      "@tanstack/react-query",
+      "lucide-react",
+      "recharts",
+      "clsx",
+      "class-variance-authority",
+      "tailwind-merge",
+      "@radix-ui/react-dialog",
+      "@radix-ui/react-select",
+      "@radix-ui/react-switch",
+      "@radix-ui/react-toast",
+      "@radix-ui/react-tooltip",
+      "@radix-ui/react-slot",
+      "@radix-ui/react-label",
+      "@radix-ui/react-toggle",
+      "@radix-ui/react-separator",
+    ],
   },
   plugins: [react()].filter(Boolean),
   resolve: {

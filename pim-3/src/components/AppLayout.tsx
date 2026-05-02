@@ -9,7 +9,7 @@ import {
 import { hasPermission } from "@/lib/rbac";
 import {
   LayoutDashboard, ShoppingCart, Receipt, Package, CalendarClock,
-  BarChart3, Users, FileText, Database, LogOut, UtensilsCrossed, Menu,
+  BarChart3, Users, FileText, Database, LogOut, UtensilsCrossed, Menu, Accessibility,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -23,6 +23,7 @@ const NAV_ITEMS = [
   { title: "Usuários", url: "/users", icon: Users, permission: "users" as const },
   { title: "Auditoria", url: "/audit", icon: FileText, permission: "audit" as const },
   { title: "Backup", url: "/backup", icon: Database, permission: "backup" as const },
+  { title: "Acessibilidade", url: "/accessibility", icon: Accessibility, permission: "accessibility" as const },
 ];
 
 function AppSidebarContent() {

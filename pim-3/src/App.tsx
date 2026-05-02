@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
-import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { RestaurantProvider } from "@/contexts/RestaurantContext";
+import { AccessibilityProvider } from "@/contexts/AccessibilityContext";
 import AppLayout from "@/components/AppLayout";
+import VLibrasWidget from "@/components/VLibrasWidget";
 import LoginPage from "@/pages/LoginPage";
 import DashboardPage from "@/pages/DashboardPage";
 import OrdersPage from "@/pages/OrdersPage";
@@ -16,6 +17,7 @@ import ReportsPage from "@/pages/ReportsPage";
 import UsersPage from "@/pages/UsersPage";
 import AuditPage from "@/pages/AuditPage";
 import BackupPage from "@/pages/BackupPage";
+import AccessibilityPage from "@/pages/AccessibilityPage";
 import NotFound from "@/pages/NotFound";
 import { hasPermission } from "@/lib/rbac";
 
@@ -45,6 +47,7 @@ function AppRoutes() {
       <Route path="/users" element={<ProtectedRoute permission="users"><UsersPage /></ProtectedRoute>} />
       <Route path="/audit" element={<ProtectedRoute permission="audit"><AuditPage /></ProtectedRoute>} />
       <Route path="/backup" element={<ProtectedRoute permission="backup"><BackupPage /></ProtectedRoute>} />
+      <Route path="/accessibility" element={<ProtectedRoute permission="accessibility"><AccessibilityPage /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
@@ -54,11 +57,13 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
-      <Sonner />
       <BrowserRouter>
         <AuthProvider>
           <RestaurantProvider>
-            <AppRoutes />
+            <AccessibilityProvider>
+              <AppRoutes />
+              <VLibrasWidget />
+            </AccessibilityProvider>
           </RestaurantProvider>
         </AuthProvider>
       </BrowserRouter>
