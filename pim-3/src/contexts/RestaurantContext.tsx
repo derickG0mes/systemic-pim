@@ -55,6 +55,7 @@ export interface Employee {
   id: string;
   name: string;
   email: string;
+  password: string;
   role: "employee" | "admin" | "owner";
   position: string;
   active: boolean;
@@ -110,10 +111,10 @@ const INITIAL_TABS: Tab[] = [
 ];
 
 const INITIAL_EMPLOYEES: Employee[] = [
-  { id: "1", name: "Carlos Silva", email: "admin@restaurante.com", role: "admin", position: "Gerente", active: true },
-  { id: "2", name: "Maria Santos", email: "owner@restaurante.com", role: "owner", position: "Proprietário", active: true },
-  { id: "3", name: "João Oliveira", email: "garcom@restaurante.com", role: "employee", position: "Garçom", active: true },
-  { id: "4", name: "Ana Costa", email: "cozinha@restaurante.com", role: "employee", position: "Cozinheiro", active: true },
+  { id: "1", name: "Carlos Silva", email: "admin@restaurante.com", password: "admin123", role: "admin", position: "Gerente", active: true },
+  { id: "2", name: "Maria Santos", email: "owner@restaurante.com", password: "owner123", role: "owner", position: "Proprietário", active: true },
+  { id: "3", name: "João Oliveira", email: "garcom@restaurante.com", password: "garcom123", role: "employee", position: "Garçom", active: true },
+  { id: "4", name: "Ana Costa", email: "cozinha@restaurante.com", password: "cozinha123", role: "employee", position: "Cozinheiro", active: true },
 ];
 
 export function RestaurantProvider({ children }: { children: ReactNode }) {
@@ -203,7 +204,15 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   const addEmployee = useCallback((e: Omit<Employee, "id">) => {
     const dup = employees.find(x => x.email === e.email);
     if (dup) return { success: false, message: "E-mail já cadastrado." };
-    setEmployees(prev => [...prev, { ...e, id: `e${Date.now()}` }]);
+    const newEmployee = { ...e, id: `e${Date.now()}` };
+    setEmployees(prev => [...prev, newEmployee]);
+    
+    // Sincronizar com auth context
+    const storedUsers = localStorage.getItem("registered_users");
+    const users = storedUsers ? JSON.parse(storedUsers) : [];
+    users.push(newEmployee);
+    localStorage.setItem("registered_users", JSON.stringify(users));
+    
     log("CREATE_EMPLOYEE", `Funcionário "${e.name}" cadastrado`);
     return { success: true, message: "Funcionário cadastrado!" };
   }, [employees, log]);

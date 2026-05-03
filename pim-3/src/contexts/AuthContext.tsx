@@ -17,6 +17,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   failedAttempts: number;
   lockedUntil: number | null;
+  registeredUsers: (User & { password: string })[];
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -35,6 +36,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
+  const [registeredUsers, setRegisteredUsers] = useState<(User & { password: string })[]>(() => {
+    // Sempre incluir os MOCK_USERS como base
+    const storedUsers = localStorage.getItem("registered_users");
+    let additionalUsers: (User & { password: string })[] = [];
+    
+    if (storedUsers) {
+      try {
+        additionalUsers = JSON.parse(storedUsers);
+      } catch (e) {
+        additionalUsers = [];
+      }
+    }
+    
+    // Combinar MOCK_USERS com novos usuários registrados
+    const combined = [...MOCK_USERS];
+    additionalUsers.forEach(newUser => {
+      // Não adicionar se o email já existe
+      if (!combined.find(u => u.email === newUser.email)) {
+        combined.push(newUser);
+      }
+    });
+    
+    return combined;
+  });
 
   const login = useCallback((email: string, password: string) => {
     if (lockedUntil && Date.now() < lockedUntil) {
@@ -45,7 +70,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLockedUntil(null);
       setFailedAttempts(0);
     }
-    const found = MOCK_USERS.find(u => u.email === email && u.password === password);
+    
+    // Buscar nos MOCK_USERS primeiro (contas de teste)
+    let found = MOCK_USERS.find(u => u.email === email && u.password === password);
+    
+    // Se não encontrar, buscar nos usuários registrados
+    if (!found) {
+      const storedUsers = localStorage.getItem("registered_users");
+      if (storedUsers) {
+        try {
+          const additionalUsers = JSON.parse(storedUsers);
+          found = additionalUsers.find(u => u.email === email && u.password === password);
+        } catch (e) {
+          // Ignorar erro
+        }
+      }
+    }
+    
     if (found) {
       const { password: _, ...userData } = found;
       setUser(userData);
@@ -69,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, failedAttempts, lockedUntil }}>
+    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, failedAttempts, lockedUntil, registeredUsers }}>
       {children}
     </AuthContext.Provider>
   );

@@ -7,20 +7,36 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Users } from "lucide-react";
+import { Plus, Users, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function UsersPage() {
   const { employees, addEmployee, updateEmployee } = useRestaurant();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", role: "employee" as const, position: "" });
+  const [form, setForm] = useState({ name: "", email: "", role: "employee" as const, position: "", password: "" });
+  const [passwordError, setPasswordError] = useState("");
+
+  const validatePassword = (password: string) => {
+    if (!password) {
+      setPasswordError("Senha é obrigatória");
+      return false;
+    }
+    if (password.length < 6) {
+      setPasswordError("Senha deve ter pelo menos 6 caracteres");
+      return false;
+    }
+    setPasswordError("");
+    return true;
+  };
 
   const handleAdd = () => {
+    if (!validatePassword(form.password)) return;
     const result = addEmployee({ ...form, active: true });
     toast({ title: result.success ? "Sucesso" : "Erro", description: result.message, variant: result.success ? "default" : "destructive" });
     if (result.success) {
-      setForm({ name: "", email: "", role: "employee", position: "" });
+      setForm({ name: "", email: "", role: "employee", position: "", password: "" });
+      setPasswordError("");
       setOpen(false);
     }
   };
@@ -39,6 +55,22 @@ export default function UsersPage() {
               <Input placeholder="Nome" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
               <Input placeholder="E-mail" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
               <Input placeholder="Cargo" value={form.position} onChange={e => setForm({ ...form, position: e.target.value })} />
+              <div className="space-y-2">
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    placeholder="Senha" 
+                    type="password" 
+                    value={form.password} 
+                    onChange={e => {
+                      setForm({ ...form, password: e.target.value });
+                      setPasswordError("");
+                    }} 
+                    className="pl-10"
+                  />
+                </div>
+                {passwordError && <p className="text-sm text-destructive">{passwordError}</p>}
+              </div>
               <Select value={form.role} onValueChange={(v: any) => setForm({ ...form, role: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
