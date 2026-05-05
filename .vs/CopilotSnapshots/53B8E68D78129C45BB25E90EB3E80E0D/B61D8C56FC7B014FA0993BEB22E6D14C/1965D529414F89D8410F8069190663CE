@@ -1,0 +1,16 @@
+﻿{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=localhost;Database=PIM3_DB;User Id=sa;Password=sua_senha_aqui;TrustServerCertificate=True;"
+  },
+  "Jwt": {
+    "SecretKey": "sua_chave_secreta_muito_segura_com_minimo_32_caracteres_12345",
+    "ExpirationMinutes": 480
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*"
+}

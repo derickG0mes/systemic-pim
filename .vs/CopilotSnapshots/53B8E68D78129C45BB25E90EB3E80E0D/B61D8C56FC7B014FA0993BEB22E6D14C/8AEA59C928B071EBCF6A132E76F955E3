@@ -1,0 +1,79 @@
+﻿using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using PIM3.API.Data;
+using PIM3.API.Services;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Ler string de conexão do appsettings.json
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+// Adicionar DbContext
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(connectionString)
+);
+
+// Adicionar serviços de autenticação
+var jwtSettings = builder.Configuration.GetSection("Jwt");
+var secretKey = jwtSettings["SecretKey"] ?? "sua_chave_secreta_muito_segura_aqui_12345";
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
+            ValidateIssuer = true,
+            ValidIssuer = "PIM3.API",
+            ValidateAudience = true,
+            ValidAudience = "PIM3.API.Users",
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromMinutes(5)
+        };
+    });
+
+// Adicionar serviço JWT
+builder.Services.AddScoped<JwtService>();
+
+// Configurar CORS para aceitar requisições do front-end React (Vite)
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReactApp", policy =>
+    {
+        policy.WithOrigins(
+            "http://localhost:5173",  // Vite dev server (padrão)
+            "http://localhost:3000",  // Se usar outro port
+            "http://localhost:5174"   // Alternativo
+        )
+        .AllowAnyMethod()
+        .AllowAnyHeader()
+        .AllowCredentials();
+    });
+});
+
+builder.Services.AddControllers();
+builder.Services.AddOpenApi();
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+}
+
+// Usar CORS
+app.UseCors("AllowReactApp");
+
+// Usar autenticação
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.UseHttpsRedirection();
+
+app.MapControllers();
+
+app.Run();

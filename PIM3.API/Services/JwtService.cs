@@ -1,0 +1,41 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+using Microsoft.IdentityModel.Tokens;
+
+namespace PIM3.API.Services;
+
+public class JwtService
+{
+    private readonly string _secretKey;
+    private readonly int _expirationMinutes;
+
+    public JwtService(IConfiguration configuration)
+    {
+        _secretKey = configuration["Jwt:SecretKey"] ?? "sua_chave_secreta_muito_segura_aqui_12345";
+        _expirationMinutes = int.Parse(configuration["Jwt:ExpirationMinutes"] ?? "480");
+    }
+
+    public string GenerateToken(int idFuncionario, string nomeFuncionario, string cpf)
+    {
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secretKey));
+        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, idFuncionario.ToString()),
+            new Claim(ClaimTypes.Name, nomeFuncionario),
+            new Claim("cpf", cpf)
+        };
+
+        var token = new JwtSecurityToken(
+            issuer: "PIM3.API",
+            audience: "PIM3.API.Users",
+            claims: claims,
+            expires: DateTime.UtcNow.AddMinutes(_expirationMinutes),
+            signingCredentials: credentials
+        );
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+}
