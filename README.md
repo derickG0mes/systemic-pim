@@ -1,32 +1,207 @@
-# 📱 PIM3 - Sistema de Gerenciamento de Restaurante
+# 🍽️ SYSTEMIC PIM - Sistema de Gerenciamento de Restaurante
 
-Projeto acadêmico completo com **Back-End (.NET)** e **Front-End (React)**, estruturado e documentado para ensino.
+## 📋 Projeto Integrado Multidisciplinar
+
+Sistema completo para gerenciamento de restaurante com Frontend (React), Backend (.NET Core) e Database (SQL Server).
 
 ---
 
-## 📂 Estrutura do Projeto
+## 🚀 Como Executar
+
+### **Pré-requisitos**
+
+- ✅ .NET Core 10
+- ✅ Node.js + npm
+- ✅ SQL Server
+
+### **Execução Simultânea (VS Code - RECOMENDADO)**
+
+1. Abra a pasta em VS Code
+2. Abra 2 terminais (Ctrl+`)
+
+**Terminal 1 - Backend:**
+
+```bash
+cd back-end
+dotnet run
+```
+
+✅ API rodará em: **http://localhost:5130**
+
+**Terminal 2 - Frontend:**
+
+```bash
+cd front-end
+npm run dev
+```
+
+✅ Frontend rodará em: **http://localhost:8080**
+
+### **Abra no Navegador**
+
+```
+http://localhost:8080
+```
+
+**Credenciais de Teste:**
+
+- Email: `admin@restaurante.com`
+- Senha: `admin123`
+
+---
+
+## 📁 Estrutura do Projeto
 
 ```
 systemic-pim/
+├── back-end/               # API .NET Core
+│   ├── Controllers/        # 10 Controllers REST
+│   ├── Models/            # 12 Models de dados
+│   ├── Services/          # JWT, Password Hash
+│   ├── Data/              # DbContext
+│   ├── Program.cs         # Configuração
+│   └── README.md          # Instruções backend
 │
-├── 📁 PIM3.API/              ← BACK-END (.NET)
-│   ├── Controllers/          ← Rotas (Login, Pedidos, Health Check)
-│   ├── Models/               ← Estruturas de dados
-│   ├── DTOs/                 ← Padrões entrada/saída
-│   ├── Services/             ← Lógica (JWT, Criptografia)
-│   ├── Data/                 ← Banco de dados
-│   └── Program.cs            ← Configuração
+├── front-end/             # React + Vite + TypeScript
+│   ├── src/
+│   │   ├── contexts/      # AuthContext, RestaurantContext
+│   │   ├── services/      # api.ts (20+ funções)
+│   │   ├── pages/         # Dashboard, Login, etc
+│   │   └── components/    # UI Components
+│   ├── package.json       # Dependências npm
+│   ├── vite.config.ts     # Configuração Vite
+│   └── README.md          # Instruções frontend
 │
-├── 📁 pim-3/                 ← FRONT-END (React)
-│   ├── src/components/       ← Componentes
-│   ├── src/pages/            ← Páginas
-│   ├── src/services/         ← Chamadas à API
-│   └── src/App.tsx
-│
-└── 📁 docs/                  ← DOCUMENTAÇÃO (LEIA AQUI!)
-    ├── CONFIGURACAO.md       ← Setup e endpoints
-    └── ARQUITETURA.md        ← Estrutura do código
+└── README.md              # Este arquivo
 ```
+
+---
+
+## 🔗 Fluxo de Comunicação
+
+```
+┌─────────────────────┐
+│  React Frontend     │
+│  localhost:8080     │
+└──────────┬──────────┘
+           │
+      fetch() HTTP
+    com JWT Token
+           │
+┌──────────▼──────────┐
+│  .NET Core Backend  │
+│  localhost:5130     │
+└──────────┬──────────┘
+           │
+    Entity Framework
+           │
+┌──────────▼──────────┐
+│  SQL Server DB      │
+│  localhost          │
+└─────────────────────┘
+```
+
+---
+
+## ✅ Funcionalidades Implementadas
+
+- ✅ Autenticação com JWT
+- ✅ Gerenciamento de Produtos
+- ✅ Comandas de Mesas
+- ✅ Pedidos e Itens
+- ✅ Funcionários/Usuários
+- ✅ Clientes
+- ✅ Reservas
+- ✅ Dashboard com Gráficos
+- ✅ Auditoria de Ações
+- ✅ Accessibilidade (WCAG)
+
+---
+
+## 📚 Documentação Específica
+
+- **[Backend - README.md](back-end/README.md)** - Configuração e endpoints da API
+- **[Frontend - README.md](front-end/README.md)** - Setup e componentes React
+
+---
+
+## 🛠️ Tecnologias Utilizadas
+
+**Backend:**
+
+- .NET Core 10
+- Entity Framework Core
+- JWT Authentication
+- CORS Configuration
+- SQL Server
+
+**Frontend:**
+
+- React 18
+- TypeScript
+- Vite (Build Tool)
+- Tailwind CSS
+- React Router
+- React Context API
+- Radix UI Components
+
+**Database:**
+
+- SQL Server 2019+
+- 12 Tabelas com Relacionamentos
+
+---
+
+## 📊 API Endpoints Principais
+
+| Método | Endpoint                  | Descrição           |
+| ------ | ------------------------- | ------------------- |
+| POST   | `/api/autenticacao/login` | Login com JWT       |
+| GET    | `/api/produto`            | Listar produtos     |
+| POST   | `/api/produto`            | Criar produto       |
+| GET    | `/api/comanda`            | Listar comandas     |
+| POST   | `/api/comanda`            | Criar comanda       |
+| GET    | `/api/funcionario`        | Listar funcionários |
+| GET    | `/api/pedidos`            | Listar pedidos      |
+| POST   | `/api/pedidos`            | Criar pedido        |
+| GET    | `/api/mesa`               | Listar mesas        |
+| GET    | `/api/cliente`            | Listar clientes     |
+
+---
+
+## 🎓 Conceitos Demonstrados
+
+- Autenticação e Autorização (JWT)
+- CORS (Cross-Origin Resource Sharing)
+- REST API Design
+- Entity Framework ORM
+- React Hooks e Context API
+- Async/Await e Promises
+- Error Handling
+- Componentes Reutilizáveis
+
+---
+
+## 💡 Notas para Avaliadores
+
+O projeto foi desenvolvido com didática em mente:
+
+- ✅ Código bem estruturado e comentado
+- ✅ Sem abstrações excessivas
+- ✅ Boas práticas essenciais implementadas
+- ✅ Fácil para estudantes entenderem e mantiverem
+- ✅ Documentação clara e objetiva
+
+│ ├── src/components/ ← Componentes
+│ ├── src/pages/ ← Páginas
+│ ├── src/services/ ← Chamadas à API
+│ └── src/App.tsx
+│
+└── 📁 docs/ ← DOCUMENTAÇÃO (LEIA AQUI!)
+├── CONFIGURACAO.md ← Setup e endpoints
+└── ARQUITETURA.md ← Estrutura do código
+
+````
 
 ---
 
@@ -37,7 +212,7 @@ systemic-pim/
 ```bash
 cd PIM3.API
 dotnet run
-```
+````
 
 Quando aparecer: `API ESTÁ PRONTA PARA RECEBER REQUISIÇÕES!` ✅
 

@@ -77,8 +77,7 @@ public class AutenticacaoController : ControllerBase
         }
 
         // Verificamos a senha usando hash
-        var passwordService = new PasswordHashService();
-        if (!passwordService.VerifyPassword(loginDTO.Senha, funcionario.PasswordFuncionario))
+        if (!PasswordHashService.VerifyPassword(loginDTO.Senha, funcionario.PasswordFuncionario))
         {
             // Incrementar tentativas de login falhadas
             funcionario.LoginAttempts++;
@@ -107,7 +106,7 @@ public class AutenticacaoController : ControllerBase
         await _context.SaveChangesAsync();
 
         // Geramos o token JWT
-        var token = _jwtService.GenerateToken(funcionario.IdFuncionario, funcionario.NomeFuncionario);
+        var token = _jwtService.GenerateToken(funcionario.IdFuncionario, funcionario.NomeFuncionario, funcionario.CpfFuncionario ?? "");
 
         Console.WriteLine($"--> Login bem-sucedido para: {loginDTO.Email}");
         return Ok(new RespostaPadraoDTO

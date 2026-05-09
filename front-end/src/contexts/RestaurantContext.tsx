@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from "react";
 import { addAuditLog, AuditLog } from "@/lib/audit";
+import { getProdutos, getComandas, getFuncionarios } from "@/services/api";
 
 export interface Product {
   id: string;
@@ -124,6 +125,48 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+
+  // Carrega dados da API quando o componente é montado
+  useEffect(() => {
+    const loadDataFromAPI = async () => {
+      try {
+        // Tenta carregar produtos
+        const produtosData = await getProdutos();
+        if (produtosData && Array.isArray(produtosData)) {
+          setProducts(produtosData);
+          console.log("✅ Produtos carregados da API");
+        }
+      } catch (error) {
+        console.warn("⚠️ Não foi possível carregar produtos da API, usando dados padrão");
+      }
+
+      try {
+        // Tenta carregar comandas/pedidos
+        const comandasData = await getComandas();
+        if (comandasData && Array.isArray(comandasData)) {
+          setTabs(comandasData);
+          console.log("✅ Comandas carregadas da API");
+        }
+      } catch (error) {
+        console.warn("⚠️ Não foi possível carregar comandas da API");
+      }
+
+      try {
+        // Tenta carregar funcionários/empregados
+        const funcionariosData = await getFuncionarios();
+        if (funcionariosData && Array.isArray(funcionariosData)) {
+          setEmployees(funcionariosData);
+          console.log("✅ Funcionários carregados da API");
+        }
+      } catch (error) {
+        console.warn("⚠️ Não foi possível carregar funcionários da API");
+      }
+    };
+
+    // Aguarda um pouco para a API estar pronta
+    const timer = setTimeout(loadDataFromAPI, 1000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const log = useCallback((action: string, details: string, userId = "system") => {
     const entry = addAuditLog(action, details, userId);

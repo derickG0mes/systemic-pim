@@ -53,6 +53,25 @@ public class MesaController : ControllerBase
         if (mesa == null)
             return NotFound(new { message = "Mesa não encontrada" });
 
+        // Validação rigorosa
+        if (mesaAtualizada.NumeroMesa <= 0 || mesaAtualizada.CapacidadeMesa <= 0)
+            return BadRequest(new { message = "Número e capacidade da mesa devem ser maiores que 0" });
+
+        // Validar status permitidos
+        var statusPermitidos = new[] { "DISPONIVEL", "OCUPADA" };
+        if (!statusPermitidos.Contains(mesaAtualizada.StatusMesa))
+            return BadRequest(new { message = "Status inválido. Use: DISPONIVEL ou OCUPADA" });
+
+        // Impedir que mude status se houver comanda aberta
+        if (mesaAtualizada.StatusMesa != mesa.StatusMesa)
+        {
+            var temComandaAberta = _context.Comandas
+                .Any(c => c.IdMesa == id && c.StatusComanda == "ABERTA");
+
+            if (temComandaAberta && mesaAtualizada.StatusMesa == "DISPONIVEL")
+                return BadRequest(new { message = "Não é possível liberar a mesa enquanto houver comanda aberta" });
+        }
+
         mesa.NumeroMesa = mesaAtualizada.NumeroMesa;
         mesa.StatusMesa = mesaAtualizada.StatusMesa;
         mesa.CapacidadeMesa = mesaAtualizada.CapacidadeMesa;

@@ -108,7 +108,7 @@ public class PedidosController : ControllerBase
 
         // Validação: verificamos se a mesa já tem uma comanda aberta
         var comandaExistente = await _context.Comandas
-            .FirstOrDefaultAsync(c => c.IdMesa == novaComanda.IdMesa && c.Status == "ABERTA");
+            .FirstOrDefaultAsync(c => c.IdMesa == novaComanda.IdMesa && c.StatusComanda == "ABERTA");
 
         if (comandaExistente != null)
         {
@@ -122,9 +122,18 @@ public class PedidosController : ControllerBase
         }
 
         // Configuramos os valores padrão da comanda
-        novaComanda.DataAbertura = DateTime.UtcNow;
-        novaComanda.Status = "ABERTA";
-        novaComanda.Total = 0; // Será calculado quando itens forem adicionados
+        novaComanda.DataAberta = DateTime.UtcNow;
+        novaComanda.StatusComanda = "ABERTA";
+        novaComanda.ValorTotal = 0m;
+
+        // Alterar status da mesa para OCUPADA
+        var mesa = await _context.Mesas.FindAsync(novaComanda.IdMesa);
+        if (mesa != null)
+        {
+            mesa.StatusMesa = "OCUPADA";
+            _context.Mesas.Update(mesa);
+            Console.WriteLine($"--> Mesa {novaComanda.IdMesa} marcada como OCUPADA");
+        }
 
         // Adicionamos ao banco e salvamos
         _context.Comandas.Add(novaComanda);
@@ -150,7 +159,9 @@ public class PedidosController : ControllerBase
         Console.WriteLine($"--> Alguém tentou atualizar o status do pedido {id}");
 
         // Buscamos o pedido no banco
-        var pedido = await _context.Comandas.FindAsync(id);
+        var pedido = await _context.Comandas
+            .Include(c => c.Mesa)
+            .FirstOrDefaultAsync(c => c.IdComanda == id);
 
         if (pedido == null)
         {
@@ -163,10 +174,29 @@ public class PedidosController : ControllerBase
             });
         }
 
-        // Aqui atualizamos o status
         string novoStatus = statusDTO.status;
-        pedido.Status = novoStatus;
+        var statusPermitidos = new[] { "ABERTA", "FECHADA" };
 
+        if (!statusPermitidos.Contains(novoStatus))
+        {
+            return BadRequest(new RespostaPadraoDTO
+            {
+                Sucesso = false,
+                Mensagem = "Status inválido. Use: ABERTA ou FECHADA",
+                CodigoErro = "STATUS_INVALIDO"
+            });
+        }
+
+        // Se está fechando, liberar a mesa
+        if (novoStatus == "FECHADA" && pedido.Mesa != null)
+        {
+            pedido.Mesa.StatusMesa = "DISPONIVEL";
+            pedido.DataFechada = DateTime.UtcNow;
+            _context.Mesas.Update(pedido.Mesa);
+            Console.WriteLine($"--> Mesa {pedido.IdMesa} liberada");
+        }
+
+        pedido.StatusComanda = novoStatus;
         await _context.SaveChangesAsync();
 
         Console.WriteLine($"--> Status do pedido {id} atualizado para: {novoStatus}");
@@ -180,7 +210,7 @@ public class PedidosController : ControllerBase
     }
 
     /// <summary>
-    /// Deleta (fecha) um pedido
+    /// Deleta (fecha) um pedido e libera a mesa
     /// DELETE: api/pedidos/{id}
     /// </summary>
     [HttpDelete("{id}")]
@@ -189,7 +219,9 @@ public class PedidosController : ControllerBase
         Console.WriteLine($"--> Alguém tentou deletar o pedido {id}");
 
         // Aqui começamos a buscar o pedido para deletar
-        var pedido = await _context.Comandas.FindAsync(id);
+        var pedido = await _context.Comandas
+            .Include(c => c.Mesa)
+            .FirstOrDefaultAsync(c => c.IdComanda == id);
 
         if (pedido == null)
         {
@@ -202,6 +234,14 @@ public class PedidosController : ControllerBase
             });
         }
 
+        // Liberar a mesa
+        if (pedido.Mesa != null)
+        {
+            pedido.Mesa.StatusMesa = "DISPONIVEL";
+            _context.Mesas.Update(pedido.Mesa);
+            Console.WriteLine($"--> Mesa {pedido.IdMesa} liberada");
+        }
+
         // Removemos o pedido do banco
         _context.Comandas.Remove(pedido);
         await _context.SaveChangesAsync();
@@ -211,7 +251,7 @@ public class PedidosController : ControllerBase
         return Ok(new RespostaPadraoDTO
         {
             Sucesso = true,
-            Mensagem = "Pedido deletado com sucesso!",
+            Mensagem = "Pedido deletado e mesa liberada com sucesso!",
             Dados = new { id }
         });
     }
