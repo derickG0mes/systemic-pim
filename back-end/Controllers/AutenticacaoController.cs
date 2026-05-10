@@ -48,9 +48,9 @@ public class AutenticacaoController : ControllerBase
             });
         }
 
-        // Buscamos o funcionário no banco de dados
+        // Buscamos o funcionário no banco de dados PELO EMAIL
         var funcionario = await _context.Funcionarios
-            .FirstOrDefaultAsync(f => f.NomeFuncionario == loginDTO.Email);
+            .FirstOrDefaultAsync(f => f.EmailFuncionario == loginDTO.Email);
 
         // Se não encontrar, retorna erro amigável
         if (funcionario == null)

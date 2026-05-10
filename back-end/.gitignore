@@ -48,6 +48,9 @@ migrations/
 *.db-shm
 *.db-wal
 
+# Local environment files
+.env
+
 # Node.js (para front-end React)
 node_modules/
 dist/

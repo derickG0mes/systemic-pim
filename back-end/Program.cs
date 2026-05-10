@@ -3,8 +3,12 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using PIM3.API.Data;
+using PIM3.API.Helpers;
 using PIM3.API.Hubs;
 using PIM3.API.Services;
+
+// Carregar variáveis de ambiente do arquivo .env
+EnvLoader.Load();
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,9 +22,16 @@ Console.WriteLine("╚═══════════════════�
 // ═══════════════════════════════════════════════════════════════════════════════
 Console.WriteLine("📦 Configurando banco de dados...");
 
-// Aqui lemos a string de conexão do arquivo appsettings.json
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-Console.WriteLine($"   ✓ Connection String carregada: {(string.IsNullOrEmpty(connectionString) ? "❌ NÃO ENCONTRADA" : "✅ ENCONTRADA")}");
+// Ler variáveis de ambiente do arquivo .env
+var dbServer = Environment.GetEnvironmentVariable("DB_SERVER") ?? "localhost";
+var dbName = Environment.GetEnvironmentVariable("DB_NAME") ?? "DB_RESTAURANTE";
+var dbUser = Environment.GetEnvironmentVariable("DB_USER") ?? "sa";
+var dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD") ?? "";
+
+// Construir connection string dinamicamente
+var connectionString = $"Server={dbServer};Database={dbName};User Id={dbUser};Password={dbPassword};TrustServerCertificate=True;";
+Console.WriteLine($"   ✓ Connection String: Server={dbServer}, Database={dbName}");
+Console.WriteLine($"   ✓ User: {dbUser}");
 
 // Adicionamos o DbContext para acesso ao SQL Server
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -33,8 +44,12 @@ Console.WriteLine("   ✓ DbContext configurado\n");
 // ═══════════════════════════════════════════════════════════════════════════════
 Console.WriteLine("🔐 Configurando autenticação JWT...");
 
-var jwtSettings = builder.Configuration.GetSection("Jwt");
-var secretKey = jwtSettings["SecretKey"] ?? "sua_chave_secreta_muito_segura_aqui_12345";
+// Ler variáveis de ambiente do arquivo .env
+var jwtSecretKey = Environment.GetEnvironmentVariable("JWT_SECRET_KEY") ?? "sua_chave_secreta_muito_segura_com_minimo_32_caracteres_12345";
+var jwtExpirationMinutes = int.TryParse(Environment.GetEnvironmentVariable("JWT_EXPIRATION_MINUTES"), out var exp) ? exp : 480;
+
+Console.WriteLine($"   ✓ JWT Secret Key carregada");
+Console.WriteLine($"   ✓ Expiração: {jwtExpirationMinutes} minutos");
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -42,7 +57,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecretKey)),
             ValidateIssuer = true,
             ValidIssuer = "PIM3.API",
             ValidateAudience = true,

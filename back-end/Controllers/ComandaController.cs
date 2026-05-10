@@ -61,6 +61,11 @@ public class ComandaController : ControllerBase
         if (mesa == null)
             return BadRequest(new { message = "Mesa não encontrada" });
 
+        // Verificar se cliente existe
+        var cliente = _context.Clientes.FirstOrDefault(c => c.IdCliente == comanda.IdCliente);
+        if (cliente == null)
+            return BadRequest(new { message = "Cliente não encontrado" });
+
         // Verificar se já existe comanda aberta para esta mesa
         var comandaAberta = _context.Comandas
             .FirstOrDefault(c => c.IdMesa == comanda.IdMesa && c.StatusComanda == "ABERTA");
@@ -106,8 +111,20 @@ public class ComandaController : ControllerBase
         if (produto == null)
             return NotFound(new { message = "Produto não encontrado" });
 
+        // Validar estoque
+        if (produto.QtdEstoque < item.QtdProduto)
+            return BadRequest(new { message = $"Estoque insuficiente. Disponível: {produto.QtdEstoque}" });
+
+        // Se não foi passado preço, usa o preço do produto
+        if (item.PrecoUnitarioPago == 0)
+            item.PrecoUnitarioPago = produto.PrecoProduto;
+
         item.IdComanda = id;
         _context.ItensComanda.Add(item);
+
+        // Diminuir estoque
+        produto.QtdEstoque -= item.QtdProduto;
+        _context.Produtos.Update(produto);
 
         // Recalcular total da comanda
         comanda.RecalcularTotal();
@@ -164,6 +181,14 @@ public class ComandaController : ControllerBase
         var item = comanda.ItensComanda.FirstOrDefault(i => i.IdItemComanda == itemId);
         if (item == null)
             return NotFound(new { message = "Item não encontrado nesta comanda" });
+
+        // Restaurar estoque do produto
+        var produto = _context.Produtos.FirstOrDefault(p => p.IdProduto == item.IdProduto);
+        if (produto != null)
+        {
+            produto.QtdEstoque += item.QtdProduto;
+            _context.Produtos.Update(produto);
+        }
 
         _context.ItensComanda.Remove(item);
 

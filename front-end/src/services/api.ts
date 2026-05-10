@@ -1,5 +1,5 @@
 // URL base da API do backend
-const API_URL = "http://localhost:5130/api";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5130/api";
 
 // Função auxiliar para fazer requisições com o token JWT
 async function apiCall(endpoint: string, options: RequestInit = {}) {

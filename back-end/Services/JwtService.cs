@@ -12,8 +12,14 @@ public class JwtService
 
     public JwtService(IConfiguration configuration)
     {
-        _secretKey = configuration["Jwt:SecretKey"] ?? "sua_chave_secreta_muito_segura_aqui_12345";
-        _expirationMinutes = int.Parse(configuration["Jwt:ExpirationMinutes"] ?? "480");
+        // Ler do arquivo .env (variáveis de ambiente)
+        _secretKey = Environment.GetEnvironmentVariable("JWT_SECRET_KEY") 
+            ?? configuration["Jwt:SecretKey"] 
+            ?? "sua_chave_secreta_muito_segura_com_minimo_32_caracteres_12345";
+            
+        var expStr = Environment.GetEnvironmentVariable("JWT_EXPIRATION_MINUTES") 
+            ?? configuration["Jwt:ExpirationMinutes"];
+        _expirationMinutes = int.TryParse(expStr, out var exp) ? exp : 480;
     }
 
     public string GenerateToken(int idFuncionario, string nomeFuncionario, string cpf)
