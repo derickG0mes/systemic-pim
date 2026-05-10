@@ -434,8 +434,11 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
       createPedido({
         idMesa: o.tableNumber,
         idCliente: 1, // TODO: pegar do contexto autenticado
-        ...o,
-        total: newO.total, // ✅ Enviar total corrigido para API
+        itens: o.items.map((item) => ({
+          idProduto: parseInt(item.productId.replace(/\D/g, ""), 10) || 0,
+          qtdProduto: item.quantity,
+          precoUnitarioPago: item.price,
+        })),
       }).catch((error) => {
         console.error("Erro ao criar pedido na API:", error);
       });
