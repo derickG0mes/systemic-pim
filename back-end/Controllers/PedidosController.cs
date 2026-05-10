@@ -200,7 +200,12 @@ public class PedidosController : ControllerBase
 
         // ✅ Recalcular total da comanda
         novaComanda.RecalcularTotal();
-        Console.WriteLine($"--> Total da comanda: R$ {novaComanda.ValorTotal}");
+        Console.WriteLine($"--> Total da comanda ANTES de salvar: R$ {novaComanda.ValorTotal}");
+        Console.WriteLine($"--> Items na comanda: {novaComanda.ItensComanda.Count}");
+        foreach (var item in novaComanda.ItensComanda)
+        {
+            Console.WriteLine($"    • {item.IdProduto} - Qty: {item.QtdProduto}, Preço: R$ {item.PrecoUnitarioPago}");
+        }
 
         // Alterar status da mesa para OCUPADA
         mesa.StatusMesa = "OCUPADA";

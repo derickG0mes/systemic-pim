@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useRestaurant, OrderStatus } from "@/contexts/RestaurantContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,18 +17,18 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Clock, AlertTriangle, Plus, ChefHat, MapPin } from "lucide-react";
+import { Clock, AlertTriangle, Plus, ChefHat, MapPin, Minus, Trash2 } from "lucide-react";
 
 export default function OrdersPage() {
-  const { orders, products, addOrder, updateOrderStatus, tabs } =
+  const { orders, products, addOrder, editOrder, updateOrderStatus, tabs } =
     useRestaurant();
   const { user } = useAuth();
   const [, setTick] = useState(0);
   const [newOrderOpen, setNewOrderOpen] = useState(false);
   const [selectedTable, setSelectedTable] = useState("");
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [cart, setCart] = useState<
     {
       productId: string;
@@ -37,6 +38,7 @@ export default function OrdersPage() {
     }[]
   >([]);
   const [filter, setFilter] = useState<"all" | OrderStatus>("all");
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // ✅ Mesas com comandas abertas
   const availableTables = useMemo(() => {
@@ -50,6 +52,23 @@ export default function OrdersPage() {
     const interval = setInterval(() => setTick((t) => t + 1), 5000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    const newOrderTable = searchParams.get("newOrder");
+    if (newOrderTable && availableTables.includes(Number(newOrderTable))) {
+      setSelectedTable(newOrderTable);
+      setNewOrderOpen(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [availableTables, searchParams, setSearchParams]);
+
+  const selectedPreparingOrder = selectedTable
+    ? orders.find(
+        (o) =>
+          o.tableNumber === Number(selectedTable) &&
+          o.status === "preparing",
+      )
+    : undefined;
 
   const getElapsedMinutes = (date: Date) =>
     Math.floor((Date.now() - new Date(date).getTime()) / 60000);
@@ -90,6 +109,35 @@ export default function OrdersPage() {
     });
   };
 
+  const openCreateOrder = () => {
+    setEditingOrderId(null);
+    setCart([]);
+    setNewOrderOpen(true);
+  };
+
+  const openEditOrder = () => {
+    if (!selectedPreparingOrder) return;
+    setEditingOrderId(selectedPreparingOrder.id);
+    setCart(selectedPreparingOrder.items);
+    setNewOrderOpen(true);
+  };
+
+  const decrementCartItem = (productId: string) => {
+    setCart((prev) =>
+      prev
+        .map((item) =>
+          item.productId === productId
+            ? { ...item, quantity: Math.max(1, item.quantity - 1) }
+            : item,
+        )
+        .filter((item) => item.quantity > 0),
+    );
+  };
+
+  const removeFromCart = (productId: string) => {
+    setCart((prev) => prev.filter((item) => item.productId !== productId));
+  };
+
   const submitOrder = () => {
     // ✅ Validações robustas
     if (!selectedTable) {
@@ -127,17 +175,22 @@ export default function OrdersPage() {
       return;
     }
 
-    addOrder({
-      tableNumber: tableNum,
-      items: cart,
-      status: "preparing",
-      createdBy: user?.name || "Sistema",
-      total, // ✅ Garantir que total é sempre passado
-    });
+    if (editingOrderId) {
+      editOrder(editingOrderId, cart);
+    } else {
+      addOrder({
+        tableNumber: tableNum,
+        items: cart,
+        status: "preparing",
+        createdBy: user?.name || "Sistema",
+        total, // ✅ Garantir que total é sempre passado
+      });
+    }
 
     // Reset do formulário
     setCart([]);
     setSelectedTable("");
+    setEditingOrderId(null);
     setNewOrderOpen(false);
   };
 
@@ -151,7 +204,7 @@ export default function OrdersPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl font-bold">Pedidos</h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Select value={filter} onValueChange={(v: any) => setFilter(v)}>
             <SelectTrigger className="w-40">
               <SelectValue />
@@ -163,16 +216,27 @@ export default function OrdersPage() {
               <SelectItem value="completed">Concluídos</SelectItem>
             </SelectContent>
           </Select>
+          <Button
+            onClick={openCreateOrder}
+            disabled={availableTables.length === 0}
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Criar Novo Pedido
+          </Button>
+          {selectedPreparingOrder && (
+            <Button
+              variant="outline"
+              onClick={openEditOrder}
+            >
+              Editar Comanda
+            </Button>
+          )}
           <Dialog open={newOrderOpen} onOpenChange={setNewOrderOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-1" />
-                Novo Pedido
-              </Button>
-            </DialogTrigger>
             <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Novo Pedido</DialogTitle>
+                <DialogTitle>
+                  {editingOrderId ? "Editar Comanda" : "Novo Pedido"}
+                </DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
                 {/* ✅ Seletor visual de mesas com comanda aberta */}
@@ -252,19 +316,47 @@ export default function OrdersPage() {
                       {cart.map((item, idx) => (
                         <div
                           key={idx}
-                          className="flex justify-between items-center p-2 bg-muted rounded-md"
+                          className="flex flex-col gap-2 p-2 bg-muted rounded-md"
                         >
-                          <div>
-                            <p className="text-sm font-medium">
-                              {item.productName}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {item.quantity}x R$ {item.price.toFixed(2)}
+                          <div className="flex justify-between items-start gap-4">
+                            <div>
+                              <p className="text-sm font-medium">
+                                {item.productName}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                R$ {item.price.toFixed(2)} cada
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              className="text-destructive"
+                              onClick={() => removeFromCart(item.productId)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => decrementCartItem(item.productId)}
+                              >
+                                <Minus className="h-4 w-4" />
+                              </Button>
+                              <span className="font-semibold">{item.quantity}</span>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => addToCart(item.productId)}
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            <p className="font-semibold">
+                              R$ {(item.quantity * item.price).toFixed(2)}
                             </p>
                           </div>
-                          <p className="font-semibold">
-                            R$ {(item.quantity * item.price).toFixed(2)}
-                          </p>
                         </div>
                       ))}
                     </div>

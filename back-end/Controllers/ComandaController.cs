@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
+using PIM3.API.DTOs;
 using PIM3.API.Models;
 
 namespace PIM3.API.Controllers;
@@ -45,6 +46,49 @@ public class ComandaController : ControllerBase
             return NotFound(new { message = "Comanda não encontrada" });
 
         return Ok(comanda);
+    }
+
+    /// <summary>
+    /// Lista apenas as comandas abertas (ativas)
+    /// Endpoint específico para o frontend atualizar a UI
+    /// </summary>
+    [HttpGet("abertas/todas")]
+    [AllowAnonymous] // ✅ Permitir acesso sem autenticação para sincronização
+    public IActionResult GetAbertasComTotais()
+    {
+        Console.WriteLine("--> Listando todas as comandas abertas com totais...");
+
+        try
+        {
+            var comandasAbertas = _context.Comandas
+                .Where(c => c.StatusComanda == "ABERTA")
+                .Include(c => c.ItensComanda)
+                .Select(c => new {
+                    c.IdComanda,
+                    c.DataAberta,
+                    c.IdMesa,
+                    c.IdCliente,
+                    c.StatusComanda,
+                    ValorTotal = c.ItensComanda.Sum(i => i.QtdProduto * i.PrecoUnitarioPago)
+                })
+                .ToList();
+
+            Console.WriteLine($"--> Total de comandas abertas: {comandasAbertas.Count}");
+
+            foreach (var cmd in comandasAbertas)
+            {
+                Console.WriteLine($"--> Comanda {cmd.IdComanda} (Mesa {cmd.IdMesa}): R$ {cmd.ValorTotal}");
+            }
+
+            // ✅ Retornar dados com total calculado dinamicamente
+            return Ok(comandasAbertas);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"--> ERRO: {ex.Message}");
+            Console.WriteLine($"--> StackTrace: {ex.StackTrace}");
+            return StatusCode(500, new { error = ex.Message });
+        }
     }
 
     /// <summary>

@@ -9,6 +9,7 @@ import React, {
 import { addAuditLog, AuditLog } from "@/lib/audit";
 import {
   createPedido,
+  updatePedido,
   updatePedidoStatus,
   deletePedido,
   getMesas,
@@ -91,6 +92,7 @@ interface RestaurantContextType {
   addProduct: (p: Omit<Product, "id">) => void;
   updateProduct: (id: string, p: Partial<Product>) => void;
   addOrder: (o: Omit<Order, "id" | "createdAt" | "updatedAt">) => void;
+  editOrder: (id: string, items: OrderItem[]) => void;
   updateOrderStatus: (id: string, status: OrderStatus) => void;
   openTab: (tableNumber: number) => void;
   closeTab: (id: string, paymentMethod: PaymentMethod) => void;
@@ -342,6 +344,68 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
+  // ✅ Função para sincronizar comandas com o banco
+  const syncComandas = useCallback(async () => {
+    try {
+      const comandasData = await getComandas();
+      console.log("🔍 DEBUG: Dados brutos recebidos do backend:", comandasData);
+
+      if (!comandasData) {
+        console.warn("⚠️ Resposta nula do backend");
+        return;
+      }
+
+      // Determinar se é um array ou um objeto com array dentro
+      let comandasArray: any[] = Array.isArray(comandasData)
+        ? comandasData
+        : Array.isArray(comandasData?.data)
+          ? comandasData.data
+          : [];
+
+      console.log(`🔍 DEBUG: Processando ${comandasArray.length} comandas`);
+
+      if (comandasArray.length === 0) {
+        console.warn("⚠️ Nenhuma comanda retornada");
+        setTabs([]); // Limpar tabs se não houver dados
+        return;
+      }
+
+      // ✅ Mapear estrutura do backend (agora em camelCase) para o formato do frontend
+      const tabsFormatted: Tab[] = comandasArray.map((comanda: any) => {
+        console.log(
+          "🔍 DEBUG: Comanda bruta completa:",
+          JSON.stringify(comanda),
+        );
+
+        const tabFormatted: Tab = {
+          id: String(comanda.idComanda),
+          tableNumber: Number(comanda.idMesa),
+          orders: [],
+          status: comanda.statusComanda?.toLowerCase() === "aberta" ? "open" : "closed",
+          total: Number(comanda.valorTotal || 0),
+          openedAt: new Date(comanda.dataAberta),
+          closedAt: comanda.dataFechada ? new Date(comanda.dataFechada) : undefined,
+        };
+
+        console.log(
+          `✅ DEBUG: Tab mapeada - ID: ${tabFormatted.id}, Mesa: ${tabFormatted.tableNumber}, Status: ${tabFormatted.status}, Total: R$ ${tabFormatted.total.toFixed(
+            2,
+          )}`,
+        );
+        return tabFormatted;
+      });
+
+      console.log("✅ Todos os tabs formatados:", tabsFormatted);
+      setTabs(tabsFormatted);
+      console.log(
+        "✅ Comandas sincronizadas da API com totais atualizados:",
+        tabsFormatted,
+      );
+    } catch (error) {
+      console.error("❌ Erro ao sincronizar comandas da API:", error);
+    }
+  }, []);
+
   // Carrega dados da API quando o componente é montado
   useEffect(() => {
     const loadDataFromAPI = async () => {
@@ -360,11 +424,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
 
       try {
         // Tenta carregar comandas/pedidos
-        const comandasData = await getComandas();
-        if (comandasData && Array.isArray(comandasData)) {
-          setTabs(comandasData);
-          console.log("✅ Comandas carregadas da API");
-        }
+        await syncComandas();
       } catch (error) {
         console.warn("⚠️ Não foi possível carregar comandas da API");
       }
@@ -384,7 +444,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     // Aguarda um pouco para a API estar pronta
     const timer = setTimeout(loadDataFromAPI, 1000);
     return () => clearTimeout(timer);
-  }, []);
+  }, [syncComandas]);
 
   const log = useCallback(
     (action: string, details: string, userId = "system") => {
@@ -414,7 +474,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   );
 
   const addOrder = useCallback(
-    (o: Omit<Order, "id" | "createdAt" | "updatedAt">) => {
+    async (o: Omit<Order, "id" | "createdAt" | "updatedAt">) => {
       const now = new Date();
 
       // ✅ Garantir que total é sempre calculado e válido
@@ -430,26 +490,112 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         updatedAt: now,
       };
 
-      // Sincronizar com API (fire and forget com tratamento de erro)
-      createPedido({
+      console.log(
+        "🛒 [ADDORDER] Iniciando criação de pedido para mesa",
+        o.tableNumber,
+      );
+      console.log("🛒 [ADDORDER] Payload enviado:", {
         idMesa: o.tableNumber,
-        idCliente: 1, // TODO: pegar do contexto autenticado
+        idCliente: 1,
         itens: o.items.map((item) => ({
           idProduto: parseInt(item.productId.replace(/\D/g, ""), 10) || 0,
           qtdProduto: item.quantity,
           precoUnitarioPago: item.price,
         })),
-      }).catch((error) => {
-        console.error("Erro ao criar pedido na API:", error);
       });
 
+      try {
+        // ✅ Sincronizar com API e aguardar sucesso
+        const pedidoResponse = await createPedido({
+          idMesa: o.tableNumber,
+          idCliente: 1, // TODO: pegar do contexto autenticado
+          itens: o.items.map((item) => ({
+            idProduto: parseInt(item.productId.replace(/\D/g, ""), 10) || 0,
+            qtdProduto: item.quantity,
+            precoUnitarioPago: item.price,
+          })),
+        });
+
+        console.log(
+          "✅ [ADDORDER] Pedido criado com sucesso no backend:",
+          pedidoResponse,
+        );
+
+        // ✅ Se sucesso, sincronizar as comandas do banco
+        console.log(
+          "📡 [ADDORDER] Sincronizando comandas após criar pedido...",
+        );
+        await syncComandas();
+        console.log("✅ [ADDORDER] Comandas sincronizadas com sucesso");
+      } catch (error) {
+        console.error("❌ [ADDORDER] Erro ao criar pedido na API:", error);
+      }
+
       setOrders((prev) => [...prev, newO]);
+      setTabs((prev) =>
+        prev.map((tab) =>
+          tab.tableNumber === o.tableNumber
+            ? {
+                ...tab,
+                orders: [...tab.orders, newO.id],
+                total: tab.total + newO.total,
+              }
+            : tab,
+        ),
+      );
       log(
         "CREATE_ORDER",
         `Pedido criado para mesa ${o.tableNumber} - Total: R$ ${newO.total.toFixed(2)}`,
       );
     },
-    [log],
+    [log, syncComandas],
+  );
+
+  const editOrder = useCallback(
+    async (id: string, items: OrderItem[]) => {
+      const order = orders.find((o) => o.id === id);
+      if (!order) return;
+
+      const oldTotal = order.total;
+      const newTotal = items.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0,
+      );
+
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === id
+            ? { ...o, items, total: newTotal, updatedAt: new Date() }
+            : o,
+        ),
+      );
+
+      setTabs((prev) =>
+        prev.map((tab) =>
+          tab.tableNumber === order.tableNumber
+            ? { ...tab, total: tab.total - oldTotal + newTotal }
+            : tab,
+        ),
+      );
+
+      try {
+        await updatePedido(id, {
+          itens: items.map((item) => ({
+            idProduto: parseInt(item.productId.replace(/\D/g, ""), 10) || 0,
+            qtdProduto: item.quantity,
+            precoUnitarioPago: item.price,
+          })),
+        });
+      } catch (error) {
+        console.error("Erro ao editar pedido na API:", error);
+      }
+
+      log(
+        "EDIT_ORDER",
+        `Pedido ${id} editado - Total atualizado para R$ ${newTotal.toFixed(2)}`,
+      );
+    },
+    [log, orders],
   );
 
   const updateOrderStatus = useCallback(
@@ -650,6 +796,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         addProduct,
         updateProduct,
         addOrder,
+        editOrder,
         updateOrderStatus,
         openTab,
         closeTab,

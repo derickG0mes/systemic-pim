@@ -1,5 +1,5 @@
 // URL base da API do backend
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5130/api";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 // Função auxiliar para fazer requisições com o token JWT
 async function apiCall(endpoint: string, options: RequestInit = {}) {
@@ -128,10 +128,13 @@ export async function getPedidoById(id: string) {
 }
 
 export async function createPedido(data: any) {
-  return apiCall("/pedidos", {
+  console.log("📡 [API] POST /pedidos - Enviando:", data);
+  const response = await apiCall("/pedidos", {
     method: "POST",
     body: JSON.stringify(data),
   });
+  console.log("📡 [API] POST /pedidos - Resposta:", response);
+  return response;
 }
 
 export async function updatePedido(id: string, data: any) {
@@ -204,7 +207,26 @@ export async function createCliente(data: any) {
 // ============================================
 
 export async function getComandas() {
-  return apiCall("/comanda");
+  try {
+    // Tentar o novo endpoint primeiro (apenas abertas)
+    console.log("📡 [API] Tentando GET /comanda/abertas/todas");
+    const response = await apiCall("/comanda/abertas/todas");
+    console.log("📡 [API] GET /comanda/abertas/todas - Resposta:", response);
+    return response;
+  } catch (error) {
+    // Se falhar, tentar o endpoint padrão
+    console.warn("⚠️ Erro ao chamar /comanda/abertas/todas, tentando /comanda...", error);
+    try {
+      const response = await apiCall("/comanda");
+      console.log("📡 [API] GET /comanda - Resposta fallback:", response);
+      return response;
+    } catch (fallbackError) {
+      console.error("❌ Ambos os endpoints falharam", fallbackError);
+      // Retornar array vazio como último recurso
+      console.warn("⚠️ Retornando array vazio como fallback");
+      return [];
+    }
+  }
 }
 
 export async function getComandasByTable(tableNumber: number) {

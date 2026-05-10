@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useRestaurant, PaymentMethod } from "@/contexts/RestaurantContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ export default function TabsPage() {
   const { tabs, orders, openTab, closeTab, markTabUnpaid } = useRestaurant();
   const [closingTab, setClosingTab] = useState<string | null>(null);
   const [payMethod, setPayMethod] = useState<PaymentMethod>("pix");
+  const navigate = useNavigate();
 
   const getTabForTable = (table: number) => tabs.find(t => t.tableNumber === table && t.status === "open");
 
@@ -46,14 +48,31 @@ export default function TabsPage() {
                   <>
                     <Badge className="status-in-progress">Aberta</Badge>
                     <p className="text-sm font-semibold">R$ {tab.total.toFixed(2)}</p>
-                    <div className="flex gap-1">
-                      <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={() => setClosingTab(tab.id)}>Fechar</Button>
-                      <Button size="sm" variant="ghost" className="text-xs" onClick={() => markTabUnpaid(tab.id)}>Não Pago</Button>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={() => setClosingTab(tab.id)}>
+                          Fechar
+                        </Button>
+                        <Button size="sm" variant="ghost" className="text-xs" onClick={() => markTabUnpaid(tab.id)}>
+                          Não Pago
+                        </Button>
+                      </div>
+                      <Button size="sm" className="w-full text-xs" onClick={() => navigate(`/orders?newOrder=${tab.tableNumber}`)}>
+                        Criar Pedido
+                      </Button>
                     </div>
                   </>
                 ) : (
-                  <Button size="sm" variant="outline" onClick={() => openTab(table)} className="w-full">
-                    <Plus className="h-3 w-3 mr-1" />Abrir
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      openTab(table);
+                      navigate(`/orders?newOrder=${table}`);
+                    }}
+                    className="w-full"
+                  >
+                    <Plus className="h-3 w-3 mr-1" />Abrir e Criar Pedido
                   </Button>
                 )}
               </CardContent>

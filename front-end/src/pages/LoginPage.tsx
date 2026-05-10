@@ -12,12 +12,13 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
-    setTimeout(() => {
-      const result = login(email, password);
+
+    setTimeout(async () => {
+      const result = await login(email, password);
       if (!result.success) setError(result.message);
       setLoading(false);
     }, 500);

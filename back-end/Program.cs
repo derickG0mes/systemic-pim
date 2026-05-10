@@ -108,7 +108,8 @@ builder.Services.AddCors(options =>
             "http://localhost:5173",  // URL padrão do Vite (desenvolvimento)
             "http://localhost:3000",  // URL alternativa (se grupo usar outra porta)
             "http://localhost:5174",  // Fallback Vite
-            "http://localhost:8080"   // Porta do Frontend React (conforme vite.config.ts)
+            "http://localhost:8080",  // Porta do Frontend React (conforme vite.config.ts)
+            "http://localhost:8081"   // Porta atual do Vite
         )
         .AllowAnyMethod()           // Permite GET, POST, PUT, DELETE, etc
         .AllowAnyHeader()           // Permite qualquer header (Content-Type, Authorization, etc)

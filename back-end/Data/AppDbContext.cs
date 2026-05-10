@@ -47,8 +47,66 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Comanda>()
             .HasKey(c => c.IdComanda);
 
+        modelBuilder.Entity<Comanda>()
+            .ToTable("COMANDA"); // ✅ Nome correto da tabela no banco
+
+        // Configurar nomes das colunas da tabela COMANDA
+        modelBuilder.Entity<Comanda>()
+            .Property(c => c.IdComanda)
+            .HasColumnName("ID_COMANDA");
+
+        modelBuilder.Entity<Comanda>()
+            .Property(c => c.DataAberta)
+            .HasColumnName("DATA_ABERTA");
+
+        modelBuilder.Entity<Comanda>()
+            .Property(c => c.DataFechada)
+            .HasColumnName("DATA_FECHADA");
+
+        modelBuilder.Entity<Comanda>()
+            .Property(c => c.StatusComanda)
+            .HasColumnName("STATUS_COMANDA");
+
+        modelBuilder.Entity<Comanda>()
+            .Property(c => c.IdMesa)
+            .HasColumnName("ID_MESA");
+
+        modelBuilder.Entity<Comanda>()
+            .Property(c => c.IdCliente)
+            .HasColumnName("ID_CLIENTE");
+
+        modelBuilder.Entity<Comanda>()
+            .Property(c => c.ValorTotal)
+            .HasColumnName("VALOR_TOTAL")
+            .HasColumnType("decimal(18,2)"); // ✅ Configurar precisão decimal
+
         modelBuilder.Entity<ItemComanda>()
             .HasKey(ic => ic.IdItemComanda);
+
+        modelBuilder.Entity<ItemComanda>()
+            .ToTable("ITEM_COMANDA"); // ✅ Nome correto da tabela no banco
+
+        // Configurar nomes das colunas da tabela ITEM_COMANDA
+        modelBuilder.Entity<ItemComanda>()
+            .Property(ic => ic.IdItemComanda)
+            .HasColumnName("ID_ITEM_COMANDA");
+
+        modelBuilder.Entity<ItemComanda>()
+            .Property(ic => ic.IdComanda)
+            .HasColumnName("ID_COMANDA");
+
+        modelBuilder.Entity<ItemComanda>()
+            .Property(ic => ic.IdProduto)
+            .HasColumnName("ID_PRODUTO");
+
+        modelBuilder.Entity<ItemComanda>()
+            .Property(ic => ic.QtdProduto)
+            .HasColumnName("QTD_PRODUTO");
+
+        modelBuilder.Entity<ItemComanda>()
+            .Property(ic => ic.PrecoUnitarioPago)
+            .HasColumnName("PRECO_UNITARIO_PAGO")
+            .HasColumnType("decimal(18,2)"); // ✅ Configurar precisão decimal
 
         modelBuilder.Entity<DetalhePagamento>()
             .HasKey(dp => dp.IdDetalhePagamento);
