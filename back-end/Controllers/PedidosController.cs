@@ -83,21 +83,19 @@ public class PedidosController : ControllerBase
     }
 
     /// <summary>
-    /// Cria um novo pedido
+    /// Cria um novo pedido COM ITENS
     /// POST: api/pedidos
     /// </summary>
     [HttpPost]
-    public async Task<IActionResult> CriarPedido([FromBody] Comanda novaComanda)
+    public async Task<IActionResult> CriarPedido([FromBody] CriarPedidoDTO pedidoDTO)
     {
-        Console.WriteLine($"--> Uma nova comanda está sendo criada para a mesa: {novaComanda.IdMesa}");
+        Console.WriteLine($"--> Criando pedido para mesa: {pedidoDTO.IdMesa} com {pedidoDTO.Itens.Count} itens");
 
         // Validação: verificamos se a mesa existe
-        var mesaExiste = await _context.Mesas
-            .AnyAsync(m => m.IdMesa == novaComanda.IdMesa);
-
-        if (!mesaExiste)
+        var mesa = await _context.Mesas.FindAsync(pedidoDTO.IdMesa);
+        if (mesa == null)
         {
-            Console.WriteLine($"--> Mesa não encontrada: {novaComanda.IdMesa}");
+            Console.WriteLine($"--> Mesa não encontrada: {pedidoDTO.IdMesa}");
             return BadRequest(new RespostaPadraoDTO
             {
                 Sucesso = false,
@@ -108,11 +106,11 @@ public class PedidosController : ControllerBase
 
         // Validação: verificamos se a mesa já tem uma comanda aberta
         var comandaExistente = await _context.Comandas
-            .FirstOrDefaultAsync(c => c.IdMesa == novaComanda.IdMesa && c.StatusComanda == "ABERTA");
+            .FirstOrDefaultAsync(c => c.IdMesa == pedidoDTO.IdMesa && c.StatusComanda == "ABERTA");
 
         if (comandaExistente != null)
         {
-            Console.WriteLine($"--> Comanda já aberta para mesa: {novaComanda.IdMesa}");
+            Console.WriteLine($"--> Comanda já aberta para mesa: {pedidoDTO.IdMesa}");
             return BadRequest(new RespostaPadraoDTO
             {
                 Sucesso = false,
@@ -121,25 +119,98 @@ public class PedidosController : ControllerBase
             });
         }
 
-        // Configuramos os valores padrão da comanda
-        novaComanda.DataAberta = DateTime.UtcNow;
-        novaComanda.StatusComanda = "ABERTA";
-        novaComanda.ValorTotal = 0m;
-
-        // Alterar status da mesa para OCUPADA
-        var mesa = await _context.Mesas.FindAsync(novaComanda.IdMesa);
-        if (mesa != null)
+        // Validação: verificamos se o cliente existe
+        var cliente = await _context.Clientes.FindAsync(pedidoDTO.IdCliente);
+        if (cliente == null)
         {
-            mesa.StatusMesa = "OCUPADA";
-            _context.Mesas.Update(mesa);
-            Console.WriteLine($"--> Mesa {novaComanda.IdMesa} marcada como OCUPADA");
+            Console.WriteLine($"--> Cliente não encontrado: {pedidoDTO.IdCliente}");
+            return BadRequest(new RespostaPadraoDTO
+            {
+                Sucesso = false,
+                Mensagem = "Ops! Esse cliente não existe no sistema.",
+                CodigoErro = "CLIENTE_INVALIDO"
+            });
         }
 
-        // Adicionamos ao banco e salvamos
+        // Criar a comanda
+        var novaComanda = new Comanda
+        {
+            IdMesa = pedidoDTO.IdMesa,
+            IdCliente = pedidoDTO.IdCliente,
+            DataAberta = DateTime.UtcNow,
+            StatusComanda = "ABERTA",
+            ValorTotal = 0m,
+            ItensComanda = new List<ItemComanda>()
+        };
+
+        // ✅ Processar cada item do pedido
+        foreach (var itemDTO in pedidoDTO.Itens)
+        {
+            if (itemDTO.QtdProduto <= 0)
+            {
+                return BadRequest(new RespostaPadraoDTO
+                {
+                    Sucesso = false,
+                    Mensagem = $"Quantidade deve ser maior que 0 para o produto {itemDTO.IdProduto}",
+                    CodigoErro = "QUANTIDADE_INVALIDA"
+                });
+            }
+
+            var produto = await _context.Produtos.FindAsync(itemDTO.IdProduto);
+            if (produto == null)
+            {
+                return BadRequest(new RespostaPadraoDTO
+                {
+                    Sucesso = false,
+                    Mensagem = $"Produto não encontrado: {itemDTO.IdProduto}",
+                    CodigoErro = "PRODUTO_NAO_ENCONTRADO"
+                });
+            }
+
+            // Validar estoque
+            if (produto.QtdEstoque < itemDTO.QtdProduto)
+            {
+                return BadRequest(new RespostaPadraoDTO
+                {
+                    Sucesso = false,
+                    Mensagem = $"Estoque insuficiente para {produto.NomeProduto}. Disponível: {produto.QtdEstoque}",
+                    CodigoErro = "ESTOQUE_INSUFICIENTE"
+                });
+            }
+
+            // Usar preço passado ou padrão do produto
+            var precoFinal = itemDTO.PrecoUnitarioPago > 0 ? itemDTO.PrecoUnitarioPago : produto.PrecoProduto;
+
+            // Adicionar item à comanda
+            var item = new ItemComanda
+            {
+                IdProduto = itemDTO.IdProduto,
+                QtdProduto = itemDTO.QtdProduto,
+                PrecoUnitarioPago = precoFinal
+            };
+
+            novaComanda.ItensComanda.Add(item);
+
+            // Diminuir estoque do produto
+            produto.QtdEstoque -= itemDTO.QtdProduto;
+            _context.Produtos.Update(produto);
+
+            Console.WriteLine($"--> Item adicionado: {produto.NomeProduto} x{itemDTO.QtdProduto} @ R$ {precoFinal}");
+        }
+
+        // ✅ Recalcular total da comanda
+        novaComanda.RecalcularTotal();
+        Console.WriteLine($"--> Total da comanda: R$ {novaComanda.ValorTotal}");
+
+        // Alterar status da mesa para OCUPADA
+        mesa.StatusMesa = "OCUPADA";
+        _context.Mesas.Update(mesa);
+
+        // Adicionar comanda ao banco
         _context.Comandas.Add(novaComanda);
         await _context.SaveChangesAsync();
 
-        Console.WriteLine($"--> Comanda criada com sucesso. ID: {novaComanda.IdComanda}");
+        Console.WriteLine($"--> Pedido criado com sucesso. ID: {novaComanda.IdComanda}, Total: R$ {novaComanda.ValorTotal}");
 
         return CreatedAtAction(nameof(ObterPedido), new { id = novaComanda.IdComanda }, new RespostaPadraoDTO
         {

@@ -16,6 +16,9 @@ import {
   updateMesa,
   closeComanda,
   addItemComanda,
+  getComandas,
+  getProdutos,
+  getFuncionarios,
 } from "@/services/api";
 
 export interface Product {
@@ -413,8 +416,15 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   const addOrder = useCallback(
     (o: Omit<Order, "id" | "createdAt" | "updatedAt">) => {
       const now = new Date();
+
+      // ✅ Garantir que total é sempre calculado e válido
+      const orderTotal =
+        o.total ||
+        o.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
       const newO: Order = {
         ...o,
+        total: Math.max(0, orderTotal), // ✅ Garantir total > 0
         id: `o${Date.now()}`,
         createdAt: now,
         updatedAt: now,
@@ -425,12 +435,16 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         idMesa: o.tableNumber,
         idCliente: 1, // TODO: pegar do contexto autenticado
         ...o,
+        total: newO.total, // ✅ Enviar total corrigido para API
       }).catch((error) => {
         console.error("Erro ao criar pedido na API:", error);
       });
 
       setOrders((prev) => [...prev, newO]);
-      log("CREATE_ORDER", `Pedido criado para mesa ${o.tableNumber}`);
+      log(
+        "CREATE_ORDER",
+        `Pedido criado para mesa ${o.tableNumber} - Total: R$ ${newO.total.toFixed(2)}`,
+      );
     },
     [log],
   );

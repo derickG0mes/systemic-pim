@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useRestaurant, OrderStatus } from "@/contexts/RestaurantContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +19,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Clock, AlertTriangle, Plus, ChefHat } from "lucide-react";
+import { Clock, AlertTriangle, Plus, ChefHat, MapPin } from "lucide-react";
 
 export default function OrdersPage() {
   const { orders, products, addOrder, updateOrderStatus, tabs } =
@@ -37,6 +37,14 @@ export default function OrdersPage() {
     }[]
   >([]);
   const [filter, setFilter] = useState<"all" | OrderStatus>("all");
+
+  // ✅ Mesas com comandas abertas
+  const availableTables = useMemo(() => {
+    const openTables = tabs
+      .filter((tab) => tab.status === "open")
+      .map((t) => t.tableNumber);
+    return openTables.sort((a, b) => a - b);
+  }, [tabs]);
 
   useEffect(() => {
     const interval = setInterval(() => setTick((t) => t + 1), 5000);
@@ -83,19 +91,39 @@ export default function OrdersPage() {
   };
 
   const submitOrder = () => {
-    if (!selectedTable || cart.length === 0) {
-      alert("Selecione uma mesa e adicione itens");
+    // ✅ Validações robustas
+    if (!selectedTable) {
+      alert("Selecione uma mesa com comanda aberta");
+      return;
+    }
+
+    if (cart.length === 0) {
+      alert("Adicione pelo menos um item ao carrinho");
       return;
     }
 
     const tableNum = parseInt(selectedTable);
-    if (tableNum <= 0) {
-      alert("Número de mesa deve ser maior que 0");
+
+    // Validar que a mesa existe na lista de abertos
+    if (!availableTables.includes(tableNum)) {
+      alert("Essa mesa não tem comanda aberta");
       return;
     }
 
+    // Validar items
     if (cart.some((item) => item.quantity <= 0 || item.price <= 0)) {
       alert("Quantidade e preço devem ser maiores que 0");
+      return;
+    }
+
+    // ✅ Calcular total com precisão
+    const total = cart.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0,
+    );
+
+    if (total <= 0) {
+      alert("Total do pedido deve ser maior que zero");
       return;
     }
 
@@ -104,8 +132,10 @@ export default function OrdersPage() {
       items: cart,
       status: "preparing",
       createdBy: user?.name || "Sistema",
-      total: cart.reduce((s, i) => s + i.price * i.quantity, 0),
+      total, // ✅ Garantir que total é sempre passado
     });
+
+    // Reset do formulário
     setCart([]);
     setSelectedTable("");
     setNewOrderOpen(false);
@@ -145,52 +175,115 @@ export default function OrdersPage() {
                 <DialogTitle>Novo Pedido</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
-                <Input
-                  placeholder="Número da Mesa"
-                  type="number"
-                  value={selectedTable}
-                  onChange={(e) => setSelectedTable(e.target.value)}
-                />
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {products
-                    .filter((p) => p.stock > 0)
-                    .map((p) => (
-                      <div
-                        key={p.id}
-                        className="flex items-center justify-between p-2 rounded-md bg-muted"
-                      >
-                        <div>
-                          <p className="text-sm font-medium">{p.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            R$ {p.price.toFixed(2)}
-                          </p>
-                        </div>
+                {/* ✅ Seletor visual de mesas com comanda aberta */}
+                <div>
+                  <label className="text-sm font-semibold mb-2 flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    Selecione uma Mesa com Comanda Aberta
+                  </label>
+                  {availableTables.length > 0 ? (
+                    <div className="grid grid-cols-4 gap-2">
+                      {availableTables.map((tableNum) => (
                         <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => addToCart(p.id)}
+                          key={tableNum}
+                          variant={
+                            selectedTable === String(tableNum)
+                              ? "default"
+                              : "outline"
+                          }
+                          className="h-auto py-3 flex flex-col items-center"
+                          onClick={() => setSelectedTable(String(tableNum))}
                         >
-                          {cart.find((i) => i.productId === p.id)?.quantity ||
-                            0}{" "}
-                          <Plus className="h-3 w-3 ml-1" />
+                          <span className="text-lg font-bold">{tableNum}</span>
+                          <span className="text-xs opacity-70">Mesa</span>
                         </Button>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-muted rounded-md text-center text-sm text-muted-foreground">
+                      Nenhuma mesa com comanda aberta. Abra uma comanda
+                      primeiro.
+                    </div>
+                  )}
                 </div>
-                {cart.length > 0 && (
-                  <div className="border-t pt-2">
-                    <p className="text-sm font-semibold">
-                      Total: R${" "}
-                      {cart
-                        .reduce((s, i) => s + i.price * i.quantity, 0)
-                        .toFixed(2)}
-                    </p>
+
+                {/* Produtos para adicionar */}
+                {selectedTable && (
+                  <div>
+                    <label className="text-sm font-semibold mb-2 block">
+                      Produtos Disponíveis
+                    </label>
+                    <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2">
+                      {products
+                        .filter((p) => p.stock > 0)
+                        .map((p) => (
+                          <div
+                            key={p.id}
+                            className="flex items-center justify-between p-2 rounded-md bg-muted"
+                          >
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{p.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                R$ {p.price.toFixed(2)} | Estoque: {p.stock}
+                              </p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => addToCart(p.id)}
+                            >
+                              {cart.find((i) => i.productId === p.id)
+                                ?.quantity || 0}{" "}
+                              <Plus className="h-3 w-3 ml-1" />
+                            </Button>
+                          </div>
+                        ))}
+                    </div>
                   </div>
                 )}
+
+                {/* Carrinho */}
+                {cart.length > 0 && (
+                  <div className="border-t pt-3">
+                    <label className="text-sm font-semibold mb-2 block">
+                      Itens no Carrinho
+                    </label>
+                    <div className="space-y-2 max-h-40 overflow-y-auto mb-3">
+                      {cart.map((item, idx) => (
+                        <div
+                          key={idx}
+                          className="flex justify-between items-center p-2 bg-muted rounded-md"
+                        >
+                          <div>
+                            <p className="text-sm font-medium">
+                              {item.productName}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {item.quantity}x R$ {item.price.toFixed(2)}
+                            </p>
+                          </div>
+                          <p className="font-semibold">
+                            R$ {(item.quantity * item.price).toFixed(2)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="bg-primary/10 p-3 rounded-md">
+                      <p className="text-lg font-bold">
+                        Total: R${" "}
+                        {cart
+                          .reduce((s, i) => s + i.price * i.quantity, 0)
+                          .toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <Button
                   onClick={submitOrder}
                   disabled={!selectedTable || cart.length === 0}
                   className="w-full"
+                  size="lg"
                 >
                   Criar Pedido
                 </Button>

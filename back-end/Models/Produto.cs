@@ -14,7 +14,7 @@ public class Produto
     [Range(0, int.MaxValue, ErrorMessage = "Quantidade em estoque deve ser >= 0")]
     public int QtdEstoque { get; set; }
 
-    [Range(0.01, decimal.MaxValue, ErrorMessage = "Preço deve ser maior que 0")]
+    [Range(typeof(decimal), "0.01", "79228162514264337593543950335", ErrorMessage = "Preço deve ser maior que 0")]
     public decimal PrecoProduto { get; set; }
 
     [Range(0, int.MaxValue, ErrorMessage = "Estoque mínimo deve ser >= 0")]

@@ -5,7 +5,7 @@ namespace PIM3.API.Services;
 
 public class PasswordHashService
 {
-    // Criptografa a senha com salt aleatório
+    // Criptografa a senha com salt aleatório usando PBKDF2 moderno
     public static string HashPassword(string password)
     {
         var salt = new byte[16];
@@ -14,11 +14,8 @@ public class PasswordHashService
             rng.GetBytes(salt);
         }
 
-        var hash = new byte[20];
-        using (var pbkdf2 = new Rfc2898DeriveBytes(password, salt, 10000, HashAlgorithmName.SHA256))
-        {
-            hash = pbkdf2.GetBytes(20);
-        }
+        // Usar o método estático PBKDF2 moderno
+        var hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, 10000, HashAlgorithmName.SHA256, 20);
 
         var hashBytes = new byte[36];
         Array.Copy(salt, 0, hashBytes, 0, 16);
@@ -36,11 +33,8 @@ public class PasswordHashService
             var salt = new byte[16];
             Array.Copy(hashBytes, 0, salt, 0, 16);
 
-            var hash2 = new byte[20];
-            using (var pbkdf2 = new Rfc2898DeriveBytes(password, salt, 10000, HashAlgorithmName.SHA256))
-            {
-                hash2 = pbkdf2.GetBytes(20);
-            }
+            // Usar o método estático PBKDF2 moderno
+            var hash2 = Rfc2898DeriveBytes.Pbkdf2(password, salt, 10000, HashAlgorithmName.SHA256, 20);
 
             for (int i = 0; i < 20; i++)
             {

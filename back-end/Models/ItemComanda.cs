@@ -9,7 +9,7 @@ public class ItemComanda
     [Range(1, int.MaxValue, ErrorMessage = "Quantidade deve ser maior que 0")]
     public int QtdProduto { get; set; }
 
-    [Range(0.01, decimal.MaxValue, ErrorMessage = "Preço deve ser maior que 0")]
+    [Range(typeof(decimal), "0.01", "79228162514264337593543950335", ErrorMessage = "Preço deve ser maior que 0")]
     public decimal PrecoUnitarioPago { get; set; }
 
     public int IdProduto { get; set; }
