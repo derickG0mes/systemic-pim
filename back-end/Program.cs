@@ -128,7 +128,10 @@ Console.WriteLine("   ✓ CORS configurado para http://localhost:5173, 3000, 517
 // ═══════════════════════════════════════════════════════════════════════════════
 // 5️⃣  CONFIGURAÇÃO DE CONTROLLERS E DOCUMENTAÇÃO
 // ═══════════════════════════════════════════════════════════════════════════════
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+});
 builder.Services.AddSwaggerGen();
 
 Console.WriteLine("✅ Todos os serviços foram registrados!\n");

@@ -16,11 +16,14 @@ export default function VLibrasWidget() {
 
   useEffect(() => {
     if (!vlibrasEnabled) {
-      document
-        .querySelectorAll("div[vw], div.vw-plugin-wrapper, div.enabled[vw]")
-        .forEach((el) => el.remove());
-      initializedRef.current = false;
+      document.querySelectorAll("div[vw]").forEach((el) => {
+        (el as HTMLElement).style.display = "none";
+      });
       return;
+    } else {
+      document.querySelectorAll("div[vw]").forEach((el) => {
+        (el as HTMLElement).style.display = "";
+      });
     }
 
     if (!document.querySelector("div[vw]")) {

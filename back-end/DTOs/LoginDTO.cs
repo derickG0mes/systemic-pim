@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace PIM3.API.DTOs;
 
 /// <summary>
@@ -9,5 +11,6 @@ public class LoginDTO
     public string Email { get; set; } = string.Empty;
     
     // Senha do funcionário
+    [JsonPropertyName("password")]
     public string Senha { get; set; } = string.Empty;
 }

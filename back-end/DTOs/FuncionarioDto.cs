@@ -29,6 +29,9 @@ public class CreateFuncionarioRequest
 {
     public string NomeFuncionario { get; set; } = string.Empty;
     public string CpfFuncionario { get; set; } = string.Empty;
+    public string EmailFuncionario { get; set; } = string.Empty;
+    public string CargoFuncionario { get; set; } = string.Empty;
+    public string Role { get; set; } = "employee";
     public string TelefoneFuncionario { get; set; } = string.Empty;
     public string Senha { get; set; } = string.Empty;
 }

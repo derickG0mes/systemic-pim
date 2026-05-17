@@ -69,7 +69,18 @@ public class ComandaController : ControllerBase
                     c.IdMesa,
                     c.IdCliente,
                     c.StatusComanda,
-                    ValorTotal = c.ItensComanda.Sum(i => i.QtdProduto * i.PrecoUnitarioPago)
+                    ValorTotal = c.ItensComanda.Sum(i => i.QtdProduto * i.PrecoUnitarioPago),
+                    // Retorna os itens ativos para reconstruir o estado após o F5
+                    ItensComanda = c.ItensComanda
+                        .Where(i => i.StatusItem != "CONCLUIDO" && i.StatusItem != "ENTREGUE")
+                        .Select(i => new {
+                            i.IdItemComanda,
+                            i.IdProduto,
+                            i.QtdProduto,
+                            i.PrecoUnitarioPago,
+                            i.StatusItem,
+                            NomeProduto = i.Produto != null ? i.Produto.NomeProduto : ""
+                        }).ToList()
                 })
                 .ToList();
 

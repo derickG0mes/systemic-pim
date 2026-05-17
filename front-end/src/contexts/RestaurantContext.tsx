@@ -372,6 +372,8 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      const allOrders: Order[] = [];
+
       // ✅ Mapear estrutura do backend (agora em camelCase) para o formato do frontend
       const tabsFormatted: Tab[] = comandasArray.map((comanda: any) => {
         console.log(
@@ -379,10 +381,33 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
           JSON.stringify(comanda),
         );
 
+        // Mapeia os ItensComanda (vindas do /abertas/todas) para a lista de Pedidos da tela principal
+        const mappedOrders: Order[] = [];
+        if (comanda.itensComanda && comanda.itensComanda.length > 0) {
+           const groupedItems = comanda.itensComanda.map((i: any) => ({
+             productId: i.idProduto ? "p" + i.idProduto : "p" + i.produtoId,
+             productName: i.nomeProduto || "Produto " + i.idProduto,
+             quantity: i.qtdProduto || 1,
+             price: i.precoUnitarioPago || 0
+           }));
+
+           // Considera os itens da comanda como um pedido aglomerado para fins de UI (Tela de Pedidos)
+           const order: Order = {
+             id: String(comanda.idComanda),
+             tableNumber: Number(comanda.idMesa),
+             items: groupedItems,
+             status: "preparing", // O padrão após recarregar
+             createdAt: new Date(comanda.dataAberta),
+             total: Number(comanda.valorTotal || 0)
+           };
+           mappedOrders.push(order);
+           allOrders.push(order);
+        }
+
         const tabFormatted: Tab = {
           id: String(comanda.idComanda),
           tableNumber: Number(comanda.idMesa),
-          orders: [],
+          orders: mappedOrders,
           status: comanda.statusComanda?.toLowerCase() === "aberta" ? "open" : "closed",
           total: Number(comanda.valorTotal || 0),
           openedAt: new Date(comanda.dataAberta),
@@ -399,6 +424,11 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
 
       console.log("✅ Todos os tabs formatados:", tabsFormatted);
       setTabs(tabsFormatted);
+      // 🔥 Hidrata a tela de Cozinha/Pedidos com os itens abertos do banco!
+      if (allOrders.length > 0) {
+        setOrders(allOrders);
+      }
+
       console.log(
         "✅ Comandas sincronizadas da API com totais atualizados:",
         tabsFormatted,
@@ -413,15 +443,23 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     const loadDataFromAPI = async () => {
       try {
         // Tenta carregar produtos
-        const produtosData = await getProdutos();
-        if (produtosData && Array.isArray(produtosData)) {
-          setProducts(produtosData);
-          console.log("✅ Produtos carregados da API");
+        const produtosResp = await getProdutos();
+        let produtosArray: any[] = Array.isArray(produtosResp) ? produtosResp : Array.isArray(produtosResp?.dados) ? produtosResp.dados : Array.isArray(produtosResp?.data) ? produtosResp.data : [];
+        
+        if (produtosArray.length > 0) {
+          const formattedProducts = produtosArray.map((p: any) => ({
+            id: p.idProduto ? `p${p.idProduto}` : p.id,
+            name: p.nomeProduto || p.name,
+            category: p.descricaoProduto || p.category || "Geral",
+            price: Number(p.precoProduto || p.price),
+            stock: Number(p.qtdEstoque || p.stock || 0),
+            minStock: Number(p.estoqueMinimo || p.minStock || 0)
+          }));
+          setProducts(formattedProducts);
+          console.log("✅ Produtos carregados da API", formattedProducts);
         }
       } catch (error) {
-        console.warn(
-          "⚠️ Não foi possível carregar produtos da API, usando dados padrão",
-        );
+        console.warn("⚠️ Não foi possível carregar produtos da API, usando dados padrão");
       }
 
       try {
@@ -433,10 +471,20 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
 
       try {
         // Tenta carregar funcionários/empregados
-        const funcionariosData = await getFuncionarios();
-        if (funcionariosData && Array.isArray(funcionariosData)) {
-          setEmployees(funcionariosData);
-          console.log("✅ Funcionários carregados da API");
+        const funcResp = await getFuncionarios();
+        let funcArray: any[] = Array.isArray(funcResp) ? funcResp : Array.isArray(funcResp?.dados) ? funcResp.dados : Array.isArray(funcResp?.data) ? funcResp.data : [];
+        
+        if (funcArray.length > 0) {
+          const formattedFunc = funcArray.map((f: any) => ({
+            id: f.idFuncionario ? String(f.idFuncionario) : f.id,
+            name: f.nomeFuncionario || f.name,
+            role: f.role || f.cargoFuncionario || "employee",
+            email: f.emailFuncionario || f.email,
+            status: f.statusFuncionario === "ATIVO" ? "active" : "inactive",
+            lastLogin: new Date()
+          }));
+          setEmployees(formattedFunc);
+          console.log("✅ Funcionários carregados da API", formattedFunc);
         }
       } catch (error) {
         console.warn("⚠️ Não foi possível carregar funcionários da API");

@@ -23,6 +23,9 @@ public class ItemComanda
     [Column("ID_COMANDA")]
     public int IdComanda { get; set; }
 
+    [Column("STATUS_ITEM")]
+    public string StatusItem { get; set; } = "PREPARAR";
+
     // Relacionamentos
     public Produto? Produto { get; set; }
     public Comanda? Comanda { get; set; }

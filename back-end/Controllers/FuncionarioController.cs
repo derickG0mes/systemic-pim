@@ -161,6 +161,9 @@ public class FuncionarioController : ControllerBase
             NomeFuncionario = request.NomeFuncionario,
             CpfFuncionario = request.CpfFuncionario,
             TelefoneFuncionario = request.TelefoneFuncionario,
+            EmailFuncionario = request.EmailFuncionario,
+            CargoFuncionario = request.CargoFuncionario,
+            Role = request.Role ?? "employee",
             PasswordFuncionario = PasswordHashService.HashPassword(request.Senha),
             StatusFuncionario = "ATIVO"
         };

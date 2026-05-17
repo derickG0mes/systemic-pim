@@ -113,7 +113,7 @@ public class AutenticacaoController : ControllerBase
         {
             Sucesso = true,
             Mensagem = "Login realizado com sucesso!",
-            Dados = new { token, nomeUsuario = funcionario.NomeFuncionario }
+            Dados = new { token, nomeUsuario = funcionario.NomeFuncionario, role = funcionario.Role }
         });
     }
 

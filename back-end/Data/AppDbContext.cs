@@ -200,4 +200,48 @@ public class AppDbContext : DbContext
             .WithMany()
             .HasForeignKey(lc => lc.IdFuncionario);
     }
+
+    /// <summary>
+    /// Intercepta todas as operações de SaveChanges para garantir a auditoria de fuso horário.
+    /// É uma camada de segurança dupla (junto com a trigger do SQL).
+    /// </summary>
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        var brazilTime = PIM3.API.Helpers.TimeZoneHelper.GetBrazilTime();
+
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.Entity is Comanda comanda)
+            {
+                if (entry.State == EntityState.Added)
+                {
+                    comanda.DataAberta = brazilTime;
+                }
+                else if (entry.State == EntityState.Modified)
+                {
+                    // Lógica para Data de Fechamento da Comanda
+                    var isFechada = comanda.StatusComanda == "FECHADA";
+                    var wasFechada = entry.OriginalValues.GetValue<string>("StatusComanda") == "FECHADA";
+
+                    if (isFechada && !wasFechada)
+                    {
+                        comanda.DataFechada = brazilTime;
+                    }
+                }
+            }
+            
+            // Tratamento das reservas: sempre em Horário de Brasília
+            if (entry.Entity is Reserva reserva && entry.State == EntityState.Added)
+            {
+                // Verifica se a data enviada pelo client não é absurda, 
+                // para fins de demonstração, setamos como padrão as datas não informadas
+                if (reserva.DataReserva == default)
+                {
+                    reserva.DataReserva = brazilTime;
+                }
+            }
+        }
+
+        return base.SaveChangesAsync(cancellationToken);
+    }
 }
