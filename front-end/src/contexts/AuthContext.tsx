@@ -118,14 +118,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Tenta fazer login com a API do backend
         const response = await loginAPI(email, password);
 
-        if (response.success || response.token) {
-          // Se a API respondeu com sucesso
+        // Backend retorna { sucesso: bool, dados: { token, nomeUsuario } }
+        if (response.sucesso || response.dados?.token || response.token) {
+          const dados = response.dados || response;
           const userData: User = {
-            id: response.id || email,
-            name: response.name || email,
+            id: String(dados.id || email),
+            name: dados.nomeUsuario || dados.name || email,
             email: email,
-            role: response.role || "employee",
-            position: response.position || "Funcionário",
+            role: dados.role || "employee",
+            position: dados.position || "Funcionário",
           };
 
           setUser(userData);

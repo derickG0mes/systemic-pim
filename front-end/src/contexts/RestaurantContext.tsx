@@ -358,9 +358,11 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
       // Determinar se é um array ou um objeto com array dentro
       let comandasArray: any[] = Array.isArray(comandasData)
         ? comandasData
-        : Array.isArray(comandasData?.data)
-          ? comandasData.data
-          : [];
+        : Array.isArray(comandasData?.dados)
+          ? comandasData.dados
+          : Array.isArray(comandasData?.data)
+            ? comandasData.data
+            : [];
 
       console.log(`🔍 DEBUG: Processando ${comandasArray.length} comandas`);
 

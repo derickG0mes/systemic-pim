@@ -8,7 +8,7 @@ using PIM3.API.Hubs;
 using PIM3.API.Services;
 
 // Carregar variáveis de ambiente do arquivo .env
-EnvLoader.Load();
+EnvLoader.Load(Path.Combine(Directory.GetCurrentDirectory(), ".env"));
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,10 +28,16 @@ var dbName = Environment.GetEnvironmentVariable("DB_NAME") ?? "DB_RESTAURANTE";
 var dbUser = Environment.GetEnvironmentVariable("DB_USER") ?? "sa";
 var dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD") ?? "";
 
+// 🔍 Verificar variáveis carregadas
+Console.WriteLine($"   DB_SERVER lido: '{dbServer}'");
+Console.WriteLine($"   DB_NAME lido:   '{dbName}'");
+Console.WriteLine($"   DB_USER lido:   '{dbUser}'");
+Console.WriteLine($"   DB_PASSWORD lido: '{(string.IsNullOrEmpty(dbPassword) ? "⚠️ VAZIO!" : "✓ preenchido")}'");
+
 // Construir connection string dinamicamente
 var connectionString = $"Server={dbServer};Database={dbName};User Id={dbUser};Password={dbPassword};TrustServerCertificate=True;";
 Console.WriteLine($"   ✓ Connection String: Server={dbServer}, Database={dbName}");
-Console.WriteLine($"   ✓ User: {dbUser}");
+Console.WriteLine($"   ✓ User: {dbUser}\n");
 
 // Adicionamos o DbContext para acesso ao SQL Server
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -123,7 +129,7 @@ Console.WriteLine("   ✓ CORS configurado para http://localhost:5173, 3000, 517
 // 5️⃣  CONFIGURAÇÃO DE CONTROLLERS E DOCUMENTAÇÃO
 // ═══════════════════════════════════════════════════════════════════════════════
 builder.Services.AddControllers();
-builder.Services.AddOpenApi();
+builder.Services.AddSwaggerGen();
 
 Console.WriteLine("✅ Todos os serviços foram registrados!\n");
 
@@ -136,12 +142,17 @@ Console.WriteLine("════════════════════�
 Console.WriteLine("🔧 Configurando pipeline de requisições HTTP");
 Console.WriteLine("═══════════════════════════════════════════════════════════\n");
 
-// Mostrar documentação OpenAPI em desenvolvimento
+// Mostrar documentação Swagger em desenvolvimento
 if (app.Environment.IsDevelopment())
 {
     Console.WriteLine("📚 Modo desenvolvimento ativo!");
     Console.WriteLine("   📖 Swagger disponível em: http://localhost:5000/swagger\n");
-    app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "PIM3 API v1");
+        c.RoutePrefix = "swagger";
+    });
 }
 
 // 🔷 Ativar CORS - IMPORTANTE! Deve vir antes de autenticação
@@ -159,8 +170,11 @@ Console.WriteLine("🛡️ Ativando autorização...");
 app.UseAuthorization();
 Console.WriteLine("   ✓ Autorização ativada\n");
 
-// 🔷 Redirecionar HTTP para HTTPS (segurança)
-app.UseHttpsRedirection();
+// 🔷 Redirecionar HTTP para HTTPS (segurança) - apenas em produção
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 // 🔷 Mapear todos os controllers
 Console.WriteLine("🗺️ Mapeando controllers e rotas...");
@@ -171,6 +185,28 @@ Console.WriteLine("   ✓ Controllers mapeados\n");
 Console.WriteLine("📡 Mapeando SignalR Hub...");
 app.MapHub<CozinhaHub>("/hubs/cozinha");
 Console.WriteLine("   ✓ Hub de cozinha disponível em: /hubs/cozinha\n");
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🗄️  CRIAR BANCO DE DADOS E TABELAS (Se não existirem)
+// ═══════════════════════════════════════════════════════════════════════════════
+Console.WriteLine("🗄️ Criando banco de dados e tabelas (se necessário)...");
+try
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var foiCriado = dbContext.Database.EnsureCreated();
+
+        if (foiCriado)
+            Console.WriteLine("   ✓ Tabelas criadas com sucesso!\n");
+        else
+            Console.WriteLine("   ⚠️ Banco já existia — tabelas NÃO foram recriadas.\n");
+    }
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"   ❌ ERRO ao criar banco: {ex.Message}\n");
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🎯 INICIAR A APLICAÇÃO

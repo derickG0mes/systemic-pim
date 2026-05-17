@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace PIM3.API.DTOs;
 
 /// <summary>
@@ -5,8 +7,13 @@ namespace PIM3.API.DTOs;
 /// </summary>
 public class CriarPedidoDTO
 {
+    [JsonPropertyName("idMesa")]
     public int IdMesa { get; set; }
+
+    [JsonPropertyName("idCliente")]
     public int IdCliente { get; set; }
+
+    [JsonPropertyName("itens")]
     public List<ItemPedidoDTO> Itens { get; set; } = new();
 }
 
@@ -15,7 +22,12 @@ public class CriarPedidoDTO
 /// </summary>
 public class ItemPedidoDTO
 {
+    [JsonPropertyName("idProduto")]
     public int IdProduto { get; set; }
+
+    [JsonPropertyName("qtdProduto")]
     public int QtdProduto { get; set; }
+
+    [JsonPropertyName("precoUnitarioPago")]
     public decimal PrecoUnitarioPago { get; set; }
 }

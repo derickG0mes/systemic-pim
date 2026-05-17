@@ -45,8 +45,10 @@ export async function loginAPI(email: string, password: string) {
 
   const data = await response.json();
 
-  if (data.token) {
-    localStorage.setItem("authToken", data.token);
+  // O backend retorna { sucesso, dados: { token, nomeUsuario } }
+  const token = data.dados?.token || data.token;
+  if (token) {
+    localStorage.setItem("authToken", token);
   }
 
   return data;

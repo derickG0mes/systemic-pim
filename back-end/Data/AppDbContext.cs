@@ -47,6 +47,28 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Comanda>()
             .HasKey(c => c.IdComanda);
 
+        modelBuilder.Entity<ItemComanda>()
+            .HasKey(ic => ic.IdItemComanda);
+
+        modelBuilder.Entity<DetalhePagamento>()
+            .HasKey(dp => dp.IdDetalhePagamento);
+
+        modelBuilder.Entity<Despesa>()
+            .HasKey(d => d.IdDespesa);
+
+        modelBuilder.Entity<LogComanda>()
+            .HasKey(lc => lc.IdLogComanda);
+
+        // ✅ Mapear nomes das tabelas
+        modelBuilder.Entity<Funcionario>().ToTable("FUNCIONARIO");
+        modelBuilder.Entity<Cliente>().ToTable("CLIENTE");
+        modelBuilder.Entity<Mesa>().ToTable("MESA");
+        modelBuilder.Entity<FormaPagamento>().ToTable("FORMA_PAGAMENTO");
+        modelBuilder.Entity<Produto>().ToTable("PRODUTO");
+        modelBuilder.Entity<Reserva>().ToTable("RESERVA");
+        modelBuilder.Entity<Despesa>().ToTable("DESPESAS");
+        modelBuilder.Entity<DetalhePagamento>().ToTable("DETALHE_PAGAMENTO");
+        modelBuilder.Entity<LogComanda>().ToTable("LOG_COMANDA");
         modelBuilder.Entity<Comanda>()
             .ToTable("COMANDA"); // ✅ Nome correto da tabela no banco
 
