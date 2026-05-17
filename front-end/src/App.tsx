@@ -18,36 +18,146 @@ import UsersPage from "@/pages/UsersPage";
 import AuditPage from "@/pages/AuditPage";
 import BackupPage from "@/pages/BackupPage";
 import AccessibilityPage from "@/pages/AccessibilityPage";
+import GestaoEstoquePage from "@/pages/GestaoEstoquePage";
+import GerenciarFuncionariosPage from "@/pages/GerenciarFuncionariosPage";
 import NotFound from "@/pages/NotFound";
 import { hasPermission } from "@/lib/rbac";
 
 const queryClient = new QueryClient();
 
-function ProtectedRoute({ children, permission }: { children: React.ReactNode; permission?: string }) {
+function ProtectedRoute({
+  children,
+  permission,
+}: {
+  children: React.ReactNode;
+  permission?: string;
+}) {
   const { user, isAuthenticated } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (permission && user && !hasPermission(user.role, permission as any)) return <Navigate to="/orders" replace />;
+  if (permission && user && !hasPermission(user.role, permission as any))
+    return <Navigate to="/orders" replace />;
   return <AppLayout>{children}</AppLayout>;
 }
 
 function AppRoutes() {
   const { isAuthenticated, user } = useAuth();
-  const defaultRoute = user && hasPermission(user.role, "dashboard") ? "/dashboard" : "/orders";
+  const defaultRoute =
+    user && hasPermission(user.role, "dashboard") ? "/dashboard" : "/orders";
 
   return (
     <Routes>
-      <Route path="/login" element={isAuthenticated ? <Navigate to={defaultRoute} replace /> : <LoginPage />} />
-      <Route path="/" element={<Navigate to={isAuthenticated ? defaultRoute : "/login"} replace />} />
-      <Route path="/dashboard" element={<ProtectedRoute permission="dashboard"><DashboardPage /></ProtectedRoute>} />
-      <Route path="/orders" element={<ProtectedRoute permission="orders"><OrdersPage /></ProtectedRoute>} />
-      <Route path="/tabs" element={<ProtectedRoute permission="tabs"><TabsPage /></ProtectedRoute>} />
-      <Route path="/inventory" element={<ProtectedRoute permission="inventory"><InventoryPage /></ProtectedRoute>} />
-      <Route path="/reservations" element={<ProtectedRoute permission="reservations"><ReservationsPage /></ProtectedRoute>} />
-      <Route path="/reports" element={<ProtectedRoute permission="reports"><ReportsPage /></ProtectedRoute>} />
-      <Route path="/users" element={<ProtectedRoute permission="users"><UsersPage /></ProtectedRoute>} />
-      <Route path="/audit" element={<ProtectedRoute permission="audit"><AuditPage /></ProtectedRoute>} />
-      <Route path="/backup" element={<ProtectedRoute permission="backup"><BackupPage /></ProtectedRoute>} />
-      <Route path="/accessibility" element={<ProtectedRoute permission="accessibility"><AccessibilityPage /></ProtectedRoute>} />
+      <Route
+        path="/login"
+        element={
+          isAuthenticated ? (
+            <Navigate to={defaultRoute} replace />
+          ) : (
+            <LoginPage />
+          )
+        }
+      />
+      <Route
+        path="/"
+        element={
+          <Navigate to={isAuthenticated ? defaultRoute : "/login"} replace />
+        }
+      />
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute permission="dashboard">
+            <DashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/orders"
+        element={
+          <ProtectedRoute permission="orders">
+            <OrdersPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tabs"
+        element={
+          <ProtectedRoute permission="tabs">
+            <TabsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/inventory"
+        element={
+          <ProtectedRoute permission="inventory">
+            <InventoryPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/estoque"
+        element={
+          <ProtectedRoute permission="inventory">
+            <GestaoEstoquePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/reservations"
+        element={
+          <ProtectedRoute permission="reservations">
+            <ReservationsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/reports"
+        element={
+          <ProtectedRoute permission="reports">
+            <ReportsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/users"
+        element={
+          <ProtectedRoute permission="users">
+            <UsersPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/funcionarios"
+        element={
+          <ProtectedRoute permission="users">
+            <GerenciarFuncionariosPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/audit"
+        element={
+          <ProtectedRoute permission="audit">
+            <AuditPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/backup"
+        element={
+          <ProtectedRoute permission="backup">
+            <BackupPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/accessibility"
+        element={
+          <ProtectedRoute permission="accessibility">
+            <AccessibilityPage />
+          </ProtectedRoute>
+        }
+      />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

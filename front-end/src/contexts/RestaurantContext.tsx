@@ -118,230 +118,12 @@ interface RestaurantContextType {
 
 const RestaurantContext = createContext<RestaurantContextType | null>(null);
 
-const INITIAL_PRODUCTS: Product[] = [
-  {
-    id: "p1",
-    name: "Filé Mignon",
-    category: "Carnes",
-    price: 69.9,
-    stock: 30,
-    minStock: 5,
-  },
-  {
-    id: "p2",
-    name: "Salmão Grelhado",
-    category: "Peixes",
-    price: 59.9,
-    stock: 20,
-    minStock: 3,
-  },
-  {
-    id: "p3",
-    name: "Risoto de Cogumelos",
-    category: "Massas",
-    price: 45.9,
-    stock: 25,
-    minStock: 5,
-  },
-  {
-    id: "p4",
-    name: "Coca-Cola 350ml",
-    category: "Bebidas",
-    price: 7.9,
-    stock: 100,
-    minStock: 20,
-  },
-  {
-    id: "p5",
-    name: "Suco Natural",
-    category: "Bebidas",
-    price: 12.9,
-    stock: 50,
-    minStock: 10,
-  },
-  {
-    id: "p6",
-    name: "Cerveja Artesanal",
-    category: "Bebidas",
-    price: 18.9,
-    stock: 60,
-    minStock: 15,
-  },
-  {
-    id: "p7",
-    name: "Petit Gateau",
-    category: "Sobremesas",
-    price: 29.9,
-    stock: 15,
-    minStock: 3,
-  },
-  {
-    id: "p8",
-    name: "Salada Caesar",
-    category: "Saladas",
-    price: 32.9,
-    stock: 20,
-    minStock: 5,
-  },
-  {
-    id: "p9",
-    name: "Bruschetta",
-    category: "Entradas",
-    price: 24.9,
-    stock: 25,
-    minStock: 5,
-  },
-  {
-    id: "p10",
-    name: "Água Mineral",
-    category: "Bebidas",
-    price: 5.9,
-    stock: 200,
-    minStock: 30,
-  },
-];
-
-const INITIAL_ORDERS: Order[] = [
-  {
-    id: "o1",
-    tableNumber: 3,
-    items: [
-      { productId: "p1", productName: "Filé Mignon", quantity: 2, price: 69.9 },
-      {
-        productId: "p4",
-        productName: "Coca-Cola 350ml",
-        quantity: 2,
-        price: 7.9,
-      },
-    ],
-    status: "completed",
-    createdAt: new Date(Date.now() - 3600000),
-    updatedAt: new Date(Date.now() - 1800000),
-    createdBy: "João Oliveira",
-    total: 155.6,
-  },
-  {
-    id: "o2",
-    tableNumber: 7,
-    items: [
-      {
-        productId: "p3",
-        productName: "Risoto de Cogumelos",
-        quantity: 1,
-        price: 45.9,
-      },
-      {
-        productId: "p5",
-        productName: "Suco Natural",
-        quantity: 1,
-        price: 12.9,
-      },
-    ],
-    status: "in_progress",
-    createdAt: new Date(Date.now() - 1200000),
-    updatedAt: new Date(Date.now() - 600000),
-    createdBy: "João Oliveira",
-    total: 58.8,
-  },
-  {
-    id: "o3",
-    tableNumber: 1,
-    items: [
-      {
-        productId: "p2",
-        productName: "Salmão Grelhado",
-        quantity: 1,
-        price: 59.9,
-      },
-      {
-        productId: "p6",
-        productName: "Cerveja Artesanal",
-        quantity: 2,
-        price: 18.9,
-      },
-    ],
-    status: "preparing",
-    createdAt: new Date(Date.now() - 300000),
-    updatedAt: new Date(Date.now() - 300000),
-    createdBy: "João Oliveira",
-    total: 97.7,
-  },
-];
-
-const INITIAL_TABS: Tab[] = [
-  {
-    id: "t1",
-    tableNumber: 3,
-    orders: ["o1"],
-    status: "closed",
-    paymentMethod: "credit",
-    total: 155.6,
-    openedAt: new Date(Date.now() - 7200000),
-    closedAt: new Date(Date.now() - 1800000),
-  },
-  {
-    id: "t2",
-    tableNumber: 7,
-    orders: ["o2"],
-    status: "open",
-    total: 58.8,
-    openedAt: new Date(Date.now() - 1200000),
-  },
-  {
-    id: "t3",
-    tableNumber: 1,
-    orders: ["o3"],
-    status: "open",
-    total: 97.7,
-    openedAt: new Date(Date.now() - 300000),
-  },
-];
-
-const INITIAL_EMPLOYEES: Employee[] = [
-  {
-    id: "1",
-    name: "Carlos Silva",
-    email: "admin@restaurante.com",
-    password: "admin123",
-    role: "admin",
-    position: "Gerente",
-    active: true,
-  },
-  {
-    id: "2",
-    name: "Maria Santos",
-    email: "owner@restaurante.com",
-    password: "owner123",
-    role: "owner",
-    position: "Proprietário",
-    active: true,
-  },
-  {
-    id: "3",
-    name: "João Oliveira",
-    email: "garcom@restaurante.com",
-    password: "garcom123",
-    role: "employee",
-    position: "Garçom",
-    active: true,
-  },
-  {
-    id: "4",
-    name: "Ana Costa",
-    email: "cozinha@restaurante.com",
-    password: "cozinha123",
-    role: "employee",
-    position: "Cozinheiro",
-    active: true,
-  },
-];
-
 export function RestaurantProvider({ children }: { children: ReactNode }) {
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
-  const [tabs, setTabs] = useState<Tab[]>(INITIAL_TABS);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [tabs, setTabs] = useState<Tab[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
   // ✅ Função para sincronizar comandas com o banco
@@ -384,34 +166,39 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         // Mapeia os ItensComanda (vindas do /abertas/todas) para a lista de Pedidos da tela principal
         const mappedOrders: Order[] = [];
         if (comanda.itensComanda && comanda.itensComanda.length > 0) {
-           const groupedItems = comanda.itensComanda.map((i: any) => ({
-             productId: i.idProduto ? "p" + i.idProduto : "p" + i.produtoId,
-             productName: i.nomeProduto || "Produto " + i.idProduto,
-             quantity: i.qtdProduto || 1,
-             price: i.precoUnitarioPago || 0
-           }));
+          const groupedItems = comanda.itensComanda.map((i: any) => ({
+            productId: i.idProduto ? "p" + i.idProduto : "p" + i.produtoId,
+            productName: i.nomeProduto || "Produto " + i.idProduto,
+            quantity: i.qtdProduto || 1,
+            price: i.precoUnitarioPago || 0,
+          }));
 
-           // Considera os itens da comanda como um pedido aglomerado para fins de UI (Tela de Pedidos)
-           const order: Order = {
-             id: String(comanda.idComanda),
-             tableNumber: Number(comanda.idMesa),
-             items: groupedItems,
-             status: "preparing", // O padrão após recarregar
-             createdAt: new Date(comanda.dataAberta),
-             total: Number(comanda.valorTotal || 0)
-           };
-           mappedOrders.push(order);
-           allOrders.push(order);
+          // Considera os itens da comanda como um pedido aglomerado para fins de UI (Tela de Pedidos)
+          const order: Order = {
+            id: String(comanda.idComanda),
+            tableNumber: Number(comanda.idMesa),
+            items: groupedItems,
+            status: "preparing", // O padrão após recarregar
+            createdAt: new Date(comanda.dataAberta),
+            total: Number(comanda.valorTotal || 0),
+          };
+          mappedOrders.push(order);
+          allOrders.push(order);
         }
 
         const tabFormatted: Tab = {
           id: String(comanda.idComanda),
           tableNumber: Number(comanda.idMesa),
           orders: mappedOrders,
-          status: comanda.statusComanda?.toLowerCase() === "aberta" ? "open" : "closed",
+          status:
+            comanda.statusComanda?.toLowerCase() === "aberta"
+              ? "open"
+              : "closed",
           total: Number(comanda.valorTotal || 0),
           openedAt: new Date(comanda.dataAberta),
-          closedAt: comanda.dataFechada ? new Date(comanda.dataFechada) : undefined,
+          closedAt: comanda.dataFechada
+            ? new Date(comanda.dataFechada)
+            : undefined,
         };
 
         console.log(
@@ -442,10 +229,37 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const loadDataFromAPI = async () => {
       try {
+        // Tenta carregar mesas primeiro
+        const mesasResp = await getMesas();
+        console.log("📡 Resposta de mesas:", mesasResp);
+        let mesasArray: any[] = Array.isArray(mesasResp)
+          ? mesasResp
+          : Array.isArray(mesasResp?.dados)
+            ? mesasResp.dados
+            : Array.isArray(mesasResp?.data)
+              ? mesasResp.data
+              : [];
+
+        if (mesasArray.length > 0) {
+          console.log(`✅ ${mesasArray.length} mesas carregadas do backend`);
+        } else {
+          console.warn("⚠️ Nenhuma mesa retornada do backend");
+        }
+      } catch (error) {
+        console.warn("⚠️ Não foi possível carregar mesas da API");
+      }
+
+      try {
         // Tenta carregar produtos
         const produtosResp = await getProdutos();
-        let produtosArray: any[] = Array.isArray(produtosResp) ? produtosResp : Array.isArray(produtosResp?.dados) ? produtosResp.dados : Array.isArray(produtosResp?.data) ? produtosResp.data : [];
-        
+        let produtosArray: any[] = Array.isArray(produtosResp)
+          ? produtosResp
+          : Array.isArray(produtosResp?.dados)
+            ? produtosResp.dados
+            : Array.isArray(produtosResp?.data)
+              ? produtosResp.data
+              : [];
+
         if (produtosArray.length > 0) {
           const formattedProducts = produtosArray.map((p: any) => ({
             id: p.idProduto ? `p${p.idProduto}` : p.id,
@@ -453,13 +267,15 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
             category: p.descricaoProduto || p.category || "Geral",
             price: Number(p.precoProduto || p.price),
             stock: Number(p.qtdEstoque || p.stock || 0),
-            minStock: Number(p.estoqueMinimo || p.minStock || 0)
+            minStock: Number(p.estoqueMinimo || p.minStock || 0),
           }));
           setProducts(formattedProducts);
           console.log("✅ Produtos carregados da API", formattedProducts);
         }
       } catch (error) {
-        console.warn("⚠️ Não foi possível carregar produtos da API, usando dados padrão");
+        console.warn(
+          "⚠️ Não foi possível carregar produtos da API, usando dados padrão",
+        );
       }
 
       try {
@@ -470,10 +286,30 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
       }
 
       try {
+        // Tenta carregar logs de sistema
+        await syncLogs();
+      } catch (error) {
+        console.warn("⚠️ Não foi possível carregar logs da API");
+      }
+
+      try {
+        // Tenta carregar reservas
+        await syncReservations();
+      } catch (error) {
+        console.warn("⚠️ Não foi possível carregar reservas da API");
+      }
+
+      try {
         // Tenta carregar funcionários/empregados
         const funcResp = await getFuncionarios();
-        let funcArray: any[] = Array.isArray(funcResp) ? funcResp : Array.isArray(funcResp?.dados) ? funcResp.dados : Array.isArray(funcResp?.data) ? funcResp.data : [];
-        
+        let funcArray: any[] = Array.isArray(funcResp)
+          ? funcResp
+          : Array.isArray(funcResp?.dados)
+            ? funcResp.dados
+            : Array.isArray(funcResp?.data)
+              ? funcResp.data
+              : [];
+
         if (funcArray.length > 0) {
           const formattedFunc = funcArray.map((f: any) => ({
             id: f.idFuncionario ? String(f.idFuncionario) : f.id,
@@ -481,7 +317,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
             role: f.role || f.cargoFuncionario || "employee",
             email: f.emailFuncionario || f.email,
             status: f.statusFuncionario === "ATIVO" ? "active" : "inactive",
-            lastLogin: new Date()
+            lastLogin: new Date(),
           }));
           setEmployees(formattedFunc);
           console.log("✅ Funcionários carregados da API", formattedFunc);
@@ -495,6 +331,53 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     const timer = setTimeout(loadDataFromAPI, 1000);
     return () => clearTimeout(timer);
   }, [syncComandas]);
+
+  // 🔥 Sincronizar Logs do Backend
+  const syncLogs = useCallback(async () => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/log/sistema?pagina=1&tamanho=100`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+          },
+        },
+      );
+      const data = await response.json();
+
+      if (data.sucesso && Array.isArray(data.dados)) {
+        const logsFormatted = data.dados.map((l: any) => ({
+          id: `log_${l.idLogSistema}`,
+          timestamp: new Date(l.dataLog),
+          action: l.tipoLog,
+          details: l.descricaoLog,
+          userId: l.usuarioLog || "system",
+        }));
+
+        setAuditLogs(logsFormatted);
+        console.log(`✅ ${logsFormatted.length} logs sincronizados do backend`);
+      }
+    } catch (error) {
+      console.warn("⚠️ Erro ao sincronizar logs:", error);
+    }
+  }, []);
+
+  // 🔥 Sincronizar Reservas do Backend
+  const syncReservations = useCallback(async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/reserva`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+        },
+      });
+      const data = await response.json();
+      let reservasArray = Array.isArray(data?.dados) ? data.dados : [];
+
+      console.log(`✅ ${reservasArray.length} reservas sincronizadas`);
+    } catch (error) {
+      console.warn("⚠️ Erro ao sincronizar reservas:", error);
+    }
+  }, []);
 
   const log = useCallback(
     (action: string, details: string, userId = "system") => {
@@ -655,13 +538,10 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         console.error("Erro ao atualizar status na API:", error);
       });
 
-      setOrders((prev) =>
-        prev.map((o) => {
-          if (o.id !== id) return o;
-          return { ...o, status, updatedAt: new Date() };
-        }),
-      );
+      // 🔥 REMOVER da fila visual se status for "completed"
       if (status === "completed") {
+        setOrders((prev) => prev.filter((o) => o.id !== id)); // ← REMOVE IMEDIATAMENTE
+
         const order = orders.find((o) => o.id === id);
         if (order) {
           setProducts((prev) =>
@@ -673,6 +553,14 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
             }),
           );
         }
+      } else {
+        // Para outros status, apenas atualiza
+        setOrders((prev) =>
+          prev.map((o) => {
+            if (o.id !== id) return o;
+            return { ...o, status, updatedAt: new Date() };
+          }),
+        );
       }
       log("UPDATE_ORDER_STATUS", `Pedido ${id} → ${status}`);
     },

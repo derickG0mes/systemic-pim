@@ -96,6 +96,9 @@ public class PedidosController : ControllerBase
         if (mesa == null)
         {
             Console.WriteLine($"--> Mesa não encontrada: {pedidoDTO.IdMesa}");
+            Console.WriteLine($"--> Mesas disponíveis no banco: {await _context.Mesas.CountAsync()}");
+            var mesasDisponiveis = await _context.Mesas.Select(m => m.IdMesa).ToListAsync();
+            Console.WriteLine($"--> IDs de mesas: [{string.Join(", ", mesasDisponiveis)}]");
             return BadRequest(new RespostaPadraoDTO
             {
                 Sucesso = false,

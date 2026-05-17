@@ -20,6 +20,7 @@ public class AppDbContext : DbContext
     public DbSet<DetalhePagamento> DetalhesPagamento { get; set; }
     public DbSet<Despesa> Despesas { get; set; }
     public DbSet<LogComanda> LogsComanda { get; set; }
+    public DbSet<LogSistema> LogsSistema { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -229,7 +230,7 @@ public class AppDbContext : DbContext
                     }
                 }
             }
-            
+
             // Tratamento das reservas: sempre em Horário de Brasília
             if (entry.Entity is Reserva reserva && entry.State == EntityState.Added)
             {
