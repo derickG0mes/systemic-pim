@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace PIM3.API.Models;
@@ -5,6 +6,7 @@ namespace PIM3.API.Models;
 [Table("LOG_SISTEMA")]
 public class LogSistema
 {
+    [Key]
     [Column("ID_LOG_SISTEMA")]
     public int IdLogSistema { get; set; }
 

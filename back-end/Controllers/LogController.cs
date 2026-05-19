@@ -94,8 +94,8 @@ public class LogController : ControllerBase
 
 public class CriarLogDTO
 {
-    public string TipoLog { get; set; } // ESTOQUE, USUARIO, PEDIDO, AUDITORIA
-    public string DescricaoLog { get; set; }
+    public string? TipoLog { get; set; } // ESTOQUE, USUARIO, PEDIDO, AUDITORIA
+    public string? DescricaoLog { get; set; }
     public string? UsuarioLog { get; set; }
     public string? DadoAnterior { get; set; }
     public string? DadoNovo { get; set; }

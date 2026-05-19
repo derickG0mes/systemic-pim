@@ -190,30 +190,28 @@ app.MapHub<CozinhaHub>("/hubs/cozinha");
 Console.WriteLine("   ✓ Hub de cozinha disponível em: /hubs/cozinha\n");
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 🗄️  CRIAR BANCO DE DADOS E TABELAS (Se não existirem)
+// 🗄️  VERIFICAR CONEXÃO COM O BANCO DE DADOS
 // ═══════════════════════════════════════════════════════════════════════════════
-Console.WriteLine("🗄️ Criando banco de dados e tabelas (se necessário)...");
+Console.WriteLine("🗄️ Verificando conexão com o banco de dados...");
 try
 {
     using (var scope = app.Services.CreateScope())
     {
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var foiCriado = dbContext.Database.EnsureCreated();
-
-        if (foiCriado)
-            Console.WriteLine("   ✓ Tabelas criadas com sucesso!\n");
+        if (dbContext.Database.CanConnect())
+            Console.WriteLine("   ✓ Conexão com o banco de dados estabelecida.\n");
         else
-            Console.WriteLine("   ⚠️ Banco já existia — tabelas NÃO foram recriadas.\n");
+            Console.WriteLine("   ⚠️ Não foi possível conectar ao banco. Verifique se o banco existe e se a connection string está correta.\n");
     }
 }
 catch (Exception ex)
 {
-    Console.WriteLine($"   ❌ ERRO ao criar banco: {ex.Message}\n");
+    Console.WriteLine($"   ❌ ERRO ao verificar banco de dados: {ex.Message}\n");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🎯 INICIAR A APLICAÇÃO
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 Console.WriteLine("╔════════════════════════════════════════════════════════════╗");
 Console.WriteLine("║  🚀 API ESTÁ PRONTA PARA RECEBER REQUISIÇÕES!             ║");
 Console.WriteLine("║  📍 Endereço: http://localhost:5000                       ║");

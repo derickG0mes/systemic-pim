@@ -60,6 +60,9 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<LogComanda>()
             .HasKey(lc => lc.IdLogComanda);
 
+        modelBuilder.Entity<LogSistema>()
+            .HasKey(l => l.IdLogSistema);
+
         // ✅ Mapear nomes das tabelas
         modelBuilder.Entity<Funcionario>().ToTable("FUNCIONARIO");
         modelBuilder.Entity<Cliente>().ToTable("CLIENTE");
@@ -70,6 +73,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Despesa>().ToTable("DESPESAS");
         modelBuilder.Entity<DetalhePagamento>().ToTable("DETALHE_PAGAMENTO");
         modelBuilder.Entity<LogComanda>().ToTable("LOG_COMANDA");
+        modelBuilder.Entity<LogSistema>().ToTable("LOG_SISTEMA");
         modelBuilder.Entity<Comanda>()
             .ToTable("COMANDA"); // ✅ Nome correto da tabela no banco
 
