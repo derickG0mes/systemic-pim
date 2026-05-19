@@ -36,6 +36,9 @@ public class PedidosController : ControllerBase
         // Aqui buscamos todas as comandas com seus itens relacionados
         var pedidos = await _context.Comandas
             .Include(c => c.ItensComanda)
+            .ThenInclude(i => i.Produto)  // ✅ CRÍTICA: Incluir dados do produto nos itens
+            .Include(c => c.Mesa)  // ✅ Incluir dados da mesa
+            .Include(c => c.Cliente)  // ✅ Incluir dados do cliente
             .ToListAsync();
 
         Console.WriteLine($"--> Total de pedidos encontrados: {pedidos.Count}");
@@ -225,6 +228,71 @@ public class PedidosController : ControllerBase
             Sucesso = true,
             Mensagem = "Pedido criado com sucesso!",
             Dados = novaComanda
+        });
+    }
+
+    /// <summary>
+    /// Atualiza os itens de um pedido (editar quantidade ou remover itens)
+    /// PUT: api/pedidos/{id}
+    /// </summary>
+    [HttpPut("{id}")]
+    public async Task<IActionResult> AtualizarPedido(int id, [FromBody] CriarPedidoDTO pedidoAtualizado)
+    {
+        Console.WriteLine($"--> Alguém tentou atualizar o pedido {id}");
+
+        var pedido = await _context.Comandas
+            .Include(c => c.ItensComanda)
+            .ThenInclude(i => i.Produto)
+            .FirstOrDefaultAsync(c => c.IdComanda == id);
+
+        if (pedido == null)
+            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Pedido não encontrado" });
+
+        // ✅ Limpar itens antigos
+        var itensAntigos = _context.ItensComanda.Where(i => i.IdComanda == id).ToList();
+        foreach (var item in itensAntigos)
+        {
+            // Restituir estoque
+            var produto = await _context.Produtos.FindAsync(item.IdProduto);
+            if (produto != null)
+            {
+                produto.QtdEstoque += item.QtdProduto;
+                _context.Produtos.Update(produto);
+            }
+            _context.ItensComanda.Remove(item);
+        }
+
+        // ✅ Adicionar novos itens
+        foreach (var itemDTO in pedidoAtualizado.Itens)
+        {
+            var produto = await _context.Produtos.FindAsync(itemDTO.IdProduto);
+            if (produto == null)
+                return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = $"Produto {itemDTO.IdProduto} não encontrado" });
+
+            if (produto.QtdEstoque < itemDTO.QtdProduto)
+                return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = $"Estoque insuficiente para {produto.NomeProduto}" });
+
+            var novoItem = new ItemComanda
+            {
+                IdProduto = itemDTO.IdProduto,
+                QtdProduto = itemDTO.QtdProduto,
+                PrecoUnitarioPago = itemDTO.PrecoUnitarioPago > 0 ? itemDTO.PrecoUnitarioPago : produto.PrecoProduto,
+                IdComanda = id
+            };
+
+            produto.QtdEstoque -= itemDTO.QtdProduto;
+            _context.Produtos.Update(produto);
+            _context.ItensComanda.Add(novoItem);
+        }
+
+        pedido.RecalcularTotal();
+        await _context.SaveChangesAsync();
+
+        return Ok(new RespostaPadraoDTO
+        {
+            Sucesso = true,
+            Mensagem = "Pedido atualizado com sucesso!",
+            Dados = pedido
         });
     }
 

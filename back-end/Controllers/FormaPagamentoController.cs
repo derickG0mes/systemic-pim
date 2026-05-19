@@ -21,7 +21,7 @@ public class FormaPagamentoController : ControllerBase
     public IActionResult GetAll()
     {
         var formas = _context.FormasPagamento.ToList();
-        return Ok(formas);
+        return Ok(new { sucesso = true, dados = formas });  // ✅ CRÍTICA: Estrutura consistente
     }
 
     [HttpGet("{id}")]
@@ -29,9 +29,9 @@ public class FormaPagamentoController : ControllerBase
     {
         var forma = _context.FormasPagamento.FirstOrDefault(f => f.IdFormaPagamento == id);
         if (forma == null)
-            return NotFound(new { message = "Forma de pagamento não encontrada" });
+            return NotFound(new { sucesso = false, mensagem = "Forma de pagamento não encontrada" });
 
-        return Ok(forma);
+        return Ok(new { sucesso = true, dados = forma });  // ✅ Estrutura consistente
     }
 
     [HttpPost]

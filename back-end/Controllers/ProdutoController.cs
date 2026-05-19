@@ -22,7 +22,7 @@ public class ProdutoController : ControllerBase
     public IActionResult GetAll()
     {
         var produtos = _context.Produtos.ToList();
-        return Ok(produtos);
+        return Ok(new RespostaPadraoDTO { Sucesso = true, Dados = produtos });  // ✅ PADRONIZADO
     }
 
     [HttpGet("{id}")]
@@ -30,21 +30,21 @@ public class ProdutoController : ControllerBase
     {
         var produto = _context.Produtos.FirstOrDefault(p => p.IdProduto == id);
         if (produto == null)
-            return NotFound(new { message = "Produto não encontrado" });
+            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Produto não encontrado" });
 
-        return Ok(produto);
+        return Ok(new RespostaPadraoDTO { Sucesso = true, Dados = produto });  // ✅ PADRONIZADO
     }
 
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] Produto produto)
     {
         if (string.IsNullOrEmpty(produto.NomeProduto) || produto.QtdEstoque < 0)
-            return BadRequest(new { message = "Nome do produto e quantidade de estoque obrigatórios" });
+            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Nome do produto e quantidade de estoque obrigatórios" });
 
         _context.Produtos.Add(produto);
         await _context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetById), new { id = produto.IdProduto }, produto);
+        return CreatedAtAction(nameof(GetById), new { id = produto.IdProduto }, new RespostaPadraoDTO { Sucesso = true, Mensagem = "Produto criado com sucesso", Dados = produto });
     }
 
     [HttpPut("{id}")]
@@ -52,17 +52,19 @@ public class ProdutoController : ControllerBase
     {
         var produto = _context.Produtos.FirstOrDefault(p => p.IdProduto == id);
         if (produto == null)
-            return NotFound(new { message = "Produto não encontrado" });
+            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Produto não encontrado" });
 
         produto.NomeProduto = produtoAtualizado.NomeProduto;
         produto.DescricaoProduto = produtoAtualizado.DescricaoProduto;
         produto.QtdEstoque = produtoAtualizado.QtdEstoque;
+        produto.PrecoProduto = produtoAtualizado.PrecoProduto;
+        produto.EstoqueMinimo = produtoAtualizado.EstoqueMinimo;  // ✅ CRÍTICA: Atualizar estoque mínimo
         produto.StatusProduto = produtoAtualizado.StatusProduto;
 
         _context.Produtos.Update(produto);
         await _context.SaveChangesAsync();
 
-        return Ok(produto);
+        return Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Produto atualizado", Dados = produto });
     }
 
     [HttpDelete("{id}")]
@@ -70,12 +72,12 @@ public class ProdutoController : ControllerBase
     {
         var produto = _context.Produtos.FirstOrDefault(p => p.IdProduto == id);
         if (produto == null)
-            return NotFound(new { message = "Produto não encontrado" });
+            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Produto não encontrado" });
 
         _context.Produtos.Remove(produto);
         await _context.SaveChangesAsync();
 
-        return Ok(new { message = "Produto deletado com sucesso" });
+        return Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Produto deletado com sucesso" });
     }
 
     /// <summary>
@@ -86,11 +88,11 @@ public class ProdutoController : ControllerBase
     public async Task<IActionResult> AjustarEstoque(int id, [FromBody] AjusteEstoqueDTO ajuste)
     {
         if (ajuste == null || string.IsNullOrEmpty(ajuste.Motivo))
-            return BadRequest(new { message = "Motivo do ajuste é obrigatório", sucesso = false });
+            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Motivo do ajuste é obrigatório" });
 
         var produto = _context.Produtos.FirstOrDefault(p => p.IdProduto == id);
         if (produto == null)
-            return NotFound(new { message = "Produto não encontrado", sucesso = false });
+            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Produto não encontrado" });
 
         int quantidadeAnterior = produto.QtdEstoque;
         int quantidadeNova = ajuste.Tipo == "ADICIONAR"
@@ -99,11 +101,7 @@ public class ProdutoController : ControllerBase
 
         // Validação: não permite estoque negativo
         if (quantidadeNova < 0)
-            return BadRequest(new
-            {
-                message = $"Estoque insuficiente. Disponível: {quantidadeAnterior}, Tentou remover: {ajuste.Quantidade}",
-                sucesso = false
-            });
+            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = $"Estoque insuficiente. Disponível: {quantidadeAnterior}, Tentou remover: {ajuste.Quantidade}" });
 
         produto.QtdEstoque = quantidadeNova;
         _context.Produtos.Update(produto);
@@ -111,14 +109,11 @@ public class ProdutoController : ControllerBase
 
         Console.WriteLine($"[ESTOQUE] Produto {produto.NomeProduto} - De {quantidadeAnterior} para {quantidadeNova} ({ajuste.Tipo}: {ajuste.Quantidade}) - Motivo: {ajuste.Motivo}");
 
-        return Ok(new
+        return Ok(new RespostaPadraoDTO
         {
-            sucesso = true,
-            mensagem = "Estoque ajustado com sucesso",
-            quantidadeAnterior,
-            quantidadeNova,
-            motivo = ajuste.Motivo,
-            dados = produto
+            Sucesso = true,
+            Mensagem = "Estoque ajustado com sucesso",
+            Dados = new { quantidadeAnterior, quantidadeNova, motivo = ajuste.Motivo, produto }
         });
     }
 }

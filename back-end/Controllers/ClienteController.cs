@@ -21,7 +21,7 @@ public class ClienteController : ControllerBase
     public IActionResult GetAll()
     {
         var clientes = _context.Clientes.ToList();
-        return Ok(clientes);
+        return Ok(new RespostaPadraoDTO { Sucesso = true, Dados = clientes });  // ✅ PADRONIZADO
     }
 
     [HttpGet("{id}")]
@@ -29,21 +29,21 @@ public class ClienteController : ControllerBase
     {
         var cliente = _context.Clientes.FirstOrDefault(c => c.IdCliente == id);
         if (cliente == null)
-            return NotFound(new { message = "Cliente não encontrado" });
+            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Cliente não encontrado" });
 
-        return Ok(cliente);
+        return Ok(new RespostaPadraoDTO { Sucesso = true, Dados = cliente });  // ✅ PADRONIZADO
     }
 
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] Cliente cliente)
     {
         if (string.IsNullOrEmpty(cliente.NomeCliente))
-            return BadRequest(new { message = "Nome do cliente é obrigatório" });
+            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Nome do cliente é obrigatório" });
 
         _context.Clientes.Add(cliente);
         await _context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetById), new { id = cliente.IdCliente }, cliente);
+        return CreatedAtAction(nameof(GetById), new { id = cliente.IdCliente }, new RespostaPadraoDTO { Sucesso = true, Mensagem = "Cliente criado com sucesso", Dados = cliente });
     }
 
     [HttpPut("{id}")]
@@ -51,8 +51,7 @@ public class ClienteController : ControllerBase
     {
         var cliente = _context.Clientes.FirstOrDefault(c => c.IdCliente == id);
         if (cliente == null)
-            return NotFound(new { message = "Cliente não encontrado" });
-
+            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Cliente não encontrado" });
         cliente.NomeCliente = clienteAtualizado.NomeCliente;
         cliente.TelefoneCliente = clienteAtualizado.TelefoneCliente;
         cliente.Feedback = clienteAtualizado.Feedback;
@@ -60,7 +59,7 @@ public class ClienteController : ControllerBase
         _context.Clientes.Update(cliente);
         await _context.SaveChangesAsync();
 
-        return Ok(cliente);
+        return Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Cliente atualizado", Dados = cliente });
     }
 
     [HttpDelete("{id}")]
@@ -68,11 +67,11 @@ public class ClienteController : ControllerBase
     {
         var cliente = _context.Clientes.FirstOrDefault(c => c.IdCliente == id);
         if (cliente == null)
-            return NotFound(new { message = "Cliente não encontrado" });
+            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Cliente não encontrado" });
 
         _context.Clientes.Remove(cliente);
         await _context.SaveChangesAsync();
 
-        return Ok(new { message = "Cliente deletado com sucesso" });
+        return Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Cliente deletado com sucesso" });
     }
 }

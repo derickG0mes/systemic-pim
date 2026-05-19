@@ -21,7 +21,7 @@ public class MesaController : ControllerBase
     public IActionResult GetAll()
     {
         var mesas = _context.Mesas.ToList();
-        return Ok(mesas);
+        return Ok(new RespostaPadraoDTO { Sucesso = true, Dados = mesas });  // ✅ PADRONIZADO: Retorna RespostaPadraoDTO
     }
 
     [HttpGet("{id}")]
@@ -29,21 +29,21 @@ public class MesaController : ControllerBase
     {
         var mesa = _context.Mesas.FirstOrDefault(m => m.IdMesa == id);
         if (mesa == null)
-            return NotFound(new { message = "Mesa não encontrada" });
+            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Mesa não encontrada" });
 
-        return Ok(mesa);
+        return Ok(new RespostaPadraoDTO { Sucesso = true, Dados = mesa });  // ✅ PADRONIZADO
     }
 
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] Mesa mesa)
     {
         if (mesa.NumeroMesa <= 0 || mesa.CapacidadeMesa <= 0)
-            return BadRequest(new { message = "Número e capacidade da mesa devem ser maiores que 0" });
+            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Número e capacidade da mesa devem ser maiores que 0" });
 
         _context.Mesas.Add(mesa);
         await _context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetById), new { id = mesa.IdMesa }, mesa);
+        return CreatedAtAction(nameof(GetById), new { id = mesa.IdMesa }, new RespostaPadraoDTO { Sucesso = true, Mensagem = "Mesa criada com sucesso", Dados = mesa });
     }
 
     [HttpPut("{id}")]
@@ -51,8 +51,7 @@ public class MesaController : ControllerBase
     {
         var mesa = _context.Mesas.FirstOrDefault(m => m.IdMesa == id);
         if (mesa == null)
-            return NotFound(new { message = "Mesa não encontrada" });
-
+            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Mesa não encontrada" });
         // Validação rigorosa
         if (mesaAtualizada.NumeroMesa <= 0 || mesaAtualizada.CapacidadeMesa <= 0)
             return BadRequest(new { message = "Número e capacidade da mesa devem ser maiores que 0" });

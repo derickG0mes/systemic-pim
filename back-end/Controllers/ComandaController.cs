@@ -29,7 +29,7 @@ public class ComandaController : ControllerBase
             .Include(c => c.Mesa)
             .ToList();
 
-        return Ok(comandas);
+        return Ok(new { sucesso = true, dados = comandas });  // ✅ CRÍTICA: Estrutura consistente
     }
 
     [HttpGet("{id}")]
@@ -43,9 +43,9 @@ public class ComandaController : ControllerBase
             .FirstOrDefault(c => c.IdComanda == id);
 
         if (comanda == null)
-            return NotFound(new { message = "Comanda não encontrada" });
+            return NotFound(new { sucesso = false, mensagem = "Comanda não encontrada" });
 
-        return Ok(comanda);
+        return Ok(new { sucesso = true, dados = comanda });  // ✅ Estrutura consistente
     }
 
     /// <summary>
@@ -53,7 +53,7 @@ public class ComandaController : ControllerBase
     /// Endpoint específico para o frontend atualizar a UI
     /// </summary>
     [HttpGet("abertas/todas")]
-    [AllowAnonymous] // ✅ Permitir acesso sem autenticação para sincronização
+    [Authorize]  // ✅ CRÍTICA: Exigir autenticação em vez de AllowAnonymous
     public IActionResult GetAbertasComTotais()
     {
         Console.WriteLine("--> Listando todas as comandas abertas com totais...");
@@ -63,7 +63,8 @@ public class ComandaController : ControllerBase
             var comandasAbertas = _context.Comandas
                 .Where(c => c.StatusComanda == "ABERTA")
                 .Include(c => c.ItensComanda)
-                .Select(c => new {
+                .Select(c => new
+                {
                     c.IdComanda,
                     c.DataAberta,
                     c.IdMesa,
@@ -73,7 +74,8 @@ public class ComandaController : ControllerBase
                     // Retorna os itens ativos para reconstruir o estado após o F5
                     ItensComanda = c.ItensComanda
                         .Where(i => i.StatusItem != "CONCLUIDO" && i.StatusItem != "ENTREGUE")
-                        .Select(i => new {
+                        .Select(i => new
+                        {
                             i.IdItemComanda,
                             i.IdProduto,
                             i.QtdProduto,
@@ -100,6 +102,48 @@ public class ComandaController : ControllerBase
             Console.WriteLine($"--> StackTrace: {ex.StackTrace}");
             return StatusCode(500, new { error = ex.Message });
         }
+    }
+
+    /// <summary>
+    /// Abre uma nova comanda
+    /// </summary>
+    [HttpGet("mesa/{tableNumber}")]
+    public IActionResult GetComandasByTable(int tableNumber)
+    {
+        Console.WriteLine($"--> Buscando comandas da mesa {tableNumber}");
+
+        var comandas = _context.Comandas
+            .Where(c => c.IdMesa == tableNumber && c.StatusComanda == "ABERTA")
+            .Include(c => c.ItensComanda)
+            .Include(c => c.Mesa)
+            .Include(c => c.Cliente)
+            .ToList();
+
+        return Ok(comandas);
+    }
+
+    /// <summary>
+    /// Atualiza dados gerais de uma comanda (não itens)
+    /// PUT: api/comanda/{id}
+    /// </summary>
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Update(int id, [FromBody] Comanda comandaAtualizada)
+    {
+        var comanda = _context.Comandas.FirstOrDefault(c => c.IdComanda == id);
+        if (comanda == null)
+            return NotFound(new { message = "Comanda não encontrada" });
+
+        // Só permitir atualizar cliente e mesa se a comanda ainda não foi fechada
+        if (comanda.StatusComanda != "FECHADA")
+        {
+            comanda.IdCliente = comandaAtualizada.IdCliente;
+            comanda.IdMesa = comandaAtualizada.IdMesa;
+        }
+
+        _context.Comandas.Update(comanda);
+        await _context.SaveChangesAsync();
+
+        return Ok(comanda);
     }
 
     /// <summary>

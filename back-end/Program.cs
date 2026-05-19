@@ -118,7 +118,7 @@ builder.Services.AddCors(options =>
             "http://localhost:8081"   // Porta atual do Vite
         )
         .AllowAnyMethod()           // Permite GET, POST, PUT, DELETE, etc
-        .AllowAnyHeader()           // Permite qualquer header (Content-Type, Authorization, etc)
+        .WithHeaders("Content-Type", "Authorization")  // ✅ Headers explícitos (AllowAnyHeader não funciona com AllowCredentials)
         .AllowCredentials();        // Permite cookies e credentials
     });
 });
