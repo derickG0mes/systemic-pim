@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
 using PIM3.API.DTOs;
 using PIM3.API.Models;
-using PIM3.API.Helpers;
 
 namespace PIM3.API.Controllers;
 
@@ -20,12 +19,22 @@ public class ReservaController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize]  // ✅ CRÍTICA: Exigir autenticação para visualizar reservas
+    [Authorize]
     public async Task<IActionResult> ListarReservas()
     {
         var reservas = await _context.Reservas
             .Include(r => r.Cliente)
             .Include(r => r.Mesa)
+            .Select(r => new
+            {
+                r.IdReserva,
+                r.IdCliente,
+                r.IdMesa,
+                NumeroMesa = r.Mesa != null ? r.Mesa.NumeroMesa : r.IdMesa,
+                NomeCliente = r.Cliente != null ? r.Cliente.NomeCliente : "",
+                r.DataReserva,
+                r.StatusReserva
+            })
             .ToListAsync();
 
         return Ok(new RespostaPadraoDTO { Sucesso = true, Dados = reservas });
@@ -33,30 +42,46 @@ public class ReservaController : ControllerBase
 
     [HttpPost]
     [Authorize]
-    public async Task<IActionResult> CriarReserva([FromBody] Reserva reserva)
+    public async Task<IActionResult> CriarReserva([FromBody] CriarReservaDTO dto)
     {
-        // Força a data da reserva enviada a ser considerada com relação a Brasília
-        // ou você pode definir que toda nova reserva é validada contra o relógio de Brasília.
+        if (string.IsNullOrWhiteSpace(dto.NomeCliente))
+            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Nome do cliente é obrigatório." });
 
-        // Verifica se a mesa existe
-        var mesa = await _context.Mesas.FindAsync(reserva.IdMesa);
-        if (mesa == null) return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Mesa não existe." });
+        var mesa = await _context.Mesas.FirstOrDefaultAsync(m => m.NumeroMesa == dto.NumeroMesa || m.IdMesa == dto.NumeroMesa);
+        if (mesa == null)
+            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = $"Mesa {dto.NumeroMesa} não existe." });
 
-        // Verifica conflitos de horário (ex: margem de 2 horas)
+        var cliente = await _context.Clientes.FirstOrDefaultAsync(c => c.NomeCliente == dto.NomeCliente.Trim());
+        if (cliente == null)
+        {
+            cliente = new Cliente { NomeCliente = dto.NomeCliente.Trim() };
+            _context.Clientes.Add(cliente);
+            await _context.SaveChangesAsync();
+        }
+
         var conflito = await _context.Reservas.AnyAsync(r =>
-            r.IdMesa == reserva.IdMesa &&
-            r.DataReserva >= reserva.DataReserva.AddHours(-2) &&
-            r.DataReserva <= reserva.DataReserva.AddHours(2) &&
+            r.IdMesa == mesa.IdMesa &&
+            r.DataReserva >= dto.DataReserva.AddHours(-2) &&
+            r.DataReserva <= dto.DataReserva.AddHours(2) &&
             r.StatusReserva != "CANCELADA");
 
         if (conflito)
-        {
             return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "A mesa já está reservada para este horário." });
-        }
+
+        var reserva = new Reserva
+        {
+            IdCliente = cliente.IdCliente,
+            IdMesa = mesa.IdMesa,
+            DataReserva = dto.DataReserva,
+            StatusReserva = "DISPONIVEL"
+        };
 
         _context.Reservas.Add(reserva);
         await _context.SaveChangesAsync();
+        LogSistemaHelper.Registrar(_context, "RESERVA", $"Reserva criada: {cliente.NomeCliente} - Mesa {mesa.NumeroMesa}");
+        await _context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(ListarReservas), new { id = reserva.IdReserva }, new RespostaPadraoDTO { Sucesso = true, Mensagem = "Reserva criada com sucesso!", Dados = reserva });
+        return CreatedAtAction(nameof(ListarReservas), new { id = reserva.IdReserva },
+            new RespostaPadraoDTO { Sucesso = true, Mensagem = "Reserva criada com sucesso!", Dados = reserva });
     }
 }

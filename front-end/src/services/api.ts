@@ -268,6 +268,13 @@ export async function closeComanda(comandaId: string) {
   });
 }
 
+export async function pagarComanda(comandaId: string, data: { idFormaPagamento: number; idFuncionario?: number; troco?: number }) {
+  return apiCall(`/comanda/${comandaId}/pagar`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
 export async function deleteComanda(comandaId: string) {
   return apiCall(`/comanda/${comandaId}`, {
     method: "DELETE",

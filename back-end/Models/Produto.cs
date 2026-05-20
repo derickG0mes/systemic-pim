@@ -30,4 +30,7 @@ public class Produto
 
     [Column("STATUS_PRODUTO")]
     public string StatusProduto { get; set; } = "DISPONIVEL"; // DISPONIVEL, INDISPONIVEL
+
+    [Column("CATEGORIA_PRODUTO")]
+    public string CategoriaProduto { get; set; } = "PRINCIPAL";
 }

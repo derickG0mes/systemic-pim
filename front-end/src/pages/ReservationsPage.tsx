@@ -15,8 +15,8 @@ export default function ReservationsPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ clientName: "", tableNumber: "", date: "", time: "", guests: "2" });
 
-  const handleAdd = () => {
-    const result = addReservation({
+  const handleAdd = async () => {
+    const result = await addReservation({
       clientName: form.clientName,
       tableNumber: parseInt(form.tableNumber),
       date: form.date,

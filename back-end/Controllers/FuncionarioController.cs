@@ -99,18 +99,20 @@ public class FuncionarioController : ControllerBase
     [Authorize]
     public IActionResult GetAll()
     {
-        var funcionarios = _context.Funcionarios
-            .Select(f => new FuncionarioDto
-            {
-                IdFuncionario = f.IdFuncionario,
-                NomeFuncionario = f.NomeFuncionario,
-                CpfFuncionario = f.CpfFuncionario,
-                TelefoneFuncionario = f.TelefoneFuncionario,
-                StatusFuncionario = f.StatusFuncionario
-            })
-            .ToList();
+        var funcionarios = _context.Funcionarios.ToList().Select(f => new FuncionarioDto
+        {
+            IdFuncionario = f.IdFuncionario,
+            NomeFuncionario = f.NomeFuncionario,
+            EmailFuncionario = f.EmailFuncionario,
+            CpfFuncionario = f.CpfFuncionario,
+            TelefoneFuncionario = f.TelefoneFuncionario,
+            CargoFuncionario = f.CargoFuncionario,
+            Role = f.Role,
+            Perfil = f.EmailFuncionario == "owner@restaurante.com" ? "Proprietário" : FuncionarioDto.MapearPerfil(f.Role),
+            StatusFuncionario = f.StatusFuncionario
+        }).ToList();
 
-        return Ok(funcionarios);
+        return Ok(new RespostaPadraoDTO { Sucesso = true, Dados = funcionarios });
     }
 
     /// <summary>
@@ -131,8 +133,11 @@ public class FuncionarioController : ControllerBase
         {
             IdFuncionario = funcionario.IdFuncionario,
             NomeFuncionario = funcionario.NomeFuncionario,
+            EmailFuncionario = funcionario.EmailFuncionario,
             CpfFuncionario = funcionario.CpfFuncionario,
             TelefoneFuncionario = funcionario.TelefoneFuncionario,
+            CargoFuncionario = funcionario.CargoFuncionario,
+            Role = funcionario.Role,
             StatusFuncionario = funcionario.StatusFuncionario
         });
     }
@@ -163,12 +168,14 @@ public class FuncionarioController : ControllerBase
             TelefoneFuncionario = request.TelefoneFuncionario,
             EmailFuncionario = request.EmailFuncionario,
             CargoFuncionario = request.CargoFuncionario,
-            Role = request.Role ?? "employee",
+            Role = FuncionarioDto.MapearRoleBanco(request.Role),
             PasswordFuncionario = PasswordHashService.HashPassword(request.Senha),
             StatusFuncionario = "ATIVO"
         };
 
         _context.Funcionarios.Add(funcionario);
+        await _context.SaveChangesAsync();
+        LogSistemaHelper.Registrar(_context, "USUARIO", $"Funcionário criado: {funcionario.NomeFuncionario}");
         await _context.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetById), new { id = funcionario.IdFuncionario }, new FuncionarioDto

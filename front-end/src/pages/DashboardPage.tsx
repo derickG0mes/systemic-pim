@@ -8,7 +8,7 @@ import { DollarSign, TrendingUp, AlertTriangle, ShoppingCart } from "lucide-reac
 const COLORS = ["hsl(25,95%,53%)", "hsl(142,71%,45%)", "hsl(217,91%,60%)", "hsl(280,65%,60%)"];
 
 export default function DashboardPage() {
-  const { products, orders, dailySales } = useRestaurant();
+  const { products, orders, dailySales, faturamento } = useRestaurant();
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -17,9 +17,10 @@ export default function DashboardPage() {
   }, []);
 
   const completedOrders = orders.filter(o => o.status === "completed");
-  const revenue = completedOrders.reduce((s, o) => s + o.total, 0);
-  const expenses = revenue * 0.35;
-  const profit = revenue - expenses;
+  const revenueFromOrders = completedOrders.reduce((s, o) => s + o.total, 0);
+  const revenue = faturamento.receita > 0 ? faturamento.receita : revenueFromOrders || dailySales.total;
+  const expenses = faturamento.despesas > 0 ? faturamento.despesas : revenue * 0.35;
+  const profit = faturamento.lucro !== 0 ? faturamento.lucro : revenue - expenses;
   const lossPercent = revenue > 0 ? ((expenses * 0.15) / revenue) * 100 : 0;
 
   const productSales: Record<string, number> = {};

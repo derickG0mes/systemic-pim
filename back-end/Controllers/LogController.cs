@@ -94,9 +94,23 @@ public class LogController : ControllerBase
 
 public class CriarLogDTO
 {
-    public string? TipoLog { get; set; } // ESTOQUE, USUARIO, PEDIDO, AUDITORIA
+    public string? TipoLog { get; set; }
     public string? DescricaoLog { get; set; }
     public string? UsuarioLog { get; set; }
     public string? DadoAnterior { get; set; }
     public string? DadoNovo { get; set; }
+}
+
+public static class LogSistemaHelper
+{
+    public static void Registrar(AppDbContext context, string tipo, string descricao, string? usuario = "system")
+    {
+        context.LogsSistema.Add(new LogSistema
+        {
+            TipoLog = tipo,
+            DescricaoLog = descricao,
+            UsuarioLog = usuario,
+            DataLog = DateTime.UtcNow
+        });
+    }
 }

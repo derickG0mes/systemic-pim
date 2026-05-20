@@ -72,6 +72,27 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Reserva>().ToTable("RESERVA");
         modelBuilder.Entity<Despesa>().ToTable("DESPESAS");
         modelBuilder.Entity<DetalhePagamento>().ToTable("DETALHE_PAGAMENTO");
+
+        modelBuilder.Entity<Produto>()
+            .Property(p => p.PrecoProduto)
+            .HasPrecision(10, 2);
+
+        modelBuilder.Entity<Produto>()
+            .Property(p => p.CategoriaProduto)
+            .HasColumnName("CATEGORIA_PRODUTO");
+
+        modelBuilder.Entity<Despesa>()
+            .Property(d => d.ValorDespesa)
+            .HasPrecision(10, 2);
+
+        modelBuilder.Entity<DetalhePagamento>()
+            .Property(dp => dp.ValorPago)
+            .HasPrecision(10, 2);
+
+        modelBuilder.Entity<DetalhePagamento>()
+            .Property(dp => dp.Troco)
+            .HasPrecision(10, 2);
+
         modelBuilder.Entity<LogComanda>().ToTable("LOG_COMANDA");
         modelBuilder.Entity<LogSistema>().ToTable("LOG_SISTEMA");
         modelBuilder.Entity<Comanda>()

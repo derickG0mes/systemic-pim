@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PIM3.API.Data;
+using PIM3.API.DTOs;
 using PIM3.API.Models;
 
 namespace PIM3.API.Controllers;

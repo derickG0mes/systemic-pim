@@ -34,7 +34,7 @@ export default function GestaoEstoquePage() {
   const carregarProdutos = async () => {
     try {
       const resp = await getProdutos();
-      let produtosArray = Array.isArray(resp) ? resp : resp?.dados || [];
+      let produtosArray = Array.isArray(resp) ? resp : resp?.dados || resp?.Dados || [];
       setProdutos(produtosArray);
     } catch (error) {
       toast({ title: "Erro", description: "Falha ao carregar produtos" });

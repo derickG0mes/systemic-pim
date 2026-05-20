@@ -62,12 +62,15 @@ public class ComandaController : ControllerBase
         {
             var comandasAbertas = _context.Comandas
                 .Where(c => c.StatusComanda == "ABERTA")
+                .Include(c => c.Mesa)
                 .Include(c => c.ItensComanda)
+                .ThenInclude(i => i.Produto)
                 .Select(c => new
                 {
                     c.IdComanda,
                     c.DataAberta,
                     c.IdMesa,
+                    NumeroMesa = c.Mesa != null ? c.Mesa.NumeroMesa : c.IdMesa,
                     c.IdCliente,
                     c.StatusComanda,
                     ValorTotal = c.ItensComanda.Sum(i => i.QtdProduto * i.PrecoUnitarioPago),
@@ -93,8 +96,7 @@ public class ComandaController : ControllerBase
                 Console.WriteLine($"--> Comanda {cmd.IdComanda} (Mesa {cmd.IdMesa}): R$ {cmd.ValorTotal}");
             }
 
-            // ✅ Retornar dados com total calculado dinamicamente
-            return Ok(comandasAbertas);
+            return Ok(new RespostaPadraoDTO { Sucesso = true, Dados = comandasAbertas });
         }
         catch (Exception ex)
         {
@@ -112,8 +114,12 @@ public class ComandaController : ControllerBase
     {
         Console.WriteLine($"--> Buscando comandas da mesa {tableNumber}");
 
+        var mesa = _context.Mesas.FirstOrDefault(m => m.NumeroMesa == tableNumber);
+        if (mesa == null)
+            return NotFound(new { sucesso = false, mensagem = "Mesa não encontrada" });
+
         var comandas = _context.Comandas
-            .Where(c => c.IdMesa == tableNumber && c.StatusComanda == "ABERTA")
+            .Where(c => c.IdMesa == mesa.IdMesa && c.StatusComanda == "ABERTA")
             .Include(c => c.ItensComanda)
             .Include(c => c.Mesa)
             .Include(c => c.Cliente)
@@ -155,10 +161,12 @@ public class ComandaController : ControllerBase
         if (comanda.IdMesa <= 0 || comanda.IdCliente <= 0)
             return BadRequest(new { message = "Mesa e Cliente são obrigatórios" });
 
-        // Verificar se mesa existe
-        var mesa = _context.Mesas.FirstOrDefault(m => m.IdMesa == comanda.IdMesa);
+        var mesa = _context.Mesas.FirstOrDefault(m => m.IdMesa == comanda.IdMesa)
+            ?? _context.Mesas.FirstOrDefault(m => m.NumeroMesa == comanda.IdMesa);
         if (mesa == null)
             return BadRequest(new { message = "Mesa não encontrada" });
+
+        comanda.IdMesa = mesa.IdMesa;
 
         // Verificar se cliente existe
         var cliente = _context.Clientes.FirstOrDefault(c => c.IdCliente == comanda.IdCliente);
@@ -174,10 +182,6 @@ public class ComandaController : ControllerBase
         comanda.DataAberta = DateTime.UtcNow;
         comanda.StatusComanda = "ABERTA";
         comanda.ValorTotal = 0m;
-
-        // Alterar status da mesa para OCUPADA
-        mesa.StatusMesa = "OCUPADA";
-        _context.Mesas.Update(mesa);
 
         _context.Comandas.Add(comanda);
         await _context.SaveChangesAsync();
@@ -225,13 +229,50 @@ public class ComandaController : ControllerBase
         produto.QtdEstoque -= item.QtdProduto;
         _context.Produtos.Update(produto);
 
-        // Recalcular total da comanda
-        comanda.RecalcularTotal();
-        _context.Comandas.Update(comanda);
-
         await _context.SaveChangesAsync();
 
-        return Ok(new { message = "Item adicionado com sucesso", itemId = item.IdItemComanda, novoTotal = comanda.ValorTotal });
+        var novoTotal = await _context.Comandas.Where(c => c.IdComanda == id).Select(c => c.ValorTotal).FirstAsync();
+        return Ok(new { message = "Item adicionado com sucesso", itemId = item.IdItemComanda, novoTotal });
+    }
+
+    /// <summary>
+    /// Registra pagamento, fecha comanda e libera mesa
+    /// PUT: api/comanda/{id}/pagar
+    /// </summary>
+    [HttpPut("{id}/pagar")]
+    public async Task<IActionResult> Pagar(int id, [FromBody] PagarComandaDTO dto)
+    {
+        var comanda = await _context.Comandas
+            .Include(c => c.Mesa)
+            .Include(c => c.ItensComanda)
+            .FirstOrDefaultAsync(c => c.IdComanda == id);
+
+        if (comanda == null)
+            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Comanda não encontrada" });
+
+        if (comanda.StatusComanda == "FECHADA")
+            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Comanda já está fechada" });
+
+        comanda.RecalcularTotal();
+        var valorPago = comanda.ValorTotal;
+
+        _context.DetalhesPagamento.Add(new DetalhePagamento
+        {
+            IdComanda = id,
+            ValorPago = valorPago,
+            Troco = dto.Troco,
+            StatusPagamento = "PAGO",
+            IdFormaPagamento = dto.IdFormaPagamento,
+            IdFuncionario = dto.IdFuncionario,
+            DataPagamento = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+        LogSistemaHelper.Registrar(_context, "PEDIDO", $"Pagamento comanda {id} - R$ {valorPago}");
+        await _context.SaveChangesAsync();
+
+        await _context.Entry(comanda).ReloadAsync();
+        return Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Pagamento registrado e comanda fechada", Dados = comanda });
     }
 
     /// <summary>
@@ -291,13 +332,10 @@ public class ComandaController : ControllerBase
 
         _context.ItensComanda.Remove(item);
 
-        // Recalcular total da comanda
-        comanda.RecalcularTotal();
-        _context.Comandas.Update(comanda);
-
         await _context.SaveChangesAsync();
 
-        return Ok(new { message = "Item removido com sucesso", novoTotal = comanda.ValorTotal });
+        var novoTotal = await _context.Comandas.Where(c => c.IdComanda == id).Select(c => c.ValorTotal).FirstAsync();
+        return Ok(new { message = "Item removido com sucesso", novoTotal });
     }
 
     /// <summary>

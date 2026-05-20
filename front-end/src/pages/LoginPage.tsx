@@ -57,8 +57,9 @@ export default function LoginPage() {
             <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t">
               <p className="font-medium">Contas de demonstração:</p>
               <p>Admin: admin@restaurante.com / admin123</p>
-              <p>Proprietario: owner@restaurante.com / owner123</p>
-              <p>Garcom: garcom@restaurante.com / garcom123</p>
+              <p>Proprietario: owner@restaurante.com / admin123</p>
+              <p>Garcom: garcom@restaurante.com / admin123</p>
+              <p>Cozinha: cozinha@restaurante.com / admin123</p>
             </div>
           </form>
         </CardContent>

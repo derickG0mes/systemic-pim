@@ -7,7 +7,7 @@ namespace PIM3.API.DTOs;
 /// </summary>
 public class LoginDTO
 {
-    // Email ou identificador do funcionário
+    [JsonPropertyName("email")]
     public string Email { get; set; } = string.Empty;
     
     // Senha do funcionário

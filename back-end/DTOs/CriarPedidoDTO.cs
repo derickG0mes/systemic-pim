@@ -31,3 +31,36 @@ public class ItemPedidoDTO
     [JsonPropertyName("precoUnitarioPago")]
     public decimal PrecoUnitarioPago { get; set; }
 }
+
+/// <summary>
+/// DTO para atualizar status do pedido (api.ts envia { status })
+/// </summary>
+public class AtualizarStatusPedidoDTO
+{
+    [JsonPropertyName("status")]
+    public string Status { get; set; } = string.Empty;
+}
+
+public class CriarReservaDTO
+{
+    [JsonPropertyName("nomeCliente")]
+    public string NomeCliente { get; set; } = string.Empty;
+
+    [JsonPropertyName("numeroMesa")]
+    public int NumeroMesa { get; set; }
+
+    [JsonPropertyName("dataReserva")]
+    public DateTime DataReserva { get; set; }
+}
+
+public class PagarComandaDTO
+{
+    [JsonPropertyName("idFormaPagamento")]
+    public int IdFormaPagamento { get; set; }
+
+    [JsonPropertyName("idFuncionario")]
+    public int IdFuncionario { get; set; } = 1;
+
+    [JsonPropertyName("troco")]
+    public decimal Troco { get; set; }
+}

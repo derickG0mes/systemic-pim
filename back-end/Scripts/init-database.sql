@@ -2,6 +2,9 @@ CREATE DATABASE DB_RESTAURANTE;
 GO
 USE DB_RESTAURANTE;
 GO
+-- =========================================================================
+-- CRIAÇÃO DAS TABELAS
+-- =========================================================================
 
 CREATE TABLE FUNCIONARIO (
     ID_FUNCIONARIO INT PRIMARY KEY IDENTITY(1,1),
@@ -46,7 +49,8 @@ CREATE TABLE PRODUTO (
     PRECO_VENDA DECIMAL(10,2) NULL,
     QTD_ESTOQUE INT NOT NULL,
     ESTOQUE_MINIMO INT NOT NULL DEFAULT 5,
-    STATUS_PRODUTO VARCHAR(20) NOT NULL DEFAULT 'DISPONIVEL'
+    STATUS_PRODUTO VARCHAR(20) NOT NULL DEFAULT 'DISPONIVEL',
+    CATEGORIA_PRODUTO VARCHAR(20) NOT NULL DEFAULT 'PRINCIPAL'
 );
 
 CREATE TABLE RESERVA (
@@ -116,38 +120,139 @@ CREATE TABLE LOG_COMANDA (
     CONSTRAINT FK_LOG_COMANDA_FUNCIONARIO FOREIGN KEY (ID_FUNCIONARIO) REFERENCES FUNCIONARIO(ID_FUNCIONARIO)
 );
 
+CREATE TABLE LOG_SISTEMA (
+    ID_LOG_SISTEMA INT PRIMARY KEY IDENTITY(1,1),
+    DATA_LOG DATETIME2 NOT NULL DEFAULT (CAST(GETUTCDATE() AT TIME ZONE 'UTC' AT TIME ZONE 'E. South America Standard Time' AS DATETIME2)),
+    TIPO_LOG VARCHAR(50) NOT NULL,
+    DESCRICAO_LOG VARCHAR(500) NOT NULL,
+    USUARIO_LOG VARCHAR(100) NULL,
+    DADO_ANTERIOR VARCHAR(MAX) NULL,
+    DADO_NOVO VARCHAR(MAX) NULL
+);
+
 GO
+
 -- =========================================================================
--- CARGA INICIAL DE DADOS (POPULAÇÃO DO BANCO)
+-- CARGA INICIAL DE DADOS
 -- =========================================================================
 
--- Inserir mesas
-INSERT INTO MESA (NUMERO_MESA, STATUS_MESA, CAPACIDADE_MESA) VALUES
-(1, 'DISPONIVEL', 4),
-(2, 'DISPONIVEL', 2),
-(3, 'DISPONIVEL', 6),
-(4, 'DISPONIVEL', 4);
-
--- Inserir clientes
-INSERT INTO CLIENTE (NOME_CLIENTE, TELEFONE_CLIENTE, FEEDBACK) VALUES
-('João Silva', '11999999999', 'Bom'),
-('Maria Santos', '11888888888', NULL);
-
--- Inserir formas de pagamento
+-- 1. FORMAS DE PAGAMENTO
 INSERT INTO FORMA_PAGAMENTO (NOME_FORMA_PAGAMENTO) VALUES
 ('PIX'),
 ('Cartão de Crédito'),
 ('Cartão de Débito'),
 ('Dinheiro');
 
--- Inserir produtos
-INSERT INTO PRODUTO (NOME_PRODUTO, DESCRICAO_PRODUTO, PRECO_PRODUTO, QTD_ESTOQUE, ESTOQUE_MINIMO, STATUS_PRODUTO) VALUES
-('Pizza Margherita', 'Pizza tradicional', 35.00, 50, 5, 'DISPONIVEL'),
-('Refrigerante Coca-Cola', 'Lata 350ml', 5.00, 100, 10, 'DISPONIVEL'),
-('Hambúrguer', 'Com queijo e batata', 25.00, 30, 5, 'DISPONIVEL');
-
--- Inserir funcionários com hash válido (PBKDF2) e roles atualizadas
+-- 2. FUNCIONÁRIOS
 INSERT INTO FUNCIONARIO (NOME_FUNCIONARIO, EMAIL_FUNCIONARIO, CPF_FUNCIONARIO, TELEFONE_FUNCIONARIO, PASSWORD_FUNCIONARIO, CARGO_FUNCIONARIO, STATUS_FUNCIONARIO, ROLE) 
 VALUES
-('Admin', 'admin@restaurante.com', '12345678901', '11999999999', 'CGp2HzQssQ8F4pQmJOWcEYaspK9tMbPHKlSEg4FxFdu0yWoK', 'Gerente', 'ATIVO', 'admin'),
-('Garçom', 'garcom@restaurante.com', '09876543210', '11888888888', 'CGp2HzQssQ8F4pQmJOWcEYaspK9tMbPHKlSEg4FxFdu0yWoK', 'Garçom', 'ATIVO', 'employee');
+('Administrador', 'admin@restaurante.com',   '12345678901', '11999999999', 'CGp2HzQssQ8F4pQmJOWcEYaspK9tMbPHKlSEg4FxFdu0yWoK', 'Gerente',     'ATIVO', 'admin'),
+('Proprietario',  'owner@restaurante.com',   '99988877766', '11944444444', 'CGp2HzQssQ8F4pQmJOWcEYaspK9tMbPHKlSEg4FxFdu0yWoK', 'Proprietario', 'ATIVO', 'admin'),
+('Garçom',        'garcom@restaurante.com',  '09876543210', '11888888888', 'CGp2HzQssQ8F4pQmJOWcEYaspK9tMbPHKlSEg4FxFdu0yWoK', 'Garçom',      'ATIVO', 'employee'),
+('Cozinheiro',    'cozinha@restaurante.com', '11122233344', '11877777777', 'CGp2HzQssQ8F4pQmJOWcEYaspK9tMbPHKlSEg4FxFdu0yWoK', 'Cozinha',     'ATIVO', 'employee');
+
+-- 3. CLIENTES
+INSERT INTO CLIENTE (NOME_CLIENTE, TELEFONE_CLIENTE, FEEDBACK) VALUES
+('João Silva',   '11999999999', NULL),
+('Maria Santos', '11888888888', NULL),
+('Carlos Souza', '11977777777', NULL),
+('Ana Lima',     '11966666666', NULL),
+('Pedro Costa',  '11955555555', NULL);
+
+-- 4. MESAS (20 mesas alinhado ao front)
+INSERT INTO MESA (NUMERO_MESA, STATUS_MESA, CAPACIDADE_MESA) VALUES
+(1,'DISPONIVEL',4),(2,'DISPONIVEL',4),(3,'DISPONIVEL',4),(4,'DISPONIVEL',4),
+(5,'DISPONIVEL',4),(6,'DISPONIVEL',4),(7,'DISPONIVEL',4),(8,'DISPONIVEL',4),
+(9,'DISPONIVEL',4),(10,'DISPONIVEL',4),(11,'DISPONIVEL',4),(12,'DISPONIVEL',4),
+(13,'DISPONIVEL',4),(14,'DISPONIVEL',4),(15,'DISPONIVEL',4),(16,'DISPONIVEL',4),
+(17,'DISPONIVEL',4),(18,'DISPONIVEL',4),(19,'DISPONIVEL',4),(20,'DISPONIVEL',4);
+
+-- 5. PRODUTOS (cardápio completo)
+INSERT INTO PRODUTO (NOME_PRODUTO, DESCRICAO_PRODUTO, PRECO_PRODUTO, QTD_ESTOQUE, ESTOQUE_MINIMO, STATUS_PRODUTO, CATEGORIA_PRODUTO) VALUES
+('Pão de Alho',           'Pão francês com manteiga e alho',          12.90, 50, 5,  'DISPONIVEL', 'ENTRADA'),
+('Bruschetta',            'Pão italiano com tomate e manjericão',      18.90, 50, 5,  'DISPONIVEL', 'ENTRADA'),
+('Tábua de Frios',        'Queijos e embutidos variados',              45.90, 20, 5,  'DISPONIVEL', 'ENTRADA'),
+('Pizza Margherita',      'Pizza tradicional',                         35.00, 50, 5,  'DISPONIVEL', 'PRINCIPAL'),
+('Hambúrguer',            'Com queijo e batata frita',                 25.00, 30, 5,  'DISPONIVEL', 'PRINCIPAL'),
+('Frango Grelhado',       'Com arroz e salada',                        38.90, 30, 5,  'DISPONIVEL', 'PRINCIPAL'),
+('Picanha na Brasa',      '300g com fritas e farofa',                  79.90, 20, 5,  'DISPONIVEL', 'PRINCIPAL'),
+('Salmão ao Molho',       'Filé com molho de maracujá',                69.90, 20, 5,  'DISPONIVEL', 'PRINCIPAL'),
+('Massa Carbonara',       'Espaguete com bacon e molho cremoso',        42.90, 30, 5,  'DISPONIVEL', 'PRINCIPAL'),
+('Risoto de Funghi',      'Cremoso com funghi e parmesão',             52.90, 25, 5,  'DISPONIVEL', 'PRINCIPAL'),
+('Água Mineral',          'Garrafa 500ml',                              5.00,100, 10, 'DISPONIVEL', 'BEBIDA'),
+('Refrigerante Coca-Cola','Lata 350ml',                                 5.00,100, 10, 'DISPONIVEL', 'BEBIDA'),
+('Suco Natural',          'Copo 400ml',                                12.00, 80, 10, 'DISPONIVEL', 'BEBIDA'),
+('Cerveja',               'Long neck 355ml',                           12.00,100, 10, 'BEBIDA'),
+('Caipirinha',            'Limão ou morango',                          20.00, 50, 5,  'DISPONIVEL', 'BEBIDA'),
+('Pudim',                 'Pudim de leite condensado',                 14.90, 30, 5,  'DISPONIVEL', 'SOBREMESA'),
+('Petit Gateau',          'Bolinho quente com sorvete',                22.90, 20, 5,  'DISPONIVEL', 'SOBREMESA'),
+('Sorvete',               '2 bolas à escolha',                         12.90, 40, 5,  'DISPONIVEL', 'SOBREMESA');
+GO
+
+-- Migração: coluna CATEGORIA_PRODUTO em bancos já existentes
+IF COL_LENGTH('PRODUTO', 'CATEGORIA_PRODUTO') IS NULL
+BEGIN
+    ALTER TABLE PRODUTO ADD CATEGORIA_PRODUTO VARCHAR(20) NOT NULL DEFAULT 'PRINCIPAL';
+END
+GO
+
+-- =========================================================================
+-- TRIGGERS: atualização automática no banco
+-- =========================================================================
+
+CREATE TRIGGER trg_abrir_comanda ON COMANDA
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE M SET STATUS_MESA = 'OCUPADA'
+    FROM MESA M
+    INNER JOIN inserted i ON M.ID_MESA = i.ID_MESA
+    WHERE i.STATUS_COMANDA = 'ABERTA';
+END;
+GO
+
+CREATE TRIGGER trg_atualizar_valor_total ON ITEM_COMANDA
+AFTER INSERT, UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE C SET VALOR_TOTAL = ISNULL((
+        SELECT SUM(IC.QTD_PRODUTO * IC.PRECO_UNITARIO_PAGO)
+        FROM ITEM_COMANDA IC WHERE IC.ID_COMANDA = C.ID_COMANDA
+    ), 0)
+    FROM COMANDA C
+    WHERE C.ID_COMANDA IN (
+        SELECT ID_COMANDA FROM inserted
+        UNION SELECT ID_COMANDA FROM deleted
+    );
+END;
+GO
+
+CREATE TRIGGER trg_fechar_comanda ON DETALHE_PAGAMENTO
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE C SET STATUS_COMANDA = 'FECHADA',
+        DATA_FECHADA = CAST(GETUTCDATE() AT TIME ZONE 'UTC' AT TIME ZONE 'E. South America Standard Time' AS DATETIME)
+    FROM COMANDA C
+    INNER JOIN inserted i ON C.ID_COMANDA = i.ID_COMANDA;
+
+    UPDATE M SET STATUS_MESA = 'DISPONIVEL'
+    FROM MESA M
+    INNER JOIN COMANDA C ON M.ID_MESA = C.ID_MESA
+    INNER JOIN inserted i ON C.ID_COMANDA = i.ID_COMANDA
+    WHERE C.STATUS_COMANDA = 'FECHADA';
+END;
+GO
+
+-- =========================================================================
+-- VERIFICAÇÃO
+-- =========================================================================
+SELECT 'FORMA_PAGAMENTO' AS Tabela, COUNT(*) AS Total FROM FORMA_PAGAMENTO UNION ALL
+SELECT 'FUNCIONARIO',               COUNT(*)          FROM FUNCIONARIO      UNION ALL
+SELECT 'CLIENTE',                   COUNT(*)          FROM CLIENTE          UNION ALL
+SELECT 'MESA',                      COUNT(*)          FROM MESA             UNION ALL
+SELECT 'PRODUTO',                   COUNT(*)          FROM PRODUTO;
+GO

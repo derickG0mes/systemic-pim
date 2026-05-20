@@ -31,6 +31,7 @@ public class AutenticacaoController : ControllerBase
     /// POST: api/autenticacao/login
     /// </summary>
     [HttpPost("login")]
+    [Microsoft.AspNetCore.Authorization.AllowAnonymous]
     public async Task<IActionResult> Login([FromBody] LoginDTO loginDTO)
     {
         // Aqui começamos a validar se o usuário existe no banco

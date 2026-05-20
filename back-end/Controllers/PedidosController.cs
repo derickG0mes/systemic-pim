@@ -94,8 +94,9 @@ public class PedidosController : ControllerBase
     {
         Console.WriteLine($"--> Criando pedido para mesa: {pedidoDTO.IdMesa} com {pedidoDTO.Itens.Count} itens");
 
-        // Validação: verificamos se a mesa existe
-        var mesa = await _context.Mesas.FindAsync(pedidoDTO.IdMesa);
+        // Validação: IdMesa ou NumeroMesa (front envia tableNumber)
+        var mesa = await _context.Mesas.FindAsync(pedidoDTO.IdMesa)
+            ?? await _context.Mesas.FirstOrDefaultAsync(m => m.NumeroMesa == pedidoDTO.IdMesa);
         if (mesa == null)
         {
             Console.WriteLine($"--> Mesa não encontrada: {pedidoDTO.IdMesa}");
@@ -112,7 +113,7 @@ public class PedidosController : ControllerBase
 
         // Validação: verificamos se a mesa já tem uma comanda aberta
         var comandaExistente = await _context.Comandas
-            .FirstOrDefaultAsync(c => c.IdMesa == pedidoDTO.IdMesa && c.StatusComanda == "ABERTA");
+            .FirstOrDefaultAsync(c => c.IdMesa == mesa.IdMesa && c.StatusComanda == "ABERTA");
 
         if (comandaExistente != null)
         {
@@ -141,7 +142,7 @@ public class PedidosController : ControllerBase
         // Criar a comanda
         var novaComanda = new Comanda
         {
-            IdMesa = pedidoDTO.IdMesa,
+            IdMesa = mesa.IdMesa,
             IdCliente = pedidoDTO.IdCliente,
             DataAberta = DateTime.UtcNow,
             StatusComanda = "ABERTA",
@@ -192,7 +193,8 @@ public class PedidosController : ControllerBase
             {
                 IdProduto = itemDTO.IdProduto,
                 QtdProduto = itemDTO.QtdProduto,
-                PrecoUnitarioPago = precoFinal
+                PrecoUnitarioPago = precoFinal,
+                StatusItem = "PREPARAR"
             };
 
             novaComanda.ItensComanda.Add(item);
@@ -212,10 +214,6 @@ public class PedidosController : ControllerBase
         {
             Console.WriteLine($"    • {item.IdProduto} - Qty: {item.QtdProduto}, Preço: R$ {item.PrecoUnitarioPago}");
         }
-
-        // Alterar status da mesa para OCUPADA
-        mesa.StatusMesa = "OCUPADA";
-        _context.Mesas.Update(mesa);
 
         // Adicionar comanda ao banco
         _context.Comandas.Add(novaComanda);
@@ -301,18 +299,17 @@ public class PedidosController : ControllerBase
     /// PUT: api/pedidos/{id}/status
     /// </summary>
     [HttpPut("{id}/status")]
-    public async Task<IActionResult> AtualizarStatusPedido(int id, [FromBody] dynamic statusDTO)
+    public async Task<IActionResult> AtualizarStatusPedido(int id, [FromBody] AtualizarStatusPedidoDTO statusDTO)
     {
         Console.WriteLine($"--> Alguém tentou atualizar o status do pedido {id}");
 
-        // Buscamos o pedido no banco
         var pedido = await _context.Comandas
             .Include(c => c.Mesa)
+            .Include(c => c.ItensComanda)
             .FirstOrDefaultAsync(c => c.IdComanda == id);
 
         if (pedido == null)
         {
-            Console.WriteLine($"--> Pedido não encontrado para atualização: {id}");
             return NotFound(new RespostaPadraoDTO
             {
                 Sucesso = false,
@@ -321,37 +318,54 @@ public class PedidosController : ControllerBase
             });
         }
 
-        string novoStatus = statusDTO.status;
-        var statusPermitidos = new[] { "ABERTA", "FECHADA" };
+        var novoStatus = statusDTO.Status?.Trim() ?? string.Empty;
+        var statusCozinha = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["preparing"] = "PREPARAR",
+            ["in_progress"] = "PREPARAR",
+            ["completed"] = "CONCLUIDO"
+        };
 
-        if (!statusPermitidos.Contains(novoStatus))
+        // api.ts envia preparing | in_progress | completed
+        if (statusCozinha.TryGetValue(novoStatus, out var statusItem))
+        {
+            foreach (var item in pedido.ItensComanda)
+                item.StatusItem = statusItem;
+
+            await _context.SaveChangesAsync();
+            return Ok(new RespostaPadraoDTO
+            {
+                Sucesso = true,
+                Mensagem = $"Itens atualizados para: {statusItem}",
+                Dados = pedido
+            });
+        }
+
+        var statusComanda = novoStatus.ToUpperInvariant();
+        if (statusComanda is not ("ABERTA" or "FECHADA"))
         {
             return BadRequest(new RespostaPadraoDTO
             {
                 Sucesso = false,
-                Mensagem = "Status inválido. Use: ABERTA ou FECHADA",
+                Mensagem = "Status inválido.",
                 CodigoErro = "STATUS_INVALIDO"
             });
         }
 
-        // Se está fechando, liberar a mesa
-        if (novoStatus == "FECHADA" && pedido.Mesa != null)
+        if (statusComanda == "FECHADA" && pedido.Mesa != null)
         {
             pedido.Mesa.StatusMesa = "DISPONIVEL";
             pedido.DataFechada = DateTime.UtcNow;
             _context.Mesas.Update(pedido.Mesa);
-            Console.WriteLine($"--> Mesa {pedido.IdMesa} liberada");
         }
 
-        pedido.StatusComanda = novoStatus;
+        pedido.StatusComanda = statusComanda;
         await _context.SaveChangesAsync();
-
-        Console.WriteLine($"--> Status do pedido {id} atualizado para: {novoStatus}");
 
         return Ok(new RespostaPadraoDTO
         {
             Sucesso = true,
-            Mensagem = $"Pedido atualizado para status: {novoStatus}",
+            Mensagem = $"Pedido atualizado para status: {statusComanda}",
             Dados = pedido
         });
     }

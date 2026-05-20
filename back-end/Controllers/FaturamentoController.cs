@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
+using PIM3.API.DTOs;
 using PIM3.API.Models;
 
 namespace PIM3.API.Controllers;
@@ -16,6 +17,33 @@ public class FaturamentoController : ControllerBase
     public FaturamentoController(AppDbContext context)
     {
         _context = context;
+    }
+
+    /// <summary>
+    /// GET api/faturamento — chamado por api.ts getFaturamento()
+    /// </summary>
+    [HttpGet]
+    public IActionResult GetResumo()
+    {
+        var inicio = DateTime.UtcNow.Date;
+        var fim = inicio.AddDays(1).AddTicks(-1);
+
+        var receita = _context.ItensComanda
+            .Where(item => item.Comanda != null &&
+                           item.Comanda.StatusComanda == "FECHADA" &&
+                           item.Comanda.DataFechada >= inicio &&
+                           item.Comanda.DataFechada <= fim)
+            .Sum(item => (decimal?)(item.QtdProduto * item.PrecoUnitarioPago)) ?? 0m;
+
+        var despesas = _context.Despesas
+            .Where(d => d.DataDespesa >= inicio && d.DataDespesa <= fim)
+            .Sum(d => (decimal?)d.ValorDespesa) ?? 0m;
+
+        return Ok(new RespostaPadraoDTO
+        {
+            Sucesso = true,
+            Dados = new { dataInicio = inicio, dataFim = fim, receita, despesas, lucro = receita - despesas }
+        });
     }
 
     /// <summary>

@@ -16,10 +16,15 @@ import {
   createMesa,
   updateMesa,
   closeComanda,
+  pagarComanda,
+  createComanda,
   addItemComanda,
   getComandas,
   getProdutos,
+  createProduto,
+  createReserva,
   getFuncionarios,
+  getFaturamento,
 } from "@/services/api";
 
 export interface Product {
@@ -98,10 +103,9 @@ interface RestaurantContextType {
   closeTab: (id: string, paymentMethod: PaymentMethod) => void;
   markTabUnpaid: (id: string) => void;
   addOrderToTab: (tabId: string, orderId: string) => void;
-  addReservation: (r: Omit<Reservation, "id">) => {
-    success: boolean;
-    message: string;
-  };
+  addReservation: (
+    r: Omit<Reservation, "id">,
+  ) => Promise<{ success: boolean; message: string }>;
   cancelReservation: (id: string) => void;
   addEmployee: (e: Omit<Employee, "id">) => {
     success: boolean;
@@ -114,6 +118,7 @@ interface RestaurantContextType {
     openTabs: number;
     closedTabs: number;
   };
+  faturamento: { receita: number; despesas: number; lucro: number };
 }
 
 const RestaurantContext = createContext<RestaurantContextType | null>(null);
@@ -125,6 +130,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [faturamento, setFaturamento] = useState({ receita: 0, despesas: 0, lucro: 0 });
 
   // ✅ Função para sincronizar comandas com o banco
   const syncComandas = useCallback(async () => {
@@ -176,7 +182,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
           // Considera os itens da comanda como um pedido aglomerado para fins de UI (Tela de Pedidos)
           const order: Order = {
             id: String(comanda.idComanda),
-            tableNumber: Number(comanda.idMesa),
+            tableNumber: Number(comanda.numeroMesa ?? comanda.idMesa),
             items: groupedItems,
             status: "preparing", // O padrão após recarregar
             createdAt: new Date(comanda.dataAberta),
@@ -188,7 +194,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
 
         const tabFormatted: Tab = {
           id: String(comanda.idComanda),
-          tableNumber: Number(comanda.idMesa),
+          tableNumber: Number(comanda.numeroMesa ?? comanda.idMesa),
           orders: mappedOrders,
           status:
             comanda.statusComanda?.toLowerCase() === "aberta"
@@ -256,15 +262,17 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
           ? produtosResp
           : Array.isArray(produtosResp?.dados)
             ? produtosResp.dados
-            : Array.isArray(produtosResp?.data)
-              ? produtosResp.data
-              : [];
+            : Array.isArray(produtosResp?.Dados)
+              ? produtosResp.Dados
+              : Array.isArray(produtosResp?.data)
+                ? produtosResp.data
+                : [];
 
         if (produtosArray.length > 0) {
           const formattedProducts = produtosArray.map((p: any) => ({
             id: p.idProduto ? `p${p.idProduto}` : p.id,
             name: p.nomeProduto || p.name,
-            category: p.descricaoProduto || p.category || "Geral",
+            category: p.categoria || p.descricaoProduto || p.category || "Geral",
             price: Number(p.precoProduto || p.price),
             stock: Number(p.qtdEstoque || p.stock || 0),
             minStock: Number(p.estoqueMinimo || p.minStock || 0),
@@ -306,18 +314,25 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
           ? funcResp
           : Array.isArray(funcResp?.dados)
             ? funcResp.dados
-            : Array.isArray(funcResp?.data)
-              ? funcResp.data
-              : [];
+            : Array.isArray(funcResp?.Dados)
+              ? funcResp.Dados
+              : Array.isArray(funcResp?.data)
+                ? funcResp.data
+                : [];
 
         if (funcArray.length > 0) {
           const formattedFunc = funcArray.map((f: any) => ({
             id: f.idFuncionario ? String(f.idFuncionario) : f.id,
             name: f.nomeFuncionario || f.name,
-            role: f.role || f.cargoFuncionario || "employee",
-            email: f.emailFuncionario || f.email,
-            status: f.statusFuncionario === "ATIVO" ? "active" : "inactive",
-            lastLogin: new Date(),
+            email: f.emailFuncionario || f.email || "",
+            role: (f.perfil === "Administrador"
+              ? "admin"
+              : f.perfil === "Proprietário"
+                ? "owner"
+                : "employee") as Employee["role"],
+            position: f.cargoFuncionario || "",
+            password: "",
+            active: f.statusFuncionario === "ATIVO",
           }));
           setEmployees(formattedFunc);
           console.log("✅ Funcionários carregados da API", formattedFunc);
@@ -325,18 +340,35 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.warn("⚠️ Não foi possível carregar funcionários da API");
       }
+
+      try {
+        const fatResp = await getFaturamento();
+        const fat = fatResp?.dados ?? fatResp?.Dados;
+        if (fat) {
+          setFaturamento({
+            receita: Number(fat.receita ?? 0),
+            despesas: Number(fat.despesas ?? 0),
+            lucro: Number(fat.lucro ?? 0),
+          });
+        }
+      } catch (error) {
+        console.warn("⚠️ Não foi possível carregar faturamento da API");
+      }
     };
 
-    // Aguarda um pouco para a API estar pronta
     const timer = setTimeout(loadDataFromAPI, 1000);
-    return () => clearTimeout(timer);
+    const poll = setInterval(() => syncComandas(), 10000);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(poll);
+    };
   }, [syncComandas]);
 
   // 🔥 Sincronizar Logs do Backend
   const syncLogs = useCallback(async () => {
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/log/sistema?pagina=1&tamanho=100`,
+        `${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/log/sistema?pagina=1&tamanho=100`,
         {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("authToken")}`,
@@ -365,15 +397,31 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   // 🔥 Sincronizar Reservas do Backend
   const syncReservations = useCallback(async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/reserva`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/reserva`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+          },
         },
-      });
+      );
       const data = await response.json();
-      let reservasArray = Array.isArray(data?.dados) ? data.dados : [];
+      let reservasArray = Array.isArray(data?.dados)
+        ? data.dados
+        : Array.isArray(data?.Dados)
+          ? data.Dados
+          : [];
 
-      console.log(`✅ ${reservasArray.length} reservas sincronizadas`);
+      const formatted = reservasArray.map((r: any) => ({
+        id: String(r.idReserva),
+        clientName: r.nomeCliente || "",
+        tableNumber: Number(r.numeroMesa ?? r.idMesa),
+        date: new Date(r.dataReserva).toISOString().split("T")[0],
+        time: new Date(r.dataReserva).toTimeString().slice(0, 5),
+        guests: 2,
+      }));
+      setReservations(formatted);
+      console.log(`✅ ${formatted.length} reservas sincronizadas`);
     } catch (error) {
       console.warn("⚠️ Erro ao sincronizar reservas:", error);
     }
@@ -388,10 +436,30 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   );
 
   const addProduct = useCallback(
-    (p: Omit<Product, "id">) => {
-      const newP = { ...p, id: `p${Date.now()}` };
-      setProducts((prev) => [...prev, newP]);
-      log("CREATE_PRODUCT", `Produto "${p.name}" cadastrado`);
+    async (p: Omit<Product, "id">) => {
+      try {
+        const resp = await createProduto({
+          nomeProduto: p.name,
+          categoria: p.category,
+          precoProduto: p.price,
+          qtdEstoque: p.stock,
+          estoqueMinimo: p.minStock,
+          statusProduto: "DISPONIVEL",
+        });
+        const saved = resp?.dados ?? resp?.Dados ?? resp;
+        const newP: Product = {
+          id: saved?.idProduto ? `p${saved.idProduto}` : `p${Date.now()}`,
+          name: saved?.nomeProduto ?? p.name,
+          category: saved?.categoria ?? p.category,
+          price: Number(saved?.precoProduto ?? p.price),
+          stock: Number(saved?.qtdEstoque ?? p.stock),
+          minStock: Number(saved?.estoqueMinimo ?? p.minStock),
+        };
+        setProducts((prev) => [...prev, newP]);
+        log("CREATE_PRODUCT", `Produto "${p.name}" cadastrado`);
+      } catch (error) {
+        console.error("Erro ao cadastrar produto na API:", error);
+      }
     },
     [log],
   );
@@ -519,6 +587,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
             precoUnitarioPago: item.price,
           })),
         });
+        await syncComandas();
       } catch (error) {
         console.error("Erro ao editar pedido na API:", error);
       }
@@ -528,13 +597,14 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         `Pedido ${id} editado - Total atualizado para R$ ${newTotal.toFixed(2)}`,
       );
     },
-    [log, orders],
+    [log, orders, syncComandas],
   );
 
   const updateOrderStatus = useCallback(
     (id: string, status: OrderStatus) => {
-      // Sincronizar com API
-      updatePedidoStatus(id, status).catch((error) => {
+      updatePedidoStatus(id, status)
+        .then(() => syncComandas())
+        .catch((error) => {
         console.error("Erro ao atualizar status na API:", error);
       });
 
@@ -564,42 +634,43 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
       }
       log("UPDATE_ORDER_STATUS", `Pedido ${id} → ${status}`);
     },
-    [orders, log],
+    [orders, log, syncComandas],
   );
 
   const openTab = useCallback(
-    (tableNumber: number) => {
-      const newTab: Tab = {
-        id: `t${Date.now()}`,
-        tableNumber,
-        orders: [],
-        status: "open",
-        total: 0,
-        openedAt: new Date(),
-      };
-      setTabs((prev) => [...prev, newTab]);
+    async (tableNumber: number) => {
+      try {
+        await createComanda({ idMesa: tableNumber, idCliente: 1 });
+        await syncComandas();
+      } catch (error) {
+        console.error("Erro ao abrir comanda na API:", error);
+      }
       log("OPEN_TAB", `Comanda aberta para mesa ${tableNumber}`);
     },
-    [log],
+    [log, syncComandas],
   );
 
   const closeTab = useCallback(
-    (id: string, paymentMethod: PaymentMethod) => {
-      setTabs((prev) =>
-        prev.map((t) =>
-          t.id === id
-            ? {
-                ...t,
-                status: "closed" as const,
-                paymentMethod,
-                closedAt: new Date(),
-              }
-            : t,
-        ),
-      );
+    async (id: string, paymentMethod: PaymentMethod) => {
+      const formaMap: Record<PaymentMethod, number> = {
+        pix: 1,
+        credit: 2,
+        debit: 3,
+        cash: 4,
+      };
+      try {
+        await pagarComanda(id, {
+          idFormaPagamento: formaMap[paymentMethod],
+          idFuncionario: 1,
+          troco: 0,
+        });
+        await syncComandas();
+      } catch (error) {
+        console.error("Erro ao fechar comanda na API:", error);
+      }
       log("CLOSE_TAB", `Comanda ${id} fechada (${paymentMethod})`);
     },
-    [log],
+    [log, syncComandas],
   );
 
   const markTabUnpaid = useCallback(
@@ -633,7 +704,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   );
 
   const addReservation = useCallback(
-    (r: Omit<Reservation, "id">) => {
+    async (r: Omit<Reservation, "id">) => {
       const conflict = reservations.find(
         (x) =>
           x.tableNumber === r.tableNumber &&
@@ -651,14 +722,24 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
           success: false,
           message: "Fora do horário de funcionamento (11h-22h).",
         };
-      setReservations((prev) => [...prev, { ...r, id: `r${Date.now()}` }]);
-      log(
-        "CREATE_RESERVATION",
-        `Reserva para ${r.clientName} - Mesa ${r.tableNumber}`,
-      );
-      return { success: true, message: "Reserva criada!" };
+      try {
+        await createReserva({
+          nomeCliente: r.clientName,
+          numeroMesa: r.tableNumber,
+          dataReserva: new Date(`${r.date}T${r.time}:00`).toISOString(),
+        });
+        await syncReservations();
+        log(
+          "CREATE_RESERVATION",
+          `Reserva para ${r.clientName} - Mesa ${r.tableNumber}`,
+        );
+        return { success: true, message: "Reserva criada!" };
+      } catch (error) {
+        console.error("Erro ao criar reserva na API:", error);
+        return { success: false, message: "Falha ao salvar reserva no servidor." };
+      }
     },
-    [reservations, log],
+    [reservations, log, syncReservations],
   );
 
   const cancelReservation = useCallback(
@@ -745,6 +826,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         addEmployee,
         updateEmployee,
         dailySales,
+        faturamento,
       }}
     >
       {children}
