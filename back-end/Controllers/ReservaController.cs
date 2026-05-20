@@ -78,10 +78,17 @@ public class ReservaController : ControllerBase
 
         _context.Reservas.Add(reserva);
         await _context.SaveChangesAsync();
-        LogSistemaHelper.Registrar(_context, "RESERVA", $"Reserva criada: {cliente.NomeCliente} - Mesa {mesa.NumeroMesa}");
-        await _context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(ListarReservas), new { id = reserva.IdReserva },
-            new RespostaPadraoDTO { Sucesso = true, Mensagem = "Reserva criada com sucesso!", Dados = reserva });
+        try
+        {
+            LogSistemaHelper.Registrar(_context, "RESERVA", $"Reserva criada: {cliente.NomeCliente} - Mesa {mesa.NumeroMesa}");
+            await _context.SaveChangesAsync();
+        }
+        catch
+        {
+            /* LOG_SISTEMA ausente não impede a reserva */
+        }
+
+        return Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Reserva criada com sucesso!", Dados = reserva });
     }
 }

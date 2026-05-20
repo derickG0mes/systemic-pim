@@ -1,34 +1,83 @@
-// URL base da API do backend
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const hostname = window.location.hostname;
+// Se a página for aberta via IP, usa o IP da rede. Se for localhost, usa localhost.
+export const API_URL = `http://${hostname}:5000/api`;
 
-// Função auxiliar para fazer requisições com o token JWT
-async function apiCall(endpoint: string, options: RequestInit = {}) {
+function resolveApiUrl(): string {
+  const host = window.location.hostname;
+  return `http://${host}:5000/api`;
+}
+
+const PUBLIC_PATHS = ["/autenticacao/login", "/healthcheck"];
+
+export function getAuthToken(): string | null {
   const token = localStorage.getItem("authToken");
+  return token?.trim() ? token.trim() : null;
+}
 
-  const headers: HeadersInit = {
+function isPublicPath(endpoint: string): boolean {
+  return PUBLIC_PATHS.some((p) => endpoint.startsWith(p));
+}
+
+async function parseJsonResponse(response: Response) {
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error("Resposta inválida da API (JSON)");
+  }
+}
+
+// Função auxiliar: token lido do localStorage no instante de cada requisição
+async function apiCall(endpoint: string, options: RequestInit = {}) {
+  const token = getAuthToken();
+  const needsAuth = !isPublicPath(endpoint);
+
+  if (needsAuth && !token) {
+    const err = new Error(`[API] ${endpoint} — não autenticado (token ausente)`);
+    console.error(err.message);
+    throw err;
+  }
+
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...options.headers,
+    Accept: "application/json",
+    ...(options.headers as Record<string, string>),
   };
 
-  // Se tem token, adiciona no header Authorization
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  try {
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      ...options,
-      headers,
-    });
+  const response = await fetch(`${resolveApiUrl()}${endpoint}`, {
+    ...options,
+    headers,
+  });
 
-    if (!response.ok) {
-      throw new Error(`Erro ${response.status}: ${response.statusText}`);
+  const text = await response.text();
+
+  if (!response.ok) {
+    let detail = text;
+    try {
+      const parsed = text ? JSON.parse(text) : null;
+      detail = parsed?.mensagem || parsed?.message || text;
+    } catch {
+      /* mantém texto bruto */
     }
+    const err = new Error(
+      `[API] ${endpoint} → ${response.status} ${response.statusText}${detail ? `: ${detail}` : ""}`,
+    );
+    console.error(err.message);
+    throw err;
+  }
 
-    return await response.json();
-  } catch (error) {
-    console.error("Erro na API:", error);
-    throw error;
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    const err = new Error(`[API] ${endpoint} — resposta inválida (JSON)`);
+    console.error(err.message, text);
+    throw err;
   }
 }
 
@@ -37,16 +86,19 @@ async function apiCall(endpoint: string, options: RequestInit = {}) {
 // ============================================
 
 export async function loginAPI(email: string, password: string) {
-  const response = await fetch(`${API_URL}/autenticacao/login`, {
+  const response = await fetch(`${resolveApiUrl()}/autenticacao/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
 
-  const data = await response.json();
+  const data = (await parseJsonResponse(response)) ?? {};
 
-  // O backend retorna { sucesso, dados: { token, nomeUsuario } }
-  const token = data.dados?.token || data.token;
+  if (!response.ok) {
+    throw new Error(data.mensagem || `Erro ${response.status}: ${response.statusText}`);
+  }
+
+  const token = data.dados?.token || data.Dados?.token || data.token;
   if (token) {
     localStorage.setItem("authToken", token);
   }
@@ -209,26 +261,14 @@ export async function createCliente(data: any) {
 // ============================================
 
 export async function getComandas() {
-  try {
-    // Tentar o novo endpoint primeiro (apenas abertas)
-    console.log("📡 [API] Tentando GET /comanda/abertas/todas");
-    const response = await apiCall("/comanda/abertas/todas");
-    console.log("📡 [API] GET /comanda/abertas/todas - Resposta:", response);
-    return response;
-  } catch (error) {
-    // Se falhar, tentar o endpoint padrão
-    console.warn("⚠️ Erro ao chamar /comanda/abertas/todas, tentando /comanda...", error);
-    try {
-      const response = await apiCall("/comanda");
-      console.log("📡 [API] GET /comanda - Resposta fallback:", response);
-      return response;
-    } catch (fallbackError) {
-      console.error("❌ Ambos os endpoints falharam", fallbackError);
-      // Retornar array vazio como último recurso
-      console.warn("⚠️ Retornando array vazio como fallback");
-      return [];
-    }
-  }
+  console.log("📡 [API] GET /comanda/abertas/todas");
+  const response = await apiCall("/comanda/abertas/todas");
+  console.log("📡 [API] GET /comanda/abertas/todas - Resposta:", response);
+  return response;
+}
+
+export async function getLogSistema(pagina = 1, tamanho = 100) {
+  return apiCall(`/log/sistema?pagina=${pagina}&tamanho=${tamanho}`);
 }
 
 export async function getComandasByTable(tableNumber: number) {
@@ -323,9 +363,5 @@ export async function getFormasPagamento() {
 // ============================================
 
 export async function healthCheck() {
-  try {
-    return await apiCall("/healthcheck");
-  } catch (error) {
-    return { status: "offline" };
-  }
+  return apiCall("/healthcheck");
 }

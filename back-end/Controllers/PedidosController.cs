@@ -206,19 +206,10 @@ public class PedidosController : ControllerBase
             Console.WriteLine($"--> Item adicionado: {produto.NomeProduto} x{itemDTO.QtdProduto} @ R$ {precoFinal}");
         }
 
-        // ✅ Recalcular total da comanda
-        novaComanda.RecalcularTotal();
-        Console.WriteLine($"--> Total da comanda ANTES de salvar: R$ {novaComanda.ValorTotal}");
-        Console.WriteLine($"--> Items na comanda: {novaComanda.ItensComanda.Count}");
-        foreach (var item in novaComanda.ItensComanda)
-        {
-            Console.WriteLine($"    • {item.IdProduto} - Qty: {item.QtdProduto}, Preço: R$ {item.PrecoUnitarioPago}");
-        }
-
-        // Adicionar comanda ao banco
         _context.Comandas.Add(novaComanda);
         await _context.SaveChangesAsync();
 
+        await _context.Entry(novaComanda).ReloadAsync();
         Console.WriteLine($"--> Pedido criado com sucesso. ID: {novaComanda.IdComanda}, Total: R$ {novaComanda.ValorTotal}");
 
         return CreatedAtAction(nameof(ObterPedido), new { id = novaComanda.IdComanda }, new RespostaPadraoDTO
@@ -283,8 +274,8 @@ public class PedidosController : ControllerBase
             _context.ItensComanda.Add(novoItem);
         }
 
-        pedido.RecalcularTotal();
         await _context.SaveChangesAsync();
+        await _context.Entry(pedido).ReloadAsync();
 
         return Ok(new RespostaPadraoDTO
         {
@@ -352,11 +343,14 @@ public class PedidosController : ControllerBase
             });
         }
 
-        if (statusComanda == "FECHADA" && pedido.Mesa != null)
+        if (statusComanda == "FECHADA")
         {
-            pedido.Mesa.StatusMesa = "DISPONIVEL";
-            pedido.DataFechada = DateTime.UtcNow;
-            _context.Mesas.Update(pedido.Mesa);
+            return BadRequest(new RespostaPadraoDTO
+            {
+                Sucesso = false,
+                Mensagem = "Use PUT /api/comanda/{id}/pagar para fechar a comanda (trigger trg_fechar_comanda).",
+                CodigoErro = "USE_PAGAMENTO"
+            });
         }
 
         pedido.StatusComanda = statusComanda;

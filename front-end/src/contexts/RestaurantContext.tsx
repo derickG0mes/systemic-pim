@@ -25,6 +25,9 @@ import {
   createReserva,
   getFuncionarios,
   getFaturamento,
+  getAuthToken,
+  getLogSistema,
+  getReservas,
 } from "@/services/api";
 
 export interface Product {
@@ -130,10 +133,17 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  const [faturamento, setFaturamento] = useState({ receita: 0, despesas: 0, lucro: 0 });
+  const [faturamento, setFaturamento] = useState({
+    receita: 0,
+    despesas: 0,
+    lucro: 0,
+  });
+
+  const hasAuthToken = () => !!getAuthToken();
 
   // ✅ Função para sincronizar comandas com o banco
   const syncComandas = useCallback(async () => {
+    if (!hasAuthToken()) return;
     try {
       const comandasData = await getComandas();
       console.log("🔍 DEBUG: Dados brutos recebidos do backend:", comandasData);
@@ -228,12 +238,71 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
       );
     } catch (error) {
       console.error("❌ Erro ao sincronizar comandas da API:", error);
+      throw error;
     }
   }, []);
 
-  // Carrega dados da API quando o componente é montado
+  // 🔥 Sincronizar Logs do Backend
+  const syncLogs = useCallback(async () => {
+    if (!hasAuthToken()) return;
+    try {
+      const data = await getLogSistema(1, 100);
+      if (!data) return;
+
+      if (data.sucesso && Array.isArray(data.dados)) {
+        const logsFormatted = data.dados.map((l: any) => ({
+          id: `log_${l.idLogSistema}`,
+          timestamp: new Date(l.dataLog),
+          action: l.tipoLog,
+          details: l.descricaoLog,
+          userId: l.usuarioLog || "system",
+        }));
+
+        setAuditLogs(logsFormatted);
+        console.log(`✅ ${logsFormatted.length} logs sincronizados do backend`);
+      }
+    } catch (error) {
+      console.error("❌ Erro ao sincronizar logs:", error);
+      throw error;
+    }
+  }, []);
+
+  // 🔥 Sincronizar Reservas do Backend
+  const syncReservations = useCallback(async () => {
+    if (!hasAuthToken()) return;
+    try {
+      const data = await getReservas();
+      if (!data) return;
+      let reservasArray = Array.isArray(data?.dados)
+        ? data.dados
+        : Array.isArray(data?.Dados)
+          ? data.Dados
+          : [];
+
+      const formatted = reservasArray.map((r: any) => ({
+        id: String(r.idReserva),
+        clientName: r.nomeCliente || "",
+        tableNumber: Number(r.numeroMesa ?? r.idMesa),
+        date: new Date(r.dataReserva).toISOString().split("T")[0],
+        time: new Date(r.dataReserva).toTimeString().slice(0, 5),
+        guests: 2,
+      }));
+      setReservations(formatted);
+      console.log(`✅ ${formatted.length} reservas sincronizadas`);
+    } catch (error) {
+      console.error("❌ Erro ao sincronizar reservas:", error);
+      throw error;
+    }
+  }, []);
+
+  // Carrega dados da API quando o componente é montado OU quando o token muda
   useEffect(() => {
     const loadDataFromAPI = async () => {
+      if (!hasAuthToken()) {
+        console.warn("⚠️ Sem token — ignorando carga da API");
+        return;
+      }
+
       try {
         // Tenta carregar mesas primeiro
         const mesasResp = await getMesas();
@@ -252,12 +321,14 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
           console.warn("⚠️ Nenhuma mesa retornada do backend");
         }
       } catch (error) {
-        console.warn("⚠️ Não foi possível carregar mesas da API");
+        console.error("❌ Falha ao carregar mesas da API:", error);
+        throw error;
       }
 
       try {
         // Tenta carregar produtos
         const produtosResp = await getProdutos();
+        console.log("📡 Resposta de produtos:", produtosResp);
         let produtosArray: any[] = Array.isArray(produtosResp)
           ? produtosResp
           : Array.isArray(produtosResp?.dados)
@@ -272,44 +343,50 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
           const formattedProducts = produtosArray.map((p: any) => ({
             id: p.idProduto ? `p${p.idProduto}` : p.id,
             name: p.nomeProduto || p.name,
-            category: p.categoria || p.descricaoProduto || p.category || "Geral",
+            category:
+              p.categoria || p.descricaoProduto || p.category || "Geral",
             price: Number(p.precoProduto || p.price),
             stock: Number(p.qtdEstoque || p.stock || 0),
             minStock: Number(p.estoqueMinimo || p.minStock || 0),
           }));
           setProducts(formattedProducts);
           console.log("✅ Produtos carregados da API", formattedProducts);
+        } else {
+          console.warn("⚠️ Nenhum produto retornado do backend");
         }
       } catch (error) {
-        console.warn(
-          "⚠️ Não foi possível carregar produtos da API, usando dados padrão",
-        );
+        console.error("❌ Erro ao carregar produtos da API:", error);
+        throw error;
       }
 
       try {
         // Tenta carregar comandas/pedidos
         await syncComandas();
       } catch (error) {
-        console.warn("⚠️ Não foi possível carregar comandas da API");
+        console.error("❌ Falha ao carregar comandas da API:", error);
+        throw error;
       }
 
       try {
         // Tenta carregar logs de sistema
         await syncLogs();
       } catch (error) {
-        console.warn("⚠️ Não foi possível carregar logs da API");
+        console.error("❌ Falha ao carregar logs da API:", error);
+        throw error;
       }
 
       try {
         // Tenta carregar reservas
         await syncReservations();
       } catch (error) {
-        console.warn("⚠️ Não foi possível carregar reservas da API");
+        console.error("❌ Falha ao carregar reservas da API:", error);
+        throw error;
       }
 
       try {
         // Tenta carregar funcionários/empregados
         const funcResp = await getFuncionarios();
+        console.log("📡 Resposta de funcionários:", funcResp);
         let funcArray: any[] = Array.isArray(funcResp)
           ? funcResp
           : Array.isArray(funcResp?.dados)
@@ -336,9 +413,12 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
           }));
           setEmployees(formattedFunc);
           console.log("✅ Funcionários carregados da API", formattedFunc);
+        } else {
+          console.warn("⚠️ Nenhum funcionário retornado do backend");
         }
       } catch (error) {
-        console.warn("⚠️ Não foi possível carregar funcionários da API");
+        console.error("❌ Erro ao carregar funcionários da API:", error);
+        throw error;
       }
 
       try {
@@ -352,80 +432,34 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
           });
         }
       } catch (error) {
-        console.warn("⚠️ Não foi possível carregar faturamento da API");
+        console.error("❌ Falha ao carregar faturamento da API:", error);
+        throw error;
       }
     };
 
-    const timer = setTimeout(loadDataFromAPI, 1000);
-    const poll = setInterval(() => syncComandas(), 10000);
+    if (hasAuthToken()) {
+      loadDataFromAPI().catch((err) =>
+        console.error("❌ loadDataFromAPI falhou:", err),
+      );
+    }
+
+    const handleTokenChanged = async () => {
+      if (hasAuthToken()) {
+        await loadDataFromAPI().catch((err) =>
+          console.error("❌ loadDataFromAPI falhou:", err),
+        );
+      }
+    };
+
+    window.addEventListener("authTokenChanged", handleTokenChanged);
+    const poll = setInterval(() => {
+      if (hasAuthToken()) syncComandas();
+    }, 10000);
     return () => {
-      clearTimeout(timer);
+      window.removeEventListener("authTokenChanged", handleTokenChanged);
       clearInterval(poll);
     };
-  }, [syncComandas]);
-
-  // 🔥 Sincronizar Logs do Backend
-  const syncLogs = useCallback(async () => {
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/log/sistema?pagina=1&tamanho=100`,
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-          },
-        },
-      );
-      const data = await response.json();
-
-      if (data.sucesso && Array.isArray(data.dados)) {
-        const logsFormatted = data.dados.map((l: any) => ({
-          id: `log_${l.idLogSistema}`,
-          timestamp: new Date(l.dataLog),
-          action: l.tipoLog,
-          details: l.descricaoLog,
-          userId: l.usuarioLog || "system",
-        }));
-
-        setAuditLogs(logsFormatted);
-        console.log(`✅ ${logsFormatted.length} logs sincronizados do backend`);
-      }
-    } catch (error) {
-      console.warn("⚠️ Erro ao sincronizar logs:", error);
-    }
-  }, []);
-
-  // 🔥 Sincronizar Reservas do Backend
-  const syncReservations = useCallback(async () => {
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/reserva`,
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-          },
-        },
-      );
-      const data = await response.json();
-      let reservasArray = Array.isArray(data?.dados)
-        ? data.dados
-        : Array.isArray(data?.Dados)
-          ? data.Dados
-          : [];
-
-      const formatted = reservasArray.map((r: any) => ({
-        id: String(r.idReserva),
-        clientName: r.nomeCliente || "",
-        tableNumber: Number(r.numeroMesa ?? r.idMesa),
-        date: new Date(r.dataReserva).toISOString().split("T")[0],
-        time: new Date(r.dataReserva).toTimeString().slice(0, 5),
-        guests: 2,
-      }));
-      setReservations(formatted);
-      console.log(`✅ ${formatted.length} reservas sincronizadas`);
-    } catch (error) {
-      console.warn("⚠️ Erro ao sincronizar reservas:", error);
-    }
-  }, []);
+  }, [syncComandas, syncLogs, syncReservations]);
 
   const log = useCallback(
     (action: string, details: string, userId = "system") => {
@@ -605,8 +639,8 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
       updatePedidoStatus(id, status)
         .then(() => syncComandas())
         .catch((error) => {
-        console.error("Erro ao atualizar status na API:", error);
-      });
+          console.error("Erro ao atualizar status na API:", error);
+        });
 
       // 🔥 REMOVER da fila visual se status for "completed"
       if (status === "completed") {
@@ -736,7 +770,10 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         return { success: true, message: "Reserva criada!" };
       } catch (error) {
         console.error("Erro ao criar reserva na API:", error);
-        return { success: false, message: "Falha ao salvar reserva no servidor." };
+        return {
+          success: false,
+          message: "Falha ao salvar reserva no servidor.",
+        };
       }
     },
     [reservations, log, syncReservations],

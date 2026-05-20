@@ -11,6 +11,7 @@ using PIM3.API.Services;
 EnvLoader.Load(Path.Combine(Directory.GetCurrentDirectory(), ".env"));
 
 var builder = WebApplication.CreateBuilder(args);
+builder.WebHost.UseUrls("http://0.0.0.0:5050");
 
 Console.WriteLine("╔════════════════════════════════════════════════════════════╗");
 Console.WriteLine("║   INICIANDO API PIM3 - Gerenciamento de Restaurante       ║");
@@ -104,26 +105,15 @@ Console.WriteLine("   ✓ SignalR pronto para WebSocket\n");
 // ═══════════════════════════════════════════════════════════════════════════════
 Console.WriteLine("🌐 Configurando CORS para aceitar requisições do React...");
 
-// CORS permite que o front-end (React) faça requisições para a API .NET
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowReactApp", policy =>
+    options.AddPolicy("DevCors", policy =>
     {
-        // Aqui definimos quais URLs do front-end podem acessar a API
-        policy.WithOrigins(
-            "http://localhost:5173",  // URL padrão do Vite (desenvolvimento)
-            "http://localhost:3000",  // URL alternativa (se grupo usar outra porta)
-            "http://localhost:5174",  // Fallback Vite
-            "http://localhost:8080",  // Porta do Frontend React (conforme vite.config.ts)
-            "http://localhost:8081"   // Porta atual do Vite
-        )
-        .AllowAnyMethod()           // Permite GET, POST, PUT, DELETE, etc
-        .WithHeaders("Content-Type", "Authorization")  // ✅ Headers explícitos (AllowAnyHeader não funciona com AllowCredentials)
-        .AllowCredentials();        // Permite cookies e credentials
+        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
     });
 });
 
-Console.WriteLine("   ✓ CORS configurado para http://localhost:5173, 3000, 5174 e 8080\n");
+Console.WriteLine("   ✓ CORS DevCors (AllowAnyOrigin) registrado\n");
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 5️⃣  CONFIGURAÇÃO DE CONTROLLERS E DOCUMENTAÇÃO
@@ -131,6 +121,8 @@ Console.WriteLine("   ✓ CORS configurado para http://localhost:5173, 3000, 517
 builder.Services.AddControllers().AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+    options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+    options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
 });
 builder.Services.AddSwaggerGen();
 
@@ -149,7 +141,7 @@ Console.WriteLine("════════════════════�
 if (app.Environment.IsDevelopment())
 {
     Console.WriteLine("📚 Modo desenvolvimento ativo!");
-    Console.WriteLine("   📖 Swagger disponível em: http://localhost:5000/swagger\n");
+    Console.WriteLine("   📖 Swagger disponível em: http://localhost:5050/swagger\n");
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
@@ -158,12 +150,12 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-// 🔷 Ativar CORS - IMPORTANTE! Deve vir antes de autenticação
-Console.WriteLine("📌 Ativando CORS...");
-app.UseCors("AllowReactApp");
-Console.WriteLine("   ✓ CORS ativado\n");
+app.UseRouting();
 
-// 🔷 Usar autenticação JWT
+Console.WriteLine("📌 Ativando CORS...");
+app.UseCors("DevCors");
+Console.WriteLine("   ✓ CORS DevCors ativado\n");
+
 Console.WriteLine("🔐 Ativando autenticação JWT...");
 app.UseAuthentication();
 Console.WriteLine("   ✓ Autenticação ativada\n");
@@ -192,31 +184,34 @@ Console.WriteLine("   ✓ Hub de cozinha disponível em: /hubs/cozinha\n");
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🗄️  VERIFICAR CONEXÃO COM O BANCO DE DADOS
 // ═══════════════════════════════════════════════════════════════════════════════
-Console.WriteLine("🗄️ Verificando conexão com o banco de dados...");
-try
+app.Lifetime.ApplicationStarted.Register(() =>
 {
-    using (var scope = app.Services.CreateScope())
+    _ = Task.Run(async () =>
     {
-        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        if (dbContext.Database.CanConnect())
-            Console.WriteLine("   ✓ Conexão com o banco de dados estabelecida.\n");
-        else
-            Console.WriteLine("   ⚠️ Não foi possível conectar ao banco. Verifique se o banco existe e se a connection string está correta.\n");
-    }
-}
-catch (Exception ex)
-{
-    Console.WriteLine($"   ❌ ERRO ao verificar banco de dados: {ex.Message}\n");
-}
+        try
+        {
+            await using var scope = app.Services.CreateAsyncScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            if (await dbContext.Database.CanConnectAsync())
+                Console.WriteLine("   ✓ Conexão com o banco de dados estabelecida.\n");
+            else
+                Console.WriteLine("   ⚠️ Não foi possível conectar ao banco.\n");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"   ❌ ERRO ao verificar banco de dados: {ex.Message}\n");
+        }
+    });
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🎯 INICIAR A APLICAÇÃO
 // ═══════════════════════════════════════════════════════════════
 Console.WriteLine("╔════════════════════════════════════════════════════════════╗");
 Console.WriteLine("║  🚀 API ESTÁ PRONTA PARA RECEBER REQUISIÇÕES!             ║");
-Console.WriteLine("║  📍 Endereço: http://localhost:5000                       ║");
-Console.WriteLine("║  📖 Swagger: http://localhost:5000/swagger                ║");
-Console.WriteLine("║  🏥 Health: http://localhost:5000/api/healthcheck         ║");
+Console.WriteLine("║  📍 Endereço: http://0.0.0.0:5050                         ║");
+Console.WriteLine("║  📖 Swagger: http://localhost:5050/swagger                ║");
+Console.WriteLine("║  🏥 Health: http://localhost:5050/api/healthcheck         ║");
 Console.WriteLine("╚════════════════════════════════════════════════════════════╝\n");
 
-app.Run();
+await app.RunAsync();

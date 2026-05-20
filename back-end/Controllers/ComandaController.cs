@@ -253,8 +253,10 @@ public class ComandaController : ControllerBase
         if (comanda.StatusComanda == "FECHADA")
             return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Comanda já está fechada" });
 
-        comanda.RecalcularTotal();
-        var valorPago = comanda.ValorTotal;
+        var valorPago = await _context.Comandas
+            .Where(c => c.IdComanda == id)
+            .Select(c => c.ValorTotal)
+            .FirstAsync();
 
         _context.DetalhesPagamento.Add(new DetalhePagamento
         {
@@ -281,26 +283,35 @@ public class ComandaController : ControllerBase
     [HttpPut("{id}/fechar")]
     public async Task<IActionResult> Close(int id)
     {
-        var comanda = _context.Comandas
+        var comanda = await _context.Comandas
             .Include(c => c.Mesa)
-            .FirstOrDefault(c => c.IdComanda == id);
+            .FirstOrDefaultAsync(c => c.IdComanda == id);
         if (comanda == null)
-            return NotFound(new { message = "Comanda não encontrada" });
+            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Comanda não encontrada" });
 
-        comanda.DataFechada = DateTime.UtcNow;
-        comanda.StatusComanda = "FECHADA";
+        if (comanda.StatusComanda == "FECHADA")
+            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Comanda já está fechada" });
 
-        // Liberar a mesa
-        if (comanda.Mesa != null)
+        var valorPago = await _context.Comandas
+            .Where(c => c.IdComanda == id)
+            .Select(c => c.ValorTotal)
+            .FirstAsync();
+
+        _context.DetalhesPagamento.Add(new DetalhePagamento
         {
-            comanda.Mesa.StatusMesa = "DISPONIVEL";
-            _context.Mesas.Update(comanda.Mesa);
-        }
+            IdComanda = id,
+            ValorPago = valorPago,
+            Troco = 0,
+            StatusPagamento = "PAGO",
+            IdFormaPagamento = 1,
+            IdFuncionario = 1,
+            DataPagamento = DateTime.UtcNow
+        });
 
-        _context.Comandas.Update(comanda);
         await _context.SaveChangesAsync();
+        await _context.Entry(comanda).ReloadAsync();
 
-        return Ok(new { message = "Comanda fechada e mesa liberada com sucesso" });
+        return Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Comanda fechada via trigger de pagamento", Dados = comanda });
     }
 
     /// <summary>

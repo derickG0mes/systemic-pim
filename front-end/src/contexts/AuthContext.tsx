@@ -118,9 +118,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Tenta fazer login com a API do backend
         const response = await loginAPI(email, password);
 
-        // Backend retorna { sucesso: bool, dados: { token, nomeUsuario } }
-        if (response.sucesso || response.dados?.token || response.token) {
-          const dados = response.dados || response;
+        const token =
+          localStorage.getItem("authToken") ||
+          response.dados?.token ||
+          response.Dados?.token ||
+          response.token;
+
+        if ((response.sucesso || token) && token) {
+          localStorage.setItem("authToken", token);
+
+          const dados = response.dados || response.Dados || response;
           const userData: User = {
             id: String(dados.id || email),
             name: dados.nomeUsuario || dados.name || email,
@@ -129,9 +136,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             position: dados.position || "Funcionário",
           };
 
-          setUser(userData);
           localStorage.setItem("restaurant_user", JSON.stringify(userData));
+          setUser(userData);
           setFailedAttempts(0);
+          window.dispatchEvent(new Event("authTokenChanged"));
           return { success: true, message: "Login realizado com sucesso!" };
         }
       } catch (error) {
@@ -192,6 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("restaurant_user");
     localStorage.removeItem("authToken");
     logoutAPI();
+    window.dispatchEvent(new Event("authTokenChanged"));
   }, []);
 
   return (
