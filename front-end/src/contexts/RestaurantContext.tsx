@@ -154,13 +154,8 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
       }
 
       // Determinar se é um array ou um objeto com array dentro
-      let comandasArray: any[] = Array.isArray(comandasData)
-        ? comandasData
-        : Array.isArray(comandasData?.dados)
-          ? comandasData.dados
-          : Array.isArray(comandasData?.data)
-            ? comandasData.data
-            : [];
+      const listaComandas = comandasData?.dados ? comandasData.dados : comandasData;
+      const comandasArray = Array.isArray(listaComandas) ? listaComandas : [];
 
       console.log(`🔍 DEBUG: Processando ${comandasArray.length} comandas`);
 
@@ -196,6 +191,8 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
             items: groupedItems,
             status: "preparing", // O padrão após recarregar
             createdAt: new Date(comanda.dataAberta),
+            updatedAt: new Date(comanda.dataAberta),
+            createdBy: "Sistema",
             total: Number(comanda.valorTotal || 0),
           };
           mappedOrders.push(order);
@@ -205,7 +202,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         const tabFormatted: Tab = {
           id: String(comanda.idComanda),
           tableNumber: Number(comanda.numeroMesa ?? comanda.idMesa),
-          orders: mappedOrders,
+          orders: mappedOrders.map((o) => o.id),
           status:
             comanda.statusComanda?.toLowerCase() === "aberta"
               ? "open"
@@ -273,11 +270,8 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     try {
       const data = await getReservas();
       if (!data) return;
-      let reservasArray = Array.isArray(data?.dados)
-        ? data.dados
-        : Array.isArray(data?.Dados)
-          ? data.Dados
-          : [];
+      const listaReservas = data?.dados ? data.dados : (data?.Dados ? data.Dados : data);
+      const reservasArray = Array.isArray(listaReservas) ? listaReservas : [];
 
       const formatted = reservasArray.map((r: any) => ({
         id: String(r.idReserva),
@@ -307,13 +301,8 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         // Tenta carregar mesas primeiro
         const mesasResp = await getMesas();
         console.log("📡 Resposta de mesas:", mesasResp);
-        let mesasArray: any[] = Array.isArray(mesasResp)
-          ? mesasResp
-          : Array.isArray(mesasResp?.dados)
-            ? mesasResp.dados
-            : Array.isArray(mesasResp?.data)
-              ? mesasResp.data
-              : [];
+        const listaMesas = mesasResp?.dados ? mesasResp.dados : mesasResp;
+        const mesasArray = Array.isArray(listaMesas) ? listaMesas : [];
 
         if (mesasArray.length > 0) {
           console.log(`✅ ${mesasArray.length} mesas carregadas do backend`);
@@ -329,15 +318,8 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         // Tenta carregar produtos
         const produtosResp = await getProdutos();
         console.log("📡 Resposta de produtos:", produtosResp);
-        let produtosArray: any[] = Array.isArray(produtosResp)
-          ? produtosResp
-          : Array.isArray(produtosResp?.dados)
-            ? produtosResp.dados
-            : Array.isArray(produtosResp?.Dados)
-              ? produtosResp.Dados
-              : Array.isArray(produtosResp?.data)
-                ? produtosResp.data
-                : [];
+        const listaProdutos = produtosResp?.dados ? produtosResp.dados : (produtosResp?.Dados ? produtosResp.Dados : produtosResp);
+        const produtosArray = Array.isArray(listaProdutos) ? listaProdutos : [];
 
         if (produtosArray.length > 0) {
           const formattedProducts = produtosArray.map((p: any) => ({
@@ -387,15 +369,8 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         // Tenta carregar funcionários/empregados
         const funcResp = await getFuncionarios();
         console.log("📡 Resposta de funcionários:", funcResp);
-        let funcArray: any[] = Array.isArray(funcResp)
-          ? funcResp
-          : Array.isArray(funcResp?.dados)
-            ? funcResp.dados
-            : Array.isArray(funcResp?.Dados)
-              ? funcResp.Dados
-              : Array.isArray(funcResp?.data)
-                ? funcResp.data
-                : [];
+        const listaFuncionarios = funcResp?.dados ? funcResp.dados : (funcResp?.Dados ? funcResp.Dados : funcResp);
+        const funcArray = Array.isArray(listaFuncionarios) ? listaFuncionarios : [];
 
         if (funcArray.length > 0) {
           const formattedFunc = funcArray.map((f: any) => ({

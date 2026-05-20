@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getProdutos } from "@/services/api";
+import { getProdutos, API_URL } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 
 interface Produto {
@@ -34,7 +34,8 @@ export default function GestaoEstoquePage() {
   const carregarProdutos = async () => {
     try {
       const resp = await getProdutos();
-      let produtosArray = Array.isArray(resp) ? resp : resp?.dados || resp?.Dados || [];
+      const listaProdutos = resp?.dados ? resp.dados : (resp?.Dados ? resp.Dados : resp);
+      const produtosArray = Array.isArray(listaProdutos) ? listaProdutos : [];
       setProdutos(produtosArray);
     } catch (error) {
       toast({ title: "Erro", description: "Falha ao carregar produtos" });
@@ -54,7 +55,7 @@ export default function GestaoEstoquePage() {
     try {
       // Chamada do novo endpoint
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/produto/${selectedProduto.idProduto}/ajustar-estoque`,
+        `${API_URL}/produto/${selectedProduto.idProduto}/ajustar-estoque`,
         {
           method: "PUT",
           headers: {

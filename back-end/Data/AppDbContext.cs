@@ -71,7 +71,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Produto>().ToTable("PRODUTO");
         modelBuilder.Entity<Reserva>().ToTable("RESERVA");
         modelBuilder.Entity<Despesa>().ToTable("DESPESAS");
-        modelBuilder.Entity<DetalhePagamento>().ToTable("DETALHE_PAGAMENTO");
+        modelBuilder.Entity<DetalhePagamento>().ToTable("DETALHE_PAGAMENTO", tb => tb.HasTrigger("trg_fechar_comanda"));
 
         modelBuilder.Entity<Produto>()
             .Property(p => p.PrecoProduto)
@@ -96,7 +96,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<LogComanda>().ToTable("LOG_COMANDA");
         modelBuilder.Entity<LogSistema>().ToTable("LOG_SISTEMA");
         modelBuilder.Entity<Comanda>()
-            .ToTable("COMANDA"); // ✅ Nome correto da tabela no banco
+            .ToTable("COMANDA", tb => tb.HasTrigger("trg_abrir_comanda")); // ✅ Nome correto da tabela no banco
 
         // Configurar nomes das colunas da tabela COMANDA
         modelBuilder.Entity<Comanda>()
@@ -132,7 +132,7 @@ public class AppDbContext : DbContext
             .HasKey(ic => ic.IdItemComanda);
 
         modelBuilder.Entity<ItemComanda>()
-            .ToTable("ITEM_COMANDA"); // ✅ Nome correto da tabela no banco
+            .ToTable("ITEM_COMANDA", tb => tb.HasTrigger("trg_atualizar_valor_total")); // ✅ Nome correto da tabela no banco
 
         // Configurar nomes das colunas da tabela ITEM_COMANDA
         modelBuilder.Entity<ItemComanda>()

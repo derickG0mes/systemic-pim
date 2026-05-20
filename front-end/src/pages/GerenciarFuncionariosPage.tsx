@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { API_URL } from "@/services/api";
 
 interface NovoFuncionario {
   nomeFuncionario: string;
@@ -54,7 +55,7 @@ export default function GerenciarFuncionariosPage() {
     setLoading(true);
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/funcionario`,
+        `${API_URL}/funcionario`,
         {
           method: "POST",
           headers: {

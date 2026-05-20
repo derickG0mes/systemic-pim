@@ -1,10 +1,8 @@
-const hostname = window.location.hostname;
-// Se a página for aberta via IP, usa o IP da rede. Se for localhost, usa localhost.
-export const API_URL = `http://${hostname}:5000/api`;
+const currentHost = window.location.hostname;
+export const API_URL = `http://${currentHost}:5050/api`;
 
 function resolveApiUrl(): string {
-  const host = window.location.hostname;
-  return `http://${host}:5000/api`;
+  return API_URL;
 }
 
 const PUBLIC_PATHS = ["/autenticacao/login", "/healthcheck"];
