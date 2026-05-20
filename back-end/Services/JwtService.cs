@@ -22,7 +22,7 @@ public class JwtService
         _expirationMinutes = int.TryParse(expStr, out var exp) ? exp : 480;
     }
 
-    public string GenerateToken(int idFuncionario, string nomeFuncionario, string cpf)
+    public string GenerateToken(int idFuncionario, string nomeFuncionario, string cpf, string role)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secretKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -31,7 +31,8 @@ public class JwtService
         {
             new Claim(ClaimTypes.NameIdentifier, idFuncionario.ToString()),
             new Claim(ClaimTypes.Name, nomeFuncionario),
-            new Claim("cpf", cpf)
+            new Claim("cpf", cpf),
+            new Claim(ClaimTypes.Role, role)
         };
 
         var token = new JwtSecurityToken(

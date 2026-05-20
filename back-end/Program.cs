@@ -92,6 +92,7 @@ Console.WriteLine("   ✓ JWT configurado com segurança\n");
 
 // Adicionar serviço JWT para gerar tokens
 builder.Services.AddScoped<JwtService>();
+builder.Services.AddScoped<BackupService>();
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 3️⃣  CONFIGURAÇÃO DE COMUNICAÇÃO EM TEMPO REAL (SignalR)

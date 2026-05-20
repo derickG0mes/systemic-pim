@@ -107,7 +107,7 @@ public class AutenticacaoController : ControllerBase
         await _context.SaveChangesAsync();
 
         // Geramos o token JWT
-        var token = _jwtService.GenerateToken(funcionario.IdFuncionario, funcionario.NomeFuncionario, funcionario.CpfFuncionario ?? "");
+        var token = _jwtService.GenerateToken(funcionario.IdFuncionario, funcionario.NomeFuncionario, funcionario.CpfFuncionario ?? "", funcionario.Role);
 
         Console.WriteLine($"--> Login bem-sucedido para: {loginDTO.Email}");
         return Ok(new RespostaPadraoDTO

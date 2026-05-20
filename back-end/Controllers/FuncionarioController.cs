@@ -81,7 +81,7 @@ public class FuncionarioController : ControllerBase
         funcionario.LockedUntil = null;
         _context.SaveChanges();
 
-        var token = _jwtService.GenerateToken(funcionario.IdFuncionario, funcionario.NomeFuncionario, funcionario.CpfFuncionario);
+        var token = _jwtService.GenerateToken(funcionario.IdFuncionario, funcionario.NomeFuncionario, funcionario.CpfFuncionario, funcionario.Role);
 
         return Ok(new LoginResponse
         {

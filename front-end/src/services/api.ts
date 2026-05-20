@@ -32,7 +32,9 @@ async function apiCall(endpoint: string, options: RequestInit = {}) {
   const needsAuth = !isPublicPath(endpoint);
 
   if (needsAuth && !token) {
-    const err = new Error(`[API] ${endpoint} — não autenticado (token ausente)`);
+    const err = new Error(
+      `[API] ${endpoint} — não autenticado (token ausente)`,
+    );
     console.error(err.message);
     throw err;
   }
@@ -93,7 +95,9 @@ export async function loginAPI(email: string, password: string) {
   const data = (await parseJsonResponse(response)) ?? {};
 
   if (!response.ok) {
-    throw new Error(data.mensagem || `Erro ${response.status}: ${response.statusText}`);
+    throw new Error(
+      data.mensagem || `Erro ${response.status}: ${response.statusText}`,
+    );
   }
 
   const token = data.dados?.token || data.Dados?.token || data.token;
@@ -306,7 +310,10 @@ export async function closeComanda(comandaId: string) {
   });
 }
 
-export async function pagarComanda(comandaId: string, data: { idFormaPagamento: number; idFuncionario?: number; troco?: number }) {
+export async function pagarComanda(
+  comandaId: string,
+  data: { idFormaPagamento: number; idFuncionario?: number; troco?: number },
+) {
   return apiCall(`/comanda/${comandaId}/pagar`, {
     method: "PUT",
     body: JSON.stringify(data),
@@ -354,6 +361,50 @@ export async function getFaturamento() {
 
 export async function getFormasPagamento() {
   return apiCall("/formapagamento");
+}
+
+// ============================================
+// BACKUP
+// ============================================
+
+export async function gerarBackup() {
+  return apiCall("/backup/gerar", {
+    method: "POST",
+  });
+}
+
+export async function listarBackups() {
+  return apiCall("/backup/listar");
+}
+
+export async function baixarBackup(nomeArquivo: string) {
+  const token = getAuthToken();
+  const headers: Record<string, string> = {
+    ...(token && { Authorization: `Bearer ${token}` }),
+  };
+
+  const response = await fetch(
+    `${resolveApiUrl()}/backup/baixar/${encodeURIComponent(nomeArquivo)}`,
+    {
+      headers,
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Erro ao fazer download: ${response.status} ${response.statusText}`,
+    );
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nomeArquivo;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(url);
+  document.body.removeChild(a);
 }
 
 // ============================================

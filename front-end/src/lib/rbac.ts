@@ -14,7 +14,7 @@ type Permission =
 
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   employee: ["orders", "tabs", "reservations", "accessibility"],
-  admin: ["dashboard", "orders", "tabs", "inventory", "reservations", "reports", "users", "audit", "accessibility"],
+  admin: ["dashboard", "orders", "tabs", "inventory", "reservations", "reports", "users", "audit", "backup", "accessibility"],
   owner: ["dashboard", "orders", "tabs", "inventory", "reservations", "reports", "users", "audit", "backup", "accessibility"],
 };
 
