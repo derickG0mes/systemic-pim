@@ -161,35 +161,42 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
 
       if (comandasArray.length === 0) {
         console.warn("⚠️ Nenhuma comanda retornada");
-        setTabs([]); // Limpar tabs se não houver dados
+        setTabs([]);
+        setOrders([]);
         return;
       }
 
       const allOrders: Order[] = [];
 
-      // ✅ Mapear estrutura do backend (agora em camelCase) para o formato do frontend
+      // ✅ Mapear estrutura do backend para o formato do frontend
       const tabsFormatted: Tab[] = comandasArray.map((comanda: any) => {
-        console.log(
-          "🔍 DEBUG: Comanda bruta completa:",
-          JSON.stringify(comanda),
-        );
-
-        // Mapeia os ItensComanda (vindas do /abertas/todas) para a lista de Pedidos da tela principal
         const mappedOrders: Order[] = [];
+        
         if (comanda.itensComanda && comanda.itensComanda.length > 0) {
           const groupedItems = comanda.itensComanda.map((i: any) => ({
             productId: i.idProduto ? "p" + i.idProduto : "p" + i.produtoId,
-            productName: i.nomeProduto || "Produto " + i.idProduto,
+            productName: i.produto?.nomeProduto || i.nomeProduto || "Produto " + i.idProduto,
             quantity: i.qtdProduto || 1,
             price: i.precoUnitarioPago || 0,
           }));
 
-          // Considera os itens da comanda como um pedido aglomerado para fins de UI (Tela de Pedidos)
+          const allCompleted = comanda.itensComanda.every(
+            (i: any) => i.statusItem === "CONCLUIDO" || i.statusItem === "ENTREGUE"
+          );
+          const anyInProgress = comanda.itensComanda.some(
+            (i: any) => i.statusItem === "PREPARANDO"
+          );
+          const orderStatus: OrderStatus = (comanda.statusComanda?.toLowerCase() === "fechada" || allCompleted)
+            ? "completed"
+            : anyInProgress
+              ? "in_progress"
+              : "preparing";
+
           const order: Order = {
             id: String(comanda.idComanda),
-            tableNumber: Number(comanda.numeroMesa ?? comanda.idMesa),
+            tableNumber: Number(comanda.mesa?.numeroMesa ?? comanda.numeroMesa ?? comanda.idMesa),
             items: groupedItems,
-            status: "preparing", // O padrão após recarregar
+            status: orderStatus,
             createdAt: new Date(comanda.dataAberta),
             updatedAt: new Date(comanda.dataAberta),
             createdBy: "Sistema",
@@ -199,14 +206,24 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
           allOrders.push(order);
         }
 
+        const paymentMap: Record<number | string, PaymentMethod> = {
+          1: "pix",
+          2: "credit",
+          3: "debit",
+          4: "cash",
+        };
+        const paymentDetail = comanda.detalhesPagamento?.[0];
+        const paymentMethod = paymentDetail ? paymentMap[paymentDetail.idFormaPagamento] : undefined;
+
         const tabFormatted: Tab = {
           id: String(comanda.idComanda),
-          tableNumber: Number(comanda.numeroMesa ?? comanda.idMesa),
+          tableNumber: Number(comanda.mesa?.numeroMesa ?? comanda.numeroMesa ?? comanda.idMesa),
           orders: mappedOrders.map((o) => o.id),
           status:
             comanda.statusComanda?.toLowerCase() === "aberta"
               ? "open"
               : "closed",
+          paymentMethod,
           total: Number(comanda.valorTotal || 0),
           openedAt: new Date(comanda.dataAberta),
           closedAt: comanda.dataFechada
@@ -214,20 +231,13 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
             : undefined,
         };
 
-        console.log(
-          `✅ DEBUG: Tab mapeada - ID: ${tabFormatted.id}, Mesa: ${tabFormatted.tableNumber}, Status: ${tabFormatted.status}, Total: R$ ${tabFormatted.total.toFixed(
-            2,
-          )}`,
-        );
         return tabFormatted;
       });
 
       console.log("✅ Todos os tabs formatados:", tabsFormatted);
       setTabs(tabsFormatted);
-      // 🔥 Hidrata a tela de Cozinha/Pedidos com os itens abertos do banco!
-      if (allOrders.length > 0) {
-        setOrders(allOrders);
-      }
+      // 🔥 Sincroniza a tela de Cozinha/Pedidos diretamente com a lista filtrada (permite limpar se allOrders for vazio)
+      setOrders(allOrders);
 
       console.log(
         "✅ Comandas sincronizadas da API com totais atualizados:",
@@ -485,20 +495,10 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
 
   const addOrder = useCallback(
     async (o: Omit<Order, "id" | "createdAt" | "updatedAt">) => {
-      const now = new Date();
-
       // ✅ Garantir que total é sempre calculado e válido
       const orderTotal =
         o.total ||
         o.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-
-      const newO: Order = {
-        ...o,
-        total: Math.max(0, orderTotal), // ✅ Garantir total > 0
-        id: `o${Date.now()}`,
-        createdAt: now,
-        updatedAt: now,
-      };
 
       console.log(
         "🛒 [ADDORDER] Iniciando criação de pedido para mesa",
@@ -537,26 +537,14 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         );
         await syncComandas();
         console.log("✅ [ADDORDER] Comandas sincronizadas com sucesso");
+
+        log(
+          "CREATE_ORDER",
+          `Pedido criado para mesa ${o.tableNumber} - Total: R$ ${orderTotal.toFixed(2)}`,
+        );
       } catch (error) {
         console.error("❌ [ADDORDER] Erro ao criar pedido na API:", error);
       }
-
-      setOrders((prev) => [...prev, newO]);
-      setTabs((prev) =>
-        prev.map((tab) =>
-          tab.tableNumber === o.tableNumber
-            ? {
-                ...tab,
-                orders: [...tab.orders, newO.id],
-                total: tab.total + newO.total,
-              }
-            : tab,
-        ),
-      );
-      log(
-        "CREATE_ORDER",
-        `Pedido criado para mesa ${o.tableNumber} - Total: R$ ${newO.total.toFixed(2)}`,
-      );
     },
     [log, syncComandas],
   );

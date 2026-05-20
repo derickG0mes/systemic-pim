@@ -30,6 +30,7 @@ public class Comanda
     public Mesa? Mesa { get; set; }
     public Cliente? Cliente { get; set; }
     public ICollection<ItemComanda> ItensComanda { get; set; } = new List<ItemComanda>();
+    public virtual ICollection<DetalhePagamento> DetalhesPagamento { get; set; } = new List<DetalhePagamento>();
 
     /// <summary>
     /// Recalcula o valor total da comanda baseado nos itens

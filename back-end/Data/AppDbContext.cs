@@ -198,7 +198,7 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<DetalhePagamento>()
             .HasOne(dp => dp.Comanda)
-            .WithMany()
+            .WithMany(c => c.DetalhesPagamento)
             .HasForeignKey(dp => dp.IdComanda);
 
         modelBuilder.Entity<DetalhePagamento>()

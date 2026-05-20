@@ -113,16 +113,80 @@ public class PedidosController : ControllerBase
 
         // Validação: verificamos se a mesa já tem uma comanda aberta
         var comandaExistente = await _context.Comandas
+            .Include(c => c.ItensComanda)
             .FirstOrDefaultAsync(c => c.IdMesa == mesa.IdMesa && c.StatusComanda == "ABERTA");
 
         if (comandaExistente != null)
         {
-            Console.WriteLine($"--> Comanda já aberta para mesa: {pedidoDTO.IdMesa}");
-            return BadRequest(new RespostaPadraoDTO
+            Console.WriteLine($"--> Comanda já aberta para mesa: {pedidoDTO.IdMesa}. Adicionando itens à comanda existente ID: {comandaExistente.IdComanda}");
+            
+            // Adicionar itens à comanda existente
+            foreach (var itemDTO in pedidoDTO.Itens)
             {
-                Sucesso = false,
-                Mensagem = "Ops! Parece que essa mesa já tem um pedido aberto.",
-                CodigoErro = "COMANDA_DUPLICADA"
+                if (itemDTO.QtdProduto <= 0)
+                {
+                    return BadRequest(new RespostaPadraoDTO
+                    {
+                        Sucesso = false,
+                        Mensagem = $"Quantidade deve ser maior que 0 para o produto {itemDTO.IdProduto}",
+                        CodigoErro = "QUANTIDADE_INVALIDA"
+                    });
+                }
+
+                var produto = await _context.Produtos.FindAsync(itemDTO.IdProduto);
+                if (produto == null)
+                {
+                    return BadRequest(new RespostaPadraoDTO
+                    {
+                        Sucesso = false,
+                        Mensagem = $"Produto não encontrado: {itemDTO.IdProduto}",
+                        CodigoErro = "PRODUTO_NAO_ENCONTRADO"
+                    });
+                }
+
+                // Validar estoque
+                if (produto.QtdEstoque < itemDTO.QtdProduto)
+                {
+                    return BadRequest(new RespostaPadraoDTO
+                    {
+                        Sucesso = false,
+                        Mensagem = $"Estoque insuficiente para {produto.NomeProduto}. Disponível: {produto.QtdEstoque}",
+                        CodigoErro = "ESTOQUE_INSUFICIENTE"
+                    });
+                }
+
+                // Usar preço passado ou padrão do produto
+                var precoFinal = itemDTO.PrecoUnitarioPago > 0 ? itemDTO.PrecoUnitarioPago : produto.PrecoProduto;
+
+                // Adicionar item à comanda existente
+                var item = new ItemComanda
+                {
+                    IdProduto = itemDTO.IdProduto,
+                    QtdProduto = itemDTO.QtdProduto,
+                    PrecoUnitarioPago = precoFinal,
+                    StatusItem = "PREPARAR",
+                    IdComanda = comandaExistente.IdComanda
+                };
+
+                _context.ItensComanda.Add(item);
+
+                // Diminuir estoque do produto
+                produto.QtdEstoque -= itemDTO.QtdProduto;
+                _context.Produtos.Update(produto);
+
+                Console.WriteLine($"--> Item adicionado à comanda existente: {produto.NomeProduto} x{itemDTO.QtdProduto} @ R$ {precoFinal}");
+            }
+
+            await _context.SaveChangesAsync();
+            await _context.Entry(comandaExistente).ReloadAsync();
+            
+            Console.WriteLine($"--> Pedido adicionado com sucesso à comanda existente. ID: {comandaExistente.IdComanda}, Novo Total: R$ {comandaExistente.ValorTotal}");
+
+            return Ok(new RespostaPadraoDTO
+            {
+                Sucesso = true,
+                Mensagem = "Pedido adicionado à comanda existente com sucesso!",
+                Dados = comandaExistente
             });
         }
 
@@ -313,7 +377,7 @@ public class PedidosController : ControllerBase
         var statusCozinha = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["preparing"] = "PREPARAR",
-            ["in_progress"] = "PREPARAR",
+            ["in_progress"] = "PREPARANDO",
             ["completed"] = "CONCLUIDO"
         };
 

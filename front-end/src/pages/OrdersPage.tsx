@@ -195,7 +195,7 @@ export default function OrdersPage() {
   };
 
   const filtered =
-    filter === "all" ? orders : orders.filter((o) => o.status === filter);
+    filter === "all" ? orders.filter((o) => o.status !== "completed") : orders.filter((o) => o.status === filter);
   const sorted = [...filtered].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );

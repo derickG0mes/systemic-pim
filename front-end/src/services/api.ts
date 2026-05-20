@@ -259,9 +259,9 @@ export async function createCliente(data: any) {
 // ============================================
 
 export async function getComandas() {
-  console.log("📡 [API] GET /comanda/abertas/todas");
-  const response = await apiCall("/comanda/abertas/todas");
-  console.log("📡 [API] GET /comanda/abertas/todas - Resposta:", response);
+  console.log("📡 [API] GET /comanda");
+  const response = await apiCall("/comanda");
+  console.log("📡 [API] GET /comanda - Resposta:", response);
   return response;
 }
 

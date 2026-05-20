@@ -27,6 +27,8 @@ public class ComandaController : ControllerBase
             .ThenInclude(i => i.Produto)
             .Include(c => c.Cliente)
             .Include(c => c.Mesa)
+            .Include(c => c.DetalhesPagamento)
+            .ThenInclude(dp => dp.FormaPagamento)
             .ToList();
 
         return Ok(new { sucesso = true, dados = comandas });  // ✅ CRÍTICA: Estrutura consistente
