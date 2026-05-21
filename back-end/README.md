@@ -22,7 +22,7 @@ dotnet build        # Compilar
 dotnet run          # Executar
 ```
 
-**API disponível em:** `http://localhost:5130`
+**API disponível em:** `http://localhost:5050`
 
 ---
 

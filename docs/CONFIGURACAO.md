@@ -15,8 +15,8 @@ dotnet run
 
 Se tudo funcionar corretamente, você verá no terminal mensagens informando que a API está pronta. A API estará disponível em:
 
-- Endereço principal: http://localhost:5130/api
-- Verificação de saúde: http://localhost:5130/api/healthcheck
+- Endereço principal: http://localhost:5050/api
+- Verificação de saúde: http://localhost:5050/api/healthcheck
 
 ### Front-End (React)
 
@@ -40,7 +40,7 @@ Após alguns segundos, você verá uma mensagem indicando que a interface está 
 
 O arquivo que faz essa comunicação já existe em `front-end/src/services/api.ts`. Este arquivo:
 
-- Define a URL base da API (http://localhost:5130/api)
+- Define a URL base da API (http://localhost:5050/api)
 - Adiciona automaticamente o token JWT em cada requisição
 - Define headers padrão (Content-Type, Authorization)
 - Trata respostas e erros
@@ -60,7 +60,7 @@ Todos os acessos ao sistema começam com login. Aqui está como funciona:
 Você pode testar o login fazendo uma requisição para:
 
 ```
-POST http://localhost:5130/api/autenticacao/login
+POST http://localhost:5050/api/autenticacao/login
 ```
 
 Com o corpo (body) em JSON:
@@ -117,7 +117,7 @@ Verificação de Saúde:
 
 Erro: "CORS policy" ou "cross-origin"
 - O navegador está bloqueando a requisição porque front-end e API estão em portas diferentes
-- Confirme: React em http://localhost:8080 e API em http://localhost:5130
+- Confirme: React em http://localhost:8080 e API em http://localhost:5050
 - A API deve permitir CORS (está configurado em Program.cs)
 
 Erro: "Connection refused" ou "não conseguiu conectar"
@@ -170,8 +170,8 @@ Aqui estão os endereços que você precisa para testar o sistema:
 | Serviço | URL |
 | --- | --- |
 | Front-end (Interface) | http://localhost:8080 |
-| API (Backend) | http://localhost:5130/api |
-| Verificar se API está viva | http://localhost:5130/api/healthcheck |
+| API (Backend) | http://localhost:5050/api |
+| Verificar se API está viva | http://localhost:5050/api/healthcheck |
 | Banco de dados (SQL Server) | Configurado em appsettings.Development.json |
 
 ---
@@ -185,7 +185,7 @@ Before you start, make sure:
 
 Depois de iniciar:
 - Back-end: Execute dotnet run na pasta back-end
-- Verifique se http://localhost:5130/api/healthcheck responde (deve mostrar status OK)
+- Verifique se http://localhost:5050/api/healthcheck responde (deve mostrar status OK)
 - Front-end: Execute npm run dev na pasta front-end
 - Acesse http://localhost:8080 no navegador
 - Tente fazer login com: admin@restaurante.com / admin123

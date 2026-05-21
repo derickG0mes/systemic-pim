@@ -93,6 +93,7 @@ Console.WriteLine("   ✓ JWT configurado com segurança\n");
 // Adicionar serviço JWT para gerar tokens
 builder.Services.AddScoped<JwtService>();
 builder.Services.AddScoped<BackupService>();
+builder.Services.AddScoped<PIM3.API.Services.Backup.BackupRestoreService>();
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 3️⃣  CONFIGURAÇÃO DE COMUNICAÇÃO EM TEMPO REAL (SignalR)
@@ -102,19 +103,32 @@ builder.Services.AddSignalR();
 Console.WriteLine("   ✓ SignalR pronto para WebSocket\n");
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 4️⃣  CONFIGURAÇÃO DE CORS (Cross-Origin Resource Sharing)
+// 4️⃣  CONFIGURAÇÃO DE CORS (Cross-Origin Resource Sharing) – Dev + Prod
 // ═══════════════════════════════════════════════════════════════════════════════
 Console.WriteLine("🌐 Configurando CORS para aceitar requisições do React...");
 
 builder.Services.AddCors(options =>
 {
+    // Política permissiva para desenvolvimento
     options.AddPolicy("DevCors", policy =>
     {
-        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+
+    // Política restrita para produção
+    options.AddPolicy("ProdCors", policy =>
+    {
+        policy.WithOrigins("https://seusite.com")
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .SetIsOriginAllowedToAllowWildcardSubdomains()
+              .AllowCredentials();
     });
 });
 
-Console.WriteLine("   ✓ CORS DevCors (AllowAnyOrigin) registrado\n");
+Console.WriteLine("   ✓ CORS DevCors + ProdCors registrados\n");
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 5️⃣  CONFIGURAÇÃO DE CONTROLLERS E DOCUMENTAÇÃO
@@ -154,8 +168,16 @@ if (app.Environment.IsDevelopment())
 app.UseRouting();
 
 Console.WriteLine("📌 Ativando CORS...");
-app.UseCors("DevCors");
-Console.WriteLine("   ✓ CORS DevCors ativado\n");
+if (app.Environment.IsDevelopment())
+{
+    app.UseCors("DevCors");
+    Console.WriteLine("   ✓ CORS DevCors ativado (DEV)\n");
+}
+else
+{
+    app.UseCors("ProdCors");
+    Console.WriteLine("   ✓ CORS ProdCors ativado (PROD)\n");
+}
 
 Console.WriteLine("🔐 Ativando autenticação JWT...");
 app.UseAuthentication();

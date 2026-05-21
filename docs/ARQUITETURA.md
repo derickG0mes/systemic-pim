@@ -104,7 +104,7 @@ Arquivo que inicia tudo:
 - Configura a conexão com SQL Server
 - Ativa CORS para aceitar requisições do React
 - Configura JWT
-- Define qual porta a API vai usar (5130)
+- Define qual porta a API vai usar (5050)
 
 ---
 
@@ -148,7 +148,7 @@ Cada página usa componentes menores para montar a interface.
 
 - api.ts: Arquivo central que configura como falar com a API
   Ele adiciona automaticamente o token JWT a cada requisição
-  Define a URL base (http://localhost:5130/api)
+  Define a URL base (http://localhost:5050/api)
 
 Você não precisa se preocupar com detalhes de HTTP. Pode usar assim:
 
@@ -281,7 +281,7 @@ JWT é um token que prova quem você é. Funciona assim:
 ### CORS (Controle de Origem)
 
 CORS previne que websites maliciosos acessem sua API:
-- React (http://localhost:8080) consegue acessar API (http://localhost:5130)
+- React (http://localhost:8080) consegue acessar API (http://localhost:5050)
 - Outros websites não conseguem
 - Está configurado em Program.cs
 
@@ -389,7 +389,7 @@ public async Task<IActionResult> ListarCategorias()
 }
 ```
 
-Passo 4: Testar em http://localhost:5130/api/categoria
+Passo 4: Testar em http://localhost:5050/api/categoria
 
 ### Adicionar uma Nova Página no React
 

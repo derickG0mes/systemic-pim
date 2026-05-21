@@ -106,7 +106,7 @@ public class FuncionarioController : ControllerBase
             EmailFuncionario = f.EmailFuncionario,
             CpfFuncionario = f.CpfFuncionario,
             TelefoneFuncionario = f.TelefoneFuncionario,
-            CargoFuncionario = f.CargoFuncionario,
+            CargoFuncionario = f.CargoFuncionario ?? "",
             Role = f.Role,
             Perfil = f.EmailFuncionario == "owner@restaurante.com" ? "Proprietário" : FuncionarioDto.MapearPerfil(f.Role),
             StatusFuncionario = f.StatusFuncionario
@@ -136,7 +136,7 @@ public class FuncionarioController : ControllerBase
             EmailFuncionario = funcionario.EmailFuncionario,
             CpfFuncionario = funcionario.CpfFuncionario,
             TelefoneFuncionario = funcionario.TelefoneFuncionario,
-            CargoFuncionario = funcionario.CargoFuncionario,
+            CargoFuncionario = funcionario.CargoFuncionario ?? "",
             Role = funcionario.Role,
             StatusFuncionario = funcionario.StatusFuncionario
         });

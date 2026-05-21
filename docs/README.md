@@ -27,7 +27,7 @@ dotnet run
 
 Quando aparecer uma mensagem sobre a API estar pronta, quer dizer que está funcionando. A API estará em:
 ```
-http://localhost:5130/api
+http://localhost:/api
 ```
 
 ### 3. Terminal 2 - Rodar a Interface
@@ -202,7 +202,7 @@ Se você quer adicionar uma nova funcionalidade:
 - A API back-end não está rodando. Execute `dotnet run` no terminal 1.
 
 **Erro: "CORS policy" no navegador**
-- Front-end e back-end precisam estar rodando. Verifique as portas (5130 para API, 8080 para React).
+- Front-end e back-end precisam estar rodando. Verifique as portas ( para API, 8080 para React).
 
 **Erro: Dependências corrompidas no npm**
 No Windows PowerShell:

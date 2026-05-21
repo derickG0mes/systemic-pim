@@ -77,7 +77,7 @@ public class BackupService
                             }
                             else if (val is string || val is DateTime || val is Guid || val is char)
                             {
-                                var escaped = val.ToString().Replace("'", "''");
+                                var escaped = val.ToString()!.Replace("'", "''");
                                 values.Add($"'{escaped}'");
                             }
                             else if (val is bool b)
@@ -91,7 +91,7 @@ public class BackupService
                             }
                             else
                             {
-                                values.Add(val.ToString().Replace(",", "."));
+                                values.Add(val.ToString()!.Replace(",", "."));
                             }
                         }
 
