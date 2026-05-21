@@ -1,326 +1,486 @@
-# 🏗️ Arquitetura do Projeto - Estrutura e Organização
+# Arquitetura do Projeto
 
-## 📁 Estrutura Geral
+Este documento descreve como o código do Systemic está organizado e como as diferentes partes do sistema se comunicam.
 
-```
-systemic-pim/
-├── 📁 PIM3.API/              ← BACK-END (.NET)
-│   ├── Controllers/           ← Rotas da API
-│   ├── Models/               ← Estruturas de dados
-│   ├── DTOs/                 ← Padrões de entrada/saída
-│   ├── Services/             ← Lógica compartilhada
-│   ├── Data/                 ← Conexão com banco
-│   └── Program.cs            ← Configuração principal
-│
-├── 📁 pim-3/                 ← FRONT-END (React)
-│   ├── src/
-│   │   ├── components/       ← Componentes React
-│   │   ├── pages/            ← Páginas
-│   │   ├── services/         ← Chamadas à API
-│   │   └── App.tsx           ← App principal
-│   └── package.json
-│
-└── 📁 docs/                  ← DOCUMENTAÇÃO
-    ├── CONFIGURACAO.md       ← Setup e endpoints
-    └── ARQUITETURA.md        ← Este arquivo
-```
+## Estrutura Geral do Projeto
+
+O Systemic é dividido em duas partes principais que trabalham juntas:
+
+back-end/ (API em C# .NET)
+  Controllers/ - Define as rotas e endpoints da API
+  Models/ - Estrutura dos dados no banco (Funcionario, Produto, Comanda, etc)
+  DTOs/ - Definem o formato de entrada e saída de dados
+  Services/ - Lógica reutilizável (JWT, criptografia de senha)
+  Data/ - Conexão com SQL Server, definição das tabelas
+  Program.cs - Configuração principal da API
+
+front-end/ (Interface em React)
+  src/components/ - Pequenos componentes reutilizáveis
+  src/pages/ - Páginas completas (Login, Dashboard, Produtos, etc)
+  src/services/ - Arquivo que comunica com a API
+  src/contexts/ - Gerenciamento de estado global (Autenticação)
+  src/App.tsx - Componente raiz que define as rotas
+
+docs/ - Documentação técnica
 
 ---
 
-## 🔧 Back-End (PIM3.API)
+## Back-End (C# .NET)
 
-### 📂 Pastas Principais
+O back-end é responsável por:
+- Receber requisições do front-end
+- Validar dados
+- Acessar SQL Server
+- Responder com dados JSON
 
-**`/Controllers`** - Rotas da API
-- `AutenticacaoController.cs` - Login e tokens
-- `PedidosController.cs` - CRUD de pedidos
-- `HealthCheckController.cs` - Monitoramento
-- Cada endpoint retorna `RespostaPadraoDTO`
-- Todos têm `Console.WriteLine` para debug
+### Controllers (Rotas da API)
 
-**`/Models`** - Estruturas de dados (Banco)
-- `Funcionario.cs` - Usuários
-- `Mesa.cs` - Mesas do restaurante
-- `Produto.cs` - Produtos/cardápio
-- `Comanda.cs` - Pedidos
-- `Cliente.cs` - Clientes
+Cada Controller define um conjunto de endpoints relacionados:
 
-**`/DTOs`** - Padrões de dados
-- `LoginDTO.cs` - Email + senha
-- `RespostaPadraoDTO.cs` - Resposta padrão
-- Define o que entra e sai da API
+- AutenticacaoController: Login e validação de tokens
+- ComandaController: CRUD de comandas (mesas e pedidos)
+- ProdutoController: CRUD de produtos
+- ClienteController: CRUD de clientes
+- FuncionarioController: CRUD de funcionários
+- MesaController: CRUD de mesas
+- ReservaController: CRUD de reservas
+- PedidosController: CRUD de pedidos e atualização de status
+- FormaPagamentoController: CRUD de formas de pagamento
+- BackupController: Gerenciamento de backups
+- FaturamentoController: Relatórios e faturamento
+- LogController: Consulta de logs de auditoria
+- HealthCheckController: Verificação de saúde da API
 
-**`/Services`** - Lógica reutilizável
-- `JwtService.cs` - Gera tokens
-- `PasswordHashService.cs` - Criptografa senhas
+Todas as respostas seguem o padrão RespostaPadraoDTO:
 
-**`/Data`** - Banco de dados
-- `AppDbContext.cs` - Conexão com SQL Server
-- Define os `DbSet` (tabelas)
+Sucesso: true/false
+Mensagem: Texto explicativo
+Dados: Informações retornadas
 
-**`Program.cs`** - Configuração principal
-- Inicia banco de dados
+### Models (Estrutura do Banco)
+
+Os Models representam as tabelas no SQL Server:
+
+- Funcionario: Dados de usuários (nome, email, senha, cargo)
+- Mesa: Mesas do restaurante (número, capacidade, status)
+- Produto: Cardápio (nome, preço de custo, preço de venda, estoque)
+- Comanda: Pedidos (data, status, total, mesa)
+- ItemComanda: Itens dentro de uma comanda
+- Cliente: Clientes do restaurante
+- Reserva: Agendamentos
+- FormaPagamento: Tipos de pagamento (dinheiro, pix, crédito, débito)
+- DetalhePagamento: Registros de pagamentos
+- Despesa: Custos operacionais
+- LogComanda: Histórico de ações em comandas
+- LogSistema: Auditoria de mudanças no sistema
+
+### DTOs (Formato de Dados)
+
+Os DTOs definem exatamente quais dados entram e saem da API:
+
+- LoginDTO: Email e senha do usuário
+- CriarPedidoDTO: Dados para criar um novo pedido
+- RespostaPadraoDTO: Formato padrão de todas as respostas
+- FuncionarioDto: Dados de um funcionário
+
+Isso é importante porque permite que front-end saiba exatamente quais dados enviar e esperar receber.
+
+### Services (Lógica Reutilizável)
+
+Os Services contêm lógica que pode ser usada por vários Controllers:
+
+- JwtService: Gera e valida tokens JWT
+- PasswordHashService: Criptografa senhas com bcrypt
+- BackupService: Faz backup do banco de dados
+
+### Data (Conexão com Banco)
+
+- AppDbContext: Conecta com SQL Server, define todas as tabelas (DbSet)
+- Entity Framework Core: Biblioteca que facilita trabalhar com banco de dados
+
+### Program.cs (Configuração Principal)
+
+Arquivo que inicia tudo:
+- Configura a conexão com SQL Server
+- Ativa CORS para aceitar requisições do React
 - Configura JWT
-- Ativa CORS
-- Mapeia controllers
+- Define qual porta a API vai usar (5130)
 
 ---
 
-## 💻 Front-End (pim-3)
+## Front-End (React com TypeScript)
 
-### 📂 Pastas Principais
+O front-end é a interface que o usuário vê e interage:
+- Mostra telas, formulários, dados
+- Envia dados para a API
+- Recebe dados da API e exibe
 
-**`/src/components`** - Componentes reutilizáveis
-- Inputs, botões, cards, etc
-- Componentes pequenos e simples
+### Components (Componentes Reutilizáveis)
 
-**`/src/pages`** - Páginas completas
-- `LoginPage.tsx` - Tela de login
-- `DashboardPage.tsx` - Dashboard principal
-- `PedidosPage.tsx` - Gerenciar pedidos
-- Cada página usa múltiplos componentes
+São pequenos blocos de interface que aparecem em várias páginas:
 
-**`/src/services`** - Chamadas à API
-- `api.js` - Configuração do axios
-- `authService.js` - Login/logout
-- `pedidoService.js` - CRUD de pedidos
+- Botões
+- Campos de entrada (input)
+- Cards
+- Headers
+- Barras de navegação
+- Modais (janelas pop-up)
 
-**`/src/contexts`** - Contextos globais
-- `AuthContext.tsx` - Autenticação
-- `PedidoContext.tsx` - Estado de pedidos
+Cada componente faz uma coisa bem definida e pode ser reutilizado.
 
-**`/src/App.tsx`** - Componente raiz
-- Define rotas principais
-- Provider de contextos
+### Pages (Páginas Completas)
+
+Cada página é uma tela completa que o usuário acessa:
+
+- LoginPage: Tela de login (email e senha)
+- DashboardPage: Painel principal com resumo de vendas
+- ProdutosPage: Lista de produtos, criar, editar, deletar
+- ComandaPage: Visualizar mesas, criar comandas
+- PedidosPage: Visualizar e atualizar status de pedidos
+- FuncionariosPage: Gerenciar usuários
+- ReservasPage: Gerenciar agendamentos
+- ClientesPage: Gerenciar clientes
+- AuditoriaPage: Visualizar logs de mudanças
+
+Cada página usa componentes menores para montar a interface.
+
+### Services (Comunicação com API)
+
+- api.ts: Arquivo central que configura como falar com a API
+  Ele adiciona automaticamente o token JWT a cada requisição
+  Define a URL base (http://localhost:5130/api)
+
+Você não precisa se preocupar com detalhes de HTTP. Pode usar assim:
+
+```
+const resposta = await api.get("/comanda")
+const resposta = await api.post("/comanda", dados)
+```
+
+### Contexts (Estado Global)
+
+Contexts são usados para compartilhar informações entre componentes sem passar propriedades:
+
+- AuthContext: Informações do usuário logado, token, permissões
+- RestaurantContext: Dados do restaurante (produtos, mesas, pedidos)
+- AccessibilityContext: Configurações de acessibilidade
+
+### App.tsx (Componente Raíz)
+
+É o componente principal que:
+- Define todas as rotas (URLs que o usuário pode acessar)
+- Envolve a aplicação com Contexts para compartilhar dados
+- Verifica se usuário está logado antes de acessar páginas protegidas
 
 ---
 
-## 🔄 Fluxo de uma Requisição
+## Como Uma Requisição Funciona (Fluxo Completo)
 
-### 1️⃣ User faz login no React
+Vamos acompanhar o que acontece quando um usuário faz login:
 
-```javascript
-// pim-3/src/components/LoginForm.tsx
-const handleLogin = async () => {
-  const result = await api.post("/api/autenticacao/login", { email, senha });
-};
-```
+Passo 1: Usuário digita email e senha e clica em "Entrar"
+- O front-end (React) coleta os dados do formulário
+- Chama a API: POST /api/autenticacao/login
 
-### 2️⃣ Request vai para API
+Passo 2: A requisião chega na API (back-end)
+- O AutenticacaoController recebe a requisião
+- Valida se email existe no banco
+- Valida se senha está correta
+- Se tudo OK, gera um token JWT
 
-```
-POST http://localhost:5000/api/autenticacao/login
-Body: { email: "chef@email.com", senha: "123" }
-```
+Passo 3: API envia resposta
+- Retorna em formato RespostaPadraoDTO:
+  sucesso: true
+  mensagem: "Login realizado com sucesso"
+  dados:
+    token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    nomeUsuario: "Chef João"
 
-### 3️⃣ API processa
+Passo 4: Front-end recebe token e guarda
+- Salva o token no localStorage do navegador
+- Usa esse token em todas as próximas requisições
+- Redireciona para o Dashboard
 
-```csharp
-// PIM3.API/Controllers/AutenticacaoController.cs
-[HttpPost("login")]
-public async Task<IActionResult> Login([FromBody] LoginDTO loginDTO)
-{
-    Console.WriteLine("--> Alguém tentou fazer login");
-    
-    // Valida e busca no banco
-    var funcionario = await _context.Funcionarios
-        .FirstOrDefaultAsync(f => f.NomeFuncionario == loginDTO.Email);
-    
-    // Gera token
-    var token = _jwtService.GenerateToken(...);
-    
-    // Retorna RespostaPadraoDTO
-    return Ok(new RespostaPadraoDTO { ... });
-}
-```
+Passo 5: Próximas requisições
+- Toda requisição inclui automaticamente: Authorization: Bearer token_aqui
+- A API verifica se o token é válido
+- Se válido, processa a requisição
+- Se inválido, retorna erro 401 (não autorizado)
 
-### 4️⃣ React recebe resposta
-
-```javascript
-// Guardando token
-localStorage.setItem("token", data.dados.token);
-
-// Usa em requisições futuras
-api.defaults.headers.common.Authorization = `Bearer ${token}`;
-```
+Este fluxo garante que apenas usuários autenticados possam acessar dados sensveis.
 
 ---
 
-## 📊 Padrões Importantes
+## Padrões que Todo Dev Deve Seguir
 
-### ✅ Sempre Usar RespostaPadraoDTO
+### Formato de Resposta
 
-```csharp
-// ✅ CORRETO
+Todas as respostas do back-end devem usar RespostaPadraoDTO:
+
+Correto:
+```
 return Ok(new RespostaPadraoDTO {
     Sucesso = true,
     Mensagem = "Sucesso!",
     Dados = objeto
 });
+```
 
-// ❌ ERRADO (não usar)
+Errado:
+```
 return Ok(objeto);
 ```
 
-### ✅ Comentários em Português
+Isso garante que o front-end sempre receba dados no mesmo formato.
 
-```csharp
-// ✅ CORRETO
-// Aqui buscamos o funcionário no banco de dados
-var func = await _context.Funcionarios.FindAsync(id);
+### Códigos HTTP Certos
 
-// ❌ ERRADO
-// Find employee
+Use os códigos HTTP corretos:
+- 200 OK: Requisição funcionou
+- 201 Created: Recurso criado com sucesso
+- 400 Bad Request: Dados inválidos
+- 401 Unauthorized: Sem token ou token inválido
+- 403 Forbidden: Sem permissão para acessar
+- 404 Not Found: Recurso não encontrado
+- 500 Internal Server Error: Erro no servidor
+
+### Mensagens em Português
+
+Todas as mensagens devem ser em português e amigáveis:
+
+Correto: "Ops! Esse pedido não existe."
+Errado: "Entity not found"
+
+Isso ajuda o usuário final (que pode não ser dev) entender o que aconteceu.
+
+### Logs no Console
+
+Use Console.WriteLine para deixar rastro do que está acontecendo:
+
 ```
-
-### ✅ Console.WriteLine para Debug
-
-```csharp
-// ✅ CORRETO
 Console.WriteLine($"--> Buscando funcionário ID: {id}");
-
-// ❌ ERRADO
-// Sem log
+Console.WriteLine($"--> Login bem-sucedido para: {email}");
 ```
 
-### ✅ Mensagens Amigáveis
-
-```csharp
-// ✅ CORRETO
-return NotFound("Ops! Esse pedido não existe.");
-
-// ❌ ERRADO
-return NotFound("Entity not found");
-```
+Isso ajuda muito no debug quando algo dá errado.
 
 ---
 
-## 🔐 Segurança
+## Segurança
 
 ### JWT (JSON Web Token)
-- Usuário faz login → Recebe token
-- Token guardado em localStorage
-- Token enviado em cada requisição
-- Token expira em 1 hora
 
-### CORS
-- React (localhost:5173) consegue acessar API (localhost:5000)
-- Configurado em `Program.cs`
+JWT é um token que prova quem você é. Funciona assim:
+- Usuário faz login
+- API gera um token único com informações do usuário
+- Front-end guarda o token
+- Em toda requisição, envia o token no header Authorization
+- API valida o token antes de processar
+- Token expira em 1 hora (usuário precisa fazer login de novo)
+
+### CORS (Controle de Origem)
+
+CORS previne que websites maliciosos acessem sua API:
+- React (http://localhost:8080) consegue acessar API (http://localhost:5130)
+- Outros websites não conseguem
+- Está configurado em Program.cs
 
 ### Validações
-- Email e senha obrigatórios
-- Checagem de duplicatas
-- Tentativas de login limitadas
+
+O back-end valida sempre:
+- Email é obrigatório e tem formato válido
+- Senha é obrigatória
+- Não permite dois usuários com mesmo email
+- Bloqueia após 5 tentativas de login incorretas
 
 ---
 
-## 💾 Banco de Dados
+## Banco de Dados (SQL Server)
+
+O SQL Server é onde todos os dados são armazenados permanentemente.
 
 ### Connection String
+
+Em back-end/appsettings.Development.json:
+
 ```json
-// appsettings.json
 "ConnectionStrings": {
   "DefaultConnection": "Server=.;Database=PIM3;Integrated Security=true;"
 }
 ```
 
-### Tabelas (Models)
-- Funcionarios
-- Mesas
-- Produtos
-- Comandas
-- Clientes
-- Etc
+Isso significa:
+- Server=. : Conectar ao SQL Server local
+- Database=PIM3 : Usar banco chamado PIM3
+- Integrated Security=true : Usar credenciais do Windows
 
-### Acesso
-- Tudo via `AppDbContext`
-- Entity Framework Core
-- Migrations automáticas
+### Tabelas Principais
+
+Cada Model em C# representa uma tabela no banco:
+- Funcionarios: Usuários do sistema
+- Mesas: Mesas do restaurante
+- Produtos: Cardápio
+- Comandas: Pedidos (venda)
+- ItemComanda: Itens de cada comanda
+- Clientes: Clientes do restaurante
+- Reservas: Agendamentos
+- FormaPagamento: Tipos de pagamento
+- DetalhePagamento: Registros de pagamentos
+- Despesas: Custos
+- LogComanda: Histórico de ações
+- LogSistema: Auditoria geral
+
+### Como Acessar o Banco
+
+O back-end usa:
+- Entity Framework Core: Biblioteca que facilita trabalhar com banco
+- AppDbContext: Classe que gerencia conexão e tabelas
+
+Você não escreve SQL. Escreve assim:
+
+```csharp
+var usuario = await _context.Funcionarios.FindAsync(id);
+```
+
+O Entity Framework converte para SQL automaticamente.
 
 ---
 
-## 🧪 Como Expandir
+## Como Adicionar Novas Funcionalidades
 
-### Adicionar Novo Endpoint
+### Adicionar um Novo Endpoint na API
 
-1. **Criar Controller**
+Vamos supor que você quer criar um endpoint para listar categorias de produtos.
+
+Passo 1: Criar o Controller
 ```csharp
-// PIM3.API/Controllers/ProdutosController.cs
+// back-end/Controllers/CategoriaController.cs
 [ApiController]
 [Route("api/[controller]")]
-public class ProdutosController : ControllerBase { ... }
+public class CategoriaController : ControllerBase
+{
+    // Métodos aqui
+}
 ```
 
-2. **Criar DTO se necessário**
+Passo 2: Criar o DTO (se necessário)
 ```csharp
-// PIM3.API/DTOs/ProdutoDTO.cs
-public class ProdutoDTO { ... }
+// back-end/DTOs/CategoriaDTO.cs
+public class CategoriaDTO
+{
+    public int Id { get; set; }
+    public string Nome { get; set; }
+}
 ```
 
-3. **Implementar método**
+Passo 3: Implementar o método
 ```csharp
 [HttpGet]
-public async Task<IActionResult> ListarProdutos() { ... }
+public async Task<IActionResult> ListarCategorias()
+{
+    var categorias = await _context.Categorias.ToListAsync();
+    
+    return Ok(new RespostaPadraoDTO
+    {
+        Sucesso = true,
+        Mensagem = "Categorias listadas com sucesso",
+        Dados = categorias
+    });
+}
 ```
 
-### Adicionar Página React
+Passo 4: Testar em http://localhost:5130/api/categoria
 
-1. **Criar componente**
+### Adicionar uma Nova Página no React
+
+Vamos criar uma página para listar categorias.
+
+Passo 1: Criar a página
 ```typescript
-// pim-3/src/pages/ProdutosPage.tsx
-export default function ProdutosPage() { ... }
+// front-end/src/pages/CategoriasPage.tsx
+export default function CategoriasPage() {
+    const [categorias, setCategorias] = useState([]);
+    
+    useEffect(() => {
+        carregarCategorias();
+    }, []);
+    
+    const carregarCategorias = async () => {
+        const resposta = await api.get("/categoria");
+        setCategorias(resposta.data.dados);
+    };
+    
+    return (
+        <div>
+            <h1>Categorias</h1>
+            {categorias.map(cat => (
+                <div key={cat.id}>{cat.nome}</div>
+            ))}
+        </div>
+    );
+}
 ```
 
-2. **Criar serviço**
-```javascript
-// pim-3/src/services/produtoService.js
-export async function listarProdutos() { ... }
-```
-
-3. **Integrar nas rotas**
+Passo 2: Adicionar a rota no App.tsx
 ```typescript
-// pim-3/src/App.tsx
-<Route path="/produtos" element={<ProdutosPage />} />
+// front-end/src/App.tsx
+import CategoriasPage from "./pages/CategoriasPage";
+
+// Dentro do Router:
+<Route path="/categorias" element={<CategoriasPage />} />
 ```
+
+Passo 3: Acessar em http://localhost:8080/categorias
+
+Pronto! Você adicionou uma nova funcionalidade do zero.
 
 ---
 
-## 🔍 Debug
+## Debug e Troubleshooting
 
-### Ver Console da API
-```bash
-# Terminal onde você rodou "dotnet run"
---> Alguém tentou fazer login com email: chef@email.com
---> Login bem-sucedido para: chef@email.com
-```
+### Ver Logs da API
 
-### Ver Network no React
-```bash
-# F12 → Network → ver requisições
-POST /api/autenticacao/login
-GET /api/pedidos
-```
+Abra o terminal onde você rodou "dotnet run":
 
-### Swagger da API
-```
-http://localhost:5000/swagger
-```
+Você verá mensagens como:
+- "--> Alguém tentou fazer login com email: chef@email.com"
+- "--> Login bem-sucedido para: chef@email.com"
+- "--> Erro: Funcionário não encontrado"
 
----
+Esses logs ajudam a entender o que a API está fazendo.
 
-## 📝 Estrutura de Pastas por Responsabilidade
+### Ver Requisições de Rede no React
 
-| Pasta | Responsabilidade | Exemplo |
-|-------|-----------------|---------|
-| Controllers | Receber e responder requisições | Login, CRUD pedidos |
-| Models | Definir estrutura do banco | Funcionario, Comanda |
-| DTOs | Padrão entrada/saída | LoginDTO, RespostaPadraoDTO |
-| Services | Lógica compartilhada | JWT, criptografia |
-| Data | Acesso ao banco | AppDbContext |
-| components | Pequenos componentes | Buttons, Inputs |
-| pages | Páginas completas | Login, Dashboard |
-| services | Chamadas à API | api.js, authService.js |
+Abra as ferramentas do navegador (F12 ou Ctrl+Shift+I):
+- Vá em "Network"
+- Faça uma ação (como clicar em um botão)
+- Você verá as requisições HTTP:
+  - POST /api/autenticacao/login
+  - GET /api/comanda
+  - etc
+
+Clique em cada uma para ver:
+- Status (200 = OK, 404 = Não encontrado, 500 = Erro)
+- Headers
+- Response (dados que voltaram)
+
+Isso é muito útil para debugar.
 
 ---
 
-**Próximo:** Leia CONFIGURACAO.md para setup e endpoints
+## Resumo das Responsabilidades
+
+| Pasta | O que faz |
+|-------|----------|
+| Controllers | Recebe requisições HTTP e responde |
+| Models | Define a estrutura das tabelas do banco |
+| DTOs | Define o formato de dados que entra e sai |
+| Services | Lógica que pode ser usada por vários Controllers |
+| Data | Gerencia conexão com SQL Server |
+| components (React) | Pequenos blocos de interface reutilizáveis |
+| pages (React) | Páginas completas que o usuário vê |
+| services (React) | Comunicação com a API |
+
+---
+
+Próximo: Leia CONFIGURACAO.md para aprender como iniciar o projeto

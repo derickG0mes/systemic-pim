@@ -1,211 +1,196 @@
-# 📖 Configuração de Setup - Backend e Frontend
+# Configuração de Setup - Backend e Frontend
 
-## 🚀 Começar Rápido
+Este documento descreve como configurar e executar o sistema Systemic em seu ambiente local.
 
-### 1️⃣ Back-End (API .NET)
+## Começar Rápido
+
+### Back-End (API .NET)
+
+Primeiro, inicie a API que fornece os dados para o front-end:
 
 ```bash
-cd backend
+cd back-end
 dotnet run
 ```
 
-**Resultado esperado:**
+Se tudo funcionar corretamente, você verá no terminal mensagens informando que a API está pronta. A API estará disponível em:
 
-- Terminal mostra: `API ESTÁ PRONTA PARA RECEBER REQUISIÇÕES!`
-- URL: http://localhost:5000
-- Health Check: http://localhost:5000/api/healthcheck
+- Endereço principal: http://localhost:5130/api
+- Verificação de saúde: http://localhost:5130/api/healthcheck
 
-### 2️⃣ Front-End (React)
+### Front-End (React)
+
+Em outro terminal, inicie a interface do usuário:
 
 ```bash
-cd pim-3
+cd front-end
 npm install
 npm run dev
 ```
 
-**Resultado esperado:**
+Após alguns segundos, você verá uma mensagem indicando que a interface está pronta. Acesse:
 
-- Terminal mostra: `VITE v... ready in ... ms`
-- URL: http://localhost:5173
-
----
-
-## 🔗 Conectar React na API
-
-### Criar arquivo: `pim-3/src/services/api.js`
-
-```javascript
-import axios from "axios";
-
-const api = axios.create({
-  baseURL: "http://localhost:5000",
-});
-
-// Adicionar token automaticamente
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-export default api;
-```
-
-### Usar no Componente React
-
-```javascript
-import api from "../services/api";
-
-async function fazerLogin(email, senha) {
-  try {
-    const { data } = await api.post("/api/autenticacao/login", {
-      email,
-      senha,
-    });
-
-    if (data.sucesso) {
-      localStorage.setItem("token", data.dados.token);
-      console.log("✅ Login bem-sucedido!");
-    } else {
-      console.error("❌ " + data.mensagem);
-    }
-  } catch (erro) {
-    console.error("Erro:", erro);
-  }
-}
-```
+- URL: http://localhost:8080
 
 ---
 
-## 🔐 Autenticação JWT
+## Conectar React na API
 
-### Login
+### Como o front-end se comunica com a API
 
-```bash
-POST http://localhost:5000/api/autenticacao/login
-Content-Type: application/json
+O arquivo que faz essa comunicação já existe em `front-end/src/services/api.ts`. Este arquivo:
 
+- Define a URL base da API (http://localhost:5130/api)
+- Adiciona automaticamente o token JWT em cada requisição
+- Define headers padrão (Content-Type, Authorization)
+- Trata respostas e erros
+
+Não é necessário criar este arquivo. Ele já está no projeto.
+
+
+
+---
+
+## Autenticação com JWT
+
+Todos os acessos ao sistema começam com login. Aqui está como funciona:
+
+### Fazer Login
+
+Você pode testar o login fazendo uma requisição para:
+
+```
+POST http://localhost:5130/api/autenticacao/login
+```
+
+Com o corpo (body) em JSON:
+
+```json
 {
-  "email": "chef@restaurante.com",
-  "senha": "123456"
+  "email": "admin@restaurante.com",
+  "senha": "admin123"
 }
 ```
 
-**Resposta (sucesso):**
+Se funcionar, a API responde com um token JWT que você usa em todas as próximas requisições.
+
+### Como o Front-End Usa o Token
+
+Depois do login, o token é guardado no localStorage do navegador. Cada requisição posterior inclui automaticamente o token no header:
+
+```
+Authorization: Bearer seu_token_jwt_aqui
+```
+
+Você não precisa fazer isso manualmente. O arquivo `api.ts` já faz isso por você.
+
+---
+
+## Principais Endpoints da API
+
+Este é um resumo dos endpoints (rotas) mais importantes. Cada um deles exige que você esteja autenticado (com o token JWT).
+
+Autenticação:
+- POST /api/autenticacao/login - Fazer login no sistema
+- GET /api/autenticacao/validar - Verificar se token ainda é válido
+
+Pedidos e Comandas:
+- GET /api/comanda - Listar todas as comandas
+- GET /api/comanda/{id} - Pegar detalhes de uma comanda
+- POST /api/comanda - Criar nova comanda
+- PUT /api/comanda/{id} - Atualizar comanda
+- DELETE /api/comanda/{id} - Deletar comanda
+
+Produtos:
+- GET /api/produto - Listar todos os produtos
+- POST /api/produto - Criar novo produto
+- PUT /api/produto/{id} - Atualizar produto
+- DELETE /api/produto/{id} - Deletar produto
+
+Verificação de Saúde:
+- GET /api/healthcheck - Verificar se a API está funcionando
+- GET /api/healthcheck/database - Verificar se o banco de dados está conectado
+
+---
+
+## Resolvendo Problemas Comuns
+
+Erro: "CORS policy" ou "cross-origin"
+- O navegador está bloqueando a requisição porque front-end e API estão em portas diferentes
+- Confirme: React em http://localhost:8080 e API em http://localhost:5130
+- A API deve permitir CORS (está configurado em Program.cs)
+
+Erro: "Connection refused" ou "não conseguiu conectar"
+- A API não está rodando ou está em porta diferente
+- Verifique: execute dotnet run na pasta back-end
+- Verifique se aparece mensagem de sucesso no terminal
+
+Erro: "401 Unauthorized"
+- Você fez uma requisição sem token ou com token inválido
+- Faça login novamente para pegar um token válido
+- Verifique se o token está sendo guardado no localStorage
+
+Erro: "Database connection failed" ou erro de conexão com banco
+- SQL Server não está rodando em sua máquina
+- Verifique a connection string em back-end/appsettings.Development.json
+- Certifique-se que SQL Server está instalado e iniciado
+
+---
+
+## Como a API Responde
+
+Todas as respostas vêm neste formato padrão:
 
 ```json
 {
   "sucesso": true,
-  "mensagem": "Login realizado com sucesso!",
+  "mensagem": "Texto explicando o que aconteceu",
   "dados": {
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "nomeUsuario": "Chef João"
-  }
-}
-```
-
-### Guardar Token
-
-```javascript
-localStorage.setItem("token", data.dados.token);
-```
-
-### Usar em Requisições Autenticadas
-
-```javascript
-const token = localStorage.getItem("token");
-fetch("http://localhost:5000/api/pedidos", {
-  headers: { Authorization: `Bearer ${token}` },
-});
-```
-
----
-
-## 🔗 Endpoints Disponíveis
-
-### 🔐 Autenticação
-
-- `POST /api/autenticacao/login` - Fazer login
-- `GET /api/autenticacao/validar` - Validar token
-
-### 📦 Pedidos
-
-- `GET /api/pedidos` - Listar
-- `GET /api/pedidos/{id}` - Obter um
-- `POST /api/pedidos` - Criar
-- `PUT /api/pedidos/{id}/status` - Atualizar status
-- `DELETE /api/pedidos/{id}` - Deletar
-
-### 🏥 Saúde
-
-- `GET /api/healthcheck` - Status da API
-- `GET /api/healthcheck/database` - Status do banco
-- `GET /api/healthcheck/info` - Informações
-
----
-
-## ⚠️ Problemas Comuns
-
-### Erro: "CORS policy"
-
-**Solução:** Confirme que React está em `http://localhost:5173` e API em `http://localhost:5000`
-
-### Erro: "Connection refused"
-
-**Solução:** A API não está rodando. Execute `dotnet run` na pasta `PIM3.API`
-
-### Erro: "401 Unauthorized"
-
-**Solução:** Token não foi enviado ou expirou. Faça login novamente
-
-### Erro: "Database connection failed"
-
-**Solução:** Verifique SQL Server está rodando e connection string em `appsettings.json`
-
----
-
-## 📊 Estrutura de Resposta
-
-**Todas as respostas seguem este padrão:**
-
-```json
-{
-  "sucesso": true, // boolean
-  "mensagem": "Texto amigável",
-  "dados": {
-    /* dados */
+    "campo1": "valor1",
+    "campo2": "valor2"
   },
-  "codigoErro": null // ou código de erro
+  "codigoErro": null
 }
 ```
 
----
+Você sempre recebe:
+- sucesso: true ou false (indicando se funcionou)
+- mensagem: Texto em português explicando o resultado
+- dados: Informações (se houver)
+- codigoErro: Código de erro (se falhar)
 
-## 🎯 URLs Rápidas
-
-| O Quê        | URL                                   |
-| ------------ | ------------------------------------- |
-| API          | http://localhost:5000                 |
-| Health Check | http://localhost:5000/api/healthcheck |
-| Swagger      | http://localhost:5000/swagger         |
-| React        | http://localhost:5173                 |
+Isso facilita saber exatamente o que aconteceu em cada requisição.
 
 ---
 
-## ✅ Checklist de Setup
+## URLs para Testar Rapidamente
 
-- [ ] .NET 10+ instalado
-- [ ] Node.js + npm instalado
-- [ ] SQL Server rodando
-- [ ] `dotnet run` na pasta PIM3.API
-- [ ] Acessar http://localhost:5000/api/healthcheck (sucesso)
-- [ ] `npm run dev` na pasta pim-3
-- [ ] Acessar http://localhost:5173
-- [ ] Teste login no React
-- [ ] Listar pedidos funcionando
+Aqui estão os endereços que você precisa para testar o sistema:
+
+| Serviço | URL |
+| --- | --- |
+| Front-end (Interface) | http://localhost:8080 |
+| API (Backend) | http://localhost:5130/api |
+| Verificar se API está viva | http://localhost:5130/api/healthcheck |
+| Banco de dados (SQL Server) | Configurado em appsettings.Development.json |
 
 ---
 
-**Próximo:** Leia ARQUITETURA.md para entender a estrutura do código
+## Checklist para Verificar se Tudo Está Funcionando
+
+Before you start, make sure:
+- .NET SDK 10 ou superior está instalado
+- Node.js e npm estão instalados
+- SQL Server está instalado e em execução
+
+Depois de iniciar:
+- Back-end: Execute dotnet run na pasta back-end
+- Verifique se http://localhost:5130/api/healthcheck responde (deve mostrar status OK)
+- Front-end: Execute npm run dev na pasta front-end
+- Acesse http://localhost:8080 no navegador
+- Tente fazer login com: admin@restaurante.com / admin123
+- Se conseguir acessar o dashboard, está tudo funcionando
+
+---
+
+Próximo: Leia ARQUITETURA.md para entender como o código está organizado
