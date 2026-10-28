@@ -3,6 +3,7 @@ using System.IO;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PIM3.API.Services;
+using PIM3.API.DTOs;
 using PIM3.API.Controllers.Backup; // DTO
 using PIM3.API.Services.Backup;    // BackupRestoreService
 
@@ -98,12 +99,12 @@ public class BackupController : ControllerBase
     // ═══════════════════════════════════════════════════════════════════════════
     // 🔄 NOVO ENDPOINT: Restauração de Backup (aditivo, sem alterar rotas acima)
     // ═══════════════════════════════════════════════════════════════════════════
-    [AllowAnonymous]
-[HttpPost("restore")]
+    [Authorize(Roles = "admin,owner")]
+    [HttpPost("restore")]
     public async Task<IActionResult> Restore([FromForm] RestoreRequest request)
     {
         if (request?.Arquivo == null || request.Arquivo.Length == 0)
-            return BadRequest(new { sucesso = false, mensagem = "Arquivo de backup inválido." });
+            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Arquivo de backup inválido." });
 
         try
         {
@@ -112,11 +113,11 @@ public class BackupController : ControllerBase
 
             await restoreService.RestaurarAsync(request.Arquivo);
 
-            return Ok(new { sucesso = true, mensagem = "Backup restaurado com sucesso." });
+            return Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Backup restaurado com sucesso." });
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { sucesso = false, mensagem = $"Falha ao restaurar backup: {ex.Message}" });
+            return StatusCode(500, new RespostaPadraoDTO { Sucesso = false, Mensagem = $"Falha ao restaurar backup: {ex.Message}" });
         }
     }
 }

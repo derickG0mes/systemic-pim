@@ -59,7 +59,7 @@ public class PagarComandaDTO
     public int IdFormaPagamento { get; set; }
 
     [JsonPropertyName("idFuncionario")]
-    public int IdFuncionario { get; set; } = 1;
+    public int? IdFuncionario { get; set; }
 
     [JsonPropertyName("troco")]
     public decimal Troco { get; set; }

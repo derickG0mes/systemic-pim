@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.Data.SqlClient;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -14,7 +15,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls("http://0.0.0.0:5050");
 
 Console.WriteLine("╔════════════════════════════════════════════════════════════╗");
-Console.WriteLine("║   INICIANDO API PIM3 - Gerenciamento de Restaurante       ║");
+Console.WriteLine("║   INICIANDO API PIM4 - Gerenciamento de Restaurante       ║");
 Console.WriteLine("║   Versão: 1.0.0 | Modo: Desenvolvimento                  ║");
 Console.WriteLine("╚════════════════════════════════════════════════════════════╝\n");
 
@@ -35,8 +36,15 @@ Console.WriteLine($"   DB_NAME lido:   '{dbName}'");
 Console.WriteLine($"   DB_USER lido:   '{dbUser}'");
 Console.WriteLine($"   DB_PASSWORD lido: '{(string.IsNullOrEmpty(dbPassword) ? "⚠️ VAZIO!" : "✓ preenchido")}'");
 
-// Construir connection string dinamicamente
-var connectionString = $"Server={dbServer};Database={dbName};User Id={dbUser};Password={dbPassword};TrustServerCertificate=True;";
+// Construir connection string com SqlConnectionStringBuilder (usando Autenticação do Windows para contornar falha de logon do 'sa')
+var csBuilder = new SqlConnectionStringBuilder
+{
+    DataSource = dbServer,
+    InitialCatalog = dbName,
+    IntegratedSecurity = true,
+    TrustServerCertificate = true
+};
+var connectionString = csBuilder.ConnectionString;
 Console.WriteLine($"   ✓ Connection String: Server={dbServer}, Database={dbName}");
 Console.WriteLine($"   ✓ User: {dbUser}\n");
 
@@ -52,7 +60,13 @@ Console.WriteLine("   ✓ DbContext configurado\n");
 Console.WriteLine("🔐 Configurando autenticação JWT...");
 
 // Ler variáveis de ambiente do arquivo .env
-var jwtSecretKey = Environment.GetEnvironmentVariable("JWT_SECRET_KEY") ?? "sua_chave_secreta_muito_segura_com_minimo_32_caracteres_12345";
+var jwtSecretKey = Environment.GetEnvironmentVariable("JWT_SECRET_KEY") ?? builder.Configuration["Jwt:SecretKey"];
+
+if (string.IsNullOrWhiteSpace(jwtSecretKey) || jwtSecretKey.Length < 32)
+{
+    throw new InvalidOperationException("Falha na inicialização: A variável de ambiente JWT_SECRET_KEY não foi definida ou possui menos de 32 caracteres. Configure uma chave segura no arquivo .env antes de executar a aplicação.");
+}
+
 var jwtExpirationMinutes = int.TryParse(Environment.GetEnvironmentVariable("JWT_EXPIRATION_MINUTES"), out var exp) ? exp : 480;
 
 Console.WriteLine($"   ✓ JWT Secret Key carregada");

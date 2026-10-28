@@ -36,8 +36,8 @@ public class FuncionarioDto
 
     public static string MapearRoleBanco(string? perfilOuRole)
     {
-        var v = (perfilOuRole ?? "").ToLowerInvariant();
-        if (v is "proprietário" or "proprietario" or "owner") return "admin";
+        var v = (perfilOuRole ?? "").Trim().ToLowerInvariant();
+        if (v is "proprietário" or "proprietario" or "owner") return "owner";
         if (v is "administrador" or "admin") return "admin";
         return "employee";
     }

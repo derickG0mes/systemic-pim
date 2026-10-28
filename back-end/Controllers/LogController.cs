@@ -1,7 +1,9 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
+using PIM3.API.DTOs;
 using PIM3.API.Models;
 
 namespace PIM3.API.Controllers;
@@ -51,29 +53,40 @@ public class LogController : ControllerBase
     }
 
     /// <summary>
-    /// Registra um log no sistema (chamado internamente)
+    /// Registra um log no sistema
     /// POST: api/log/registrar
     /// </summary>
     [HttpPost("registrar")]
-    [AllowAnonymous] // Permitir chamadas internas
     public async Task<IActionResult> RegistrarLog([FromBody] CriarLogDTO logDTO)
     {
         if (string.IsNullOrEmpty(logDTO.TipoLog) || string.IsNullOrEmpty(logDTO.DescricaoLog))
-            return BadRequest(new { sucesso = false, mensagem = "Tipo e descrição obrigatórios" });
+            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Tipo e descrição do log são obrigatórios" });
+
+        // Extrai o nome ou identificador do usuário autenticado através das claims do token JWT
+        var usuarioLog = User.Identity?.Name 
+            ?? User.FindFirst(ClaimTypes.Name)?.Value 
+            ?? User.FindFirst("cpf")?.Value 
+            ?? "usuario_autenticado";
 
         var logSistema = new LogSistema
         {
             TipoLog = logDTO.TipoLog,
             DescricaoLog = logDTO.DescricaoLog,
-            UsuarioLog = logDTO.UsuarioLog,
+            UsuarioLog = usuarioLog,
             DadoAnterior = logDTO.DadoAnterior,
-            DadoNovo = logDTO.DadoNovo
+            DadoNovo = logDTO.DadoNovo,
+            DataLog = DateTime.UtcNow
         };
 
         _context.LogsSistema.Add(logSistema);
         await _context.SaveChangesAsync();
 
-        return Ok(new { sucesso = true, id = logSistema.IdLogSistema });
+        return Ok(new RespostaPadraoDTO
+        {
+            Sucesso = true,
+            Mensagem = "Log registrado com sucesso!",
+            Dados = new { id = logSistema.IdLogSistema }
+        });
     }
 
     /// <summary>

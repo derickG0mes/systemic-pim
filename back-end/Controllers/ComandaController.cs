@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -260,6 +261,10 @@ public class ComandaController : ControllerBase
             .Select(c => c.ValorTotal)
             .FirstAsync();
 
+        // Extrai o ID do funcionário autenticado diretamente do token JWT
+        var idFuncionarioClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        int idFuncionario = int.TryParse(idFuncionarioClaim, out var parsedId) ? parsedId : 1;
+
         _context.DetalhesPagamento.Add(new DetalhePagamento
         {
             IdComanda = id,
@@ -267,7 +272,7 @@ public class ComandaController : ControllerBase
             Troco = dto.Troco,
             StatusPagamento = "PAGO",
             IdFormaPagamento = dto.IdFormaPagamento,
-            IdFuncionario = dto.IdFuncionario,
+            IdFuncionario = idFuncionario,
             DataPagamento = DateTime.UtcNow
         });
 
@@ -299,6 +304,10 @@ public class ComandaController : ControllerBase
             .Select(c => c.ValorTotal)
             .FirstAsync();
 
+        // Extrai o ID do funcionário autenticado diretamente do token JWT
+        var idFuncionarioClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        int idFuncionario = int.TryParse(idFuncionarioClaim, out var parsedId) ? parsedId : 1;
+
         _context.DetalhesPagamento.Add(new DetalhePagamento
         {
             IdComanda = id,
@@ -306,7 +315,7 @@ public class ComandaController : ControllerBase
             Troco = 0,
             StatusPagamento = "PAGO",
             IdFormaPagamento = 1,
-            IdFuncionario = 1,
+            IdFuncionario = idFuncionario,
             DataPagamento = DateTime.UtcNow
         });
 

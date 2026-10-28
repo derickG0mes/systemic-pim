@@ -15,7 +15,12 @@ public class JwtService
         // Ler do arquivo .env (variáveis de ambiente)
         _secretKey = Environment.GetEnvironmentVariable("JWT_SECRET_KEY") 
             ?? configuration["Jwt:SecretKey"] 
-            ?? "sua_chave_secreta_muito_segura_com_minimo_32_caracteres_12345";
+            ?? throw new InvalidOperationException("Falha na inicialização: A variável de ambiente JWT_SECRET_KEY não foi definida. Configure uma chave segura no arquivo .env antes de executar a aplicação.");
+
+        if (_secretKey.Length < 32)
+        {
+            throw new InvalidOperationException("Falha na inicialização: A variável de ambiente JWT_SECRET_KEY deve conter no mínimo 32 caracteres.");
+        }
             
         var expStr = Environment.GetEnvironmentVariable("JWT_EXPIRATION_MINUTES") 
             ?? configuration["Jwt:ExpirationMinutes"];
