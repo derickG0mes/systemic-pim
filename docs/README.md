@@ -1,6 +1,6 @@
 # Systemic - Sistema de Gerenciamento de Restaurante
 
-Systemic é um sistema web completo para gerenciar restaurantes, lanchonetes, padarias e pequenos negócios alimentícios. O projeto foi desenvolvido como Projeto Integrado Multidisciplinar (PIM III) na UNIP.
+Systemic é um sistema web completo para gerenciar restaurantes, lanchonetes, padarias e pequenos negócios alimentícios. O projeto foi desenvolvido como Projeto Integrado Multidisciplinar (PIM IV) na UNIP.
 
 ## O que é Systemic?
 
@@ -228,7 +228,7 @@ Depois de entender o básico:
 
 ## Autores
 
-Projeto desenvolvido como PIM III (Projeto Integrado Multidisciplinar III) - UNIP 2026
+Projeto desenvolvido como PIM IV (Projeto Integrado Multidisciplinar IV) - UNIP 2026
 
 ## Licença
 

@@ -12,7 +12,6 @@ public static class EnvLoader
     {
         if (!File.Exists(envFilePath))
         {
-            Console.WriteLine($"⚠️  Arquivo {envFilePath} não encontrado. Usando variáveis de ambiente do sistema.");
             return;
         }
 
@@ -42,7 +41,6 @@ public static class EnvLoader
             if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)))
             {
                 Environment.SetEnvironmentVariable(key, value);
-                Console.WriteLine($"   ✓ Variável carregada: {key}");
             }
         }
     }

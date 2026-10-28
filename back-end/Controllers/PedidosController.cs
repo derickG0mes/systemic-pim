@@ -35,7 +35,6 @@ public class PedidosController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> ListarPedidos()
     {
-        Console.WriteLine("--> Alguém tentou acessar a lista de pedidos agora.");
 
         // Aqui buscamos todas as comandas com seus itens relacionados
         var pedidos = await _context.Comandas
@@ -44,8 +43,6 @@ public class PedidosController : ControllerBase
             .Include(c => c.Mesa)  // ✅ Incluir dados da mesa
             .Include(c => c.Cliente)  // ✅ Incluir dados do cliente
             .ToListAsync();
-
-        Console.WriteLine($"--> Total de pedidos encontrados: {pedidos.Count}");
 
         return Ok(new RespostaPadraoDTO
         {
@@ -62,7 +59,6 @@ public class PedidosController : ControllerBase
     [HttpGet("{id}")]
     public async Task<IActionResult> ObterPedido(int id)
     {
-        Console.WriteLine($"--> Alguém tentou acessar o pedido {id}");
 
         // Aqui começamos a buscar o pedido no banco
         var pedido = await _context.Comandas
@@ -71,7 +67,6 @@ public class PedidosController : ControllerBase
 
         if (pedido == null)
         {
-            Console.WriteLine($"--> Pedido não encontrado: {id}");
             return NotFound(new RespostaPadraoDTO
             {
                 Sucesso = false,
@@ -79,8 +74,6 @@ public class PedidosController : ControllerBase
                 CodigoErro = "PEDIDO_NAO_ENCONTRADO"
             });
         }
-
-        Console.WriteLine($"--> Pedido encontrado: {id}");
         return Ok(new RespostaPadraoDTO
         {
             Sucesso = true,
@@ -96,17 +89,12 @@ public class PedidosController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CriarPedido([FromBody] CriarPedidoDTO pedidoDTO)
     {
-        Console.WriteLine($"--> Criando pedido para mesa: {pedidoDTO.IdMesa} com {pedidoDTO.Itens.Count} itens");
 
         // Validação: IdMesa ou NumeroMesa (front envia tableNumber)
         var mesa = await _context.Mesas.FindAsync(pedidoDTO.IdMesa)
             ?? await _context.Mesas.FirstOrDefaultAsync(m => m.NumeroMesa == pedidoDTO.IdMesa);
         if (mesa == null)
         {
-            Console.WriteLine($"--> Mesa não encontrada: {pedidoDTO.IdMesa}");
-            Console.WriteLine($"--> Mesas disponíveis no banco: {await _context.Mesas.CountAsync()}");
-            var mesasDisponiveis = await _context.Mesas.Select(m => m.IdMesa).ToListAsync();
-            Console.WriteLine($"--> IDs de mesas: [{string.Join(", ", mesasDisponiveis)}]");
             return BadRequest(new RespostaPadraoDTO
             {
                 Sucesso = false,
@@ -122,7 +110,6 @@ public class PedidosController : ControllerBase
 
         if (comandaExistente != null)
         {
-            Console.WriteLine($"--> Comanda já aberta para mesa: {pedidoDTO.IdMesa}. Adicionando itens à comanda existente ID: {comandaExistente.IdComanda}");
             
             // Adicionar itens à comanda existente
             foreach (var itemDTO in pedidoDTO.Itens)
@@ -177,16 +164,12 @@ public class PedidosController : ControllerBase
                 // Diminuir estoque do produto
                 produto.QtdEstoque -= itemDTO.QtdProduto;
                 _context.Produtos.Update(produto);
-
-                Console.WriteLine($"--> Item adicionado à comanda existente: {produto.NomeProduto} x{itemDTO.QtdProduto} @ R$ {precoFinal}");
             }
 
             await _context.SaveChangesAsync();
             await _context.Entry(comandaExistente).ReloadAsync();
 
             await NotificarPedidoNovo(comandaExistente.IdComanda, comandaExistente.IdMesa, pedidoDTO.Itens);
-            
-            Console.WriteLine($"--> Pedido adicionado com sucesso à comanda existente. ID: {comandaExistente.IdComanda}, Novo Total: R$ {comandaExistente.ValorTotal}");
 
             return Ok(new RespostaPadraoDTO
             {
@@ -200,7 +183,6 @@ public class PedidosController : ControllerBase
         var cliente = await _context.Clientes.FindAsync(pedidoDTO.IdCliente);
         if (cliente == null)
         {
-            Console.WriteLine($"--> Cliente não encontrado: {pedidoDTO.IdCliente}");
             return BadRequest(new RespostaPadraoDTO
             {
                 Sucesso = false,
@@ -272,8 +254,6 @@ public class PedidosController : ControllerBase
             // Diminuir estoque do produto
             produto.QtdEstoque -= itemDTO.QtdProduto;
             _context.Produtos.Update(produto);
-
-            Console.WriteLine($"--> Item adicionado: {produto.NomeProduto} x{itemDTO.QtdProduto} @ R$ {precoFinal}");
         }
 
         _context.Comandas.Add(novaComanda);
@@ -281,7 +261,6 @@ public class PedidosController : ControllerBase
 
         await _context.Entry(novaComanda).ReloadAsync();
         await NotificarPedidoNovo(novaComanda.IdComanda, novaComanda.IdMesa, pedidoDTO.Itens);
-        Console.WriteLine($"--> Pedido criado com sucesso. ID: {novaComanda.IdComanda}, Total: R$ {novaComanda.ValorTotal}");
 
         return CreatedAtAction(nameof(ObterPedido), new { id = novaComanda.IdComanda }, new RespostaPadraoDTO
         {
@@ -298,7 +277,6 @@ public class PedidosController : ControllerBase
     [HttpPut("{id}")]
     public async Task<IActionResult> AtualizarPedido(int id, [FromBody] CriarPedidoDTO pedidoAtualizado)
     {
-        Console.WriteLine($"--> Alguém tentou atualizar o pedido {id}");
 
         var pedido = await _context.Comandas
             .Include(c => c.ItensComanda)
@@ -370,7 +348,6 @@ public class PedidosController : ControllerBase
     [HttpPut("{id}/status")]
     public async Task<IActionResult> AtualizarStatusPedido(int id, [FromBody] AtualizarStatusPedidoDTO statusDTO)
     {
-        Console.WriteLine($"--> Alguém tentou atualizar o status do pedido {id}");
 
         var pedido = await _context.Comandas
             .Include(c => c.Mesa)
@@ -482,7 +459,6 @@ public class PedidosController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeletarPedido(int id)
     {
-        Console.WriteLine($"--> Alguém tentou deletar o pedido {id}");
 
         // Aqui começamos a buscar o pedido para deletar
         var pedido = await _context.Comandas
@@ -491,7 +467,6 @@ public class PedidosController : ControllerBase
 
         if (pedido == null)
         {
-            Console.WriteLine($"--> Pedido não encontrado para deleção: {id}");
             return NotFound(new RespostaPadraoDTO
             {
                 Sucesso = false,
@@ -505,7 +480,6 @@ public class PedidosController : ControllerBase
         {
             pedido.Mesa.StatusMesa = "DISPONIVEL";
             _context.Mesas.Update(pedido.Mesa);
-            Console.WriteLine($"--> Mesa {pedido.IdMesa} liberada");
         }
 
         // Removemos o pedido do banco
@@ -518,8 +492,6 @@ public class PedidosController : ControllerBase
             novoStatus = "REMOVIDA",
             timestamp = DateTime.UtcNow
         });
-
-        Console.WriteLine($"--> Pedido deletado com sucesso: {id}");
 
         return Ok(new RespostaPadraoDTO
         {

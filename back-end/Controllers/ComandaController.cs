@@ -17,11 +17,13 @@ public class ComandaController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly IHubContext<CozinhaHub> _cozinhaHub;
+    private readonly ILogger<ComandaController> _logger;
 
-    public ComandaController(AppDbContext context, IHubContext<CozinhaHub> cozinhaHub)
+    public ComandaController(AppDbContext context, IHubContext<CozinhaHub> cozinhaHub, ILogger<ComandaController> logger)
     {
         _context = context;
         _cozinhaHub = cozinhaHub;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -63,7 +65,6 @@ public class ComandaController : ControllerBase
     [Authorize]  // ✅ CRÍTICA: Exigir autenticação em vez de AllowAnonymous
     public IActionResult GetAbertasComTotais()
     {
-        Console.WriteLine("--> Listando todas as comandas abertas com totais...");
 
         try
         {
@@ -96,19 +97,11 @@ public class ComandaController : ControllerBase
                 })
                 .ToList();
 
-            Console.WriteLine($"--> Total de comandas abertas: {comandasAbertas.Count}");
-
-            foreach (var cmd in comandasAbertas)
-            {
-                Console.WriteLine($"--> Comanda {cmd.IdComanda} (Mesa {cmd.IdMesa}): R$ {cmd.ValorTotal}");
-            }
-
             return Ok(new RespostaPadraoDTO { Sucesso = true, Dados = comandasAbertas });
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"--> ERRO: {ex.Message}");
-            Console.WriteLine($"--> StackTrace: {ex.StackTrace}");
+            _logger.LogError(ex, "Failed to load open orders.");
             return StatusCode(500, new { error = ex.Message });
         }
     }
@@ -119,7 +112,6 @@ public class ComandaController : ControllerBase
     [HttpGet("mesa/{tableNumber}")]
     public IActionResult GetComandasByTable(int tableNumber)
     {
-        Console.WriteLine($"--> Buscando comandas da mesa {tableNumber}");
 
         var mesa = _context.Mesas.FirstOrDefault(m => m.NumeroMesa == tableNumber);
         if (mesa == null)

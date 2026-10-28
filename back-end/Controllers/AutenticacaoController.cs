@@ -34,13 +34,9 @@ public class AutenticacaoController : ControllerBase
     [Microsoft.AspNetCore.Authorization.AllowAnonymous]
     public async Task<IActionResult> Login([FromBody] LoginDTO loginDTO)
     {
-        // Aqui começamos a validar se o usuário existe no banco
-        Console.WriteLine($"--> Alguém tentou fazer login com email: {loginDTO.Email}");
-
         // Validação básica dos dados de entrada
         if (string.IsNullOrWhiteSpace(loginDTO.Email) || string.IsNullOrWhiteSpace(loginDTO.Senha))
         {
-            Console.WriteLine($"--> Tentativa de login falhou: Email ou senha vazio");
             return BadRequest(new RespostaPadraoDTO
             {
                 Sucesso = false,
@@ -56,7 +52,6 @@ public class AutenticacaoController : ControllerBase
         // Se não encontrar, retorna erro amigável
         if (funcionario == null)
         {
-            Console.WriteLine($"--> Funcionário não encontrado: {loginDTO.Email}");
             return Unauthorized(new RespostaPadraoDTO
             {
                 Sucesso = false,
@@ -68,7 +63,6 @@ public class AutenticacaoController : ControllerBase
         // Verificamos se o funcionário está bloqueado por tentativas de login falhadas
         if (funcionario.LockedUntil.HasValue && funcionario.LockedUntil > DateTime.UtcNow)
         {
-            Console.WriteLine($"--> Funcionário bloqueado: {loginDTO.Email}");
             return Unauthorized(new RespostaPadraoDTO
             {
                 Sucesso = false,
@@ -87,12 +81,10 @@ public class AutenticacaoController : ControllerBase
             if (funcionario.LoginAttempts >= 5)
             {
                 funcionario.LockedUntil = DateTime.UtcNow.AddMinutes(30);
-                Console.WriteLine($"--> Conta bloqueada após 5 tentativas falhas: {loginDTO.Email}");
             }
 
             await _context.SaveChangesAsync();
 
-            Console.WriteLine($"--> Senha incorreta para: {loginDTO.Email}");
             return Unauthorized(new RespostaPadraoDTO
             {
                 Sucesso = false,
@@ -109,7 +101,6 @@ public class AutenticacaoController : ControllerBase
         // Geramos o token JWT
         var token = _jwtService.GenerateToken(funcionario.IdFuncionario, funcionario.NomeFuncionario, funcionario.CpfFuncionario ?? "", funcionario.Role);
 
-        Console.WriteLine($"--> Login bem-sucedido para: {loginDTO.Email}");
         return Ok(new RespostaPadraoDTO
         {
             Sucesso = true,
@@ -125,8 +116,6 @@ public class AutenticacaoController : ControllerBase
     [HttpGet("validar")]
     public IActionResult Validar()
     {
-        Console.WriteLine($"--> Alguém tentou validar o token");
-        
         return Ok(new RespostaPadraoDTO
         {
             Sucesso = true,

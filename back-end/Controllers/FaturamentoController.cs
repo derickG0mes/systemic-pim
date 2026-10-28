@@ -56,22 +56,24 @@ public class FaturamentoController : ControllerBase
         if (dataFim < dataInicio)
             return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Intervalo de datas inválido." });
 
-        var resultado = await _context.Database
-            .SqlQueryRaw<FaturamentoSqlResultDto>(
-                "EXEC dbo.sp_relatorio_faturamento @DataInicio = {0}, @DataFim = {1}",
-                dataInicio,
-                dataFim)
-            .ToListAsync(cancellationToken);
+        var receita = await _context.ItensComanda
+            .Where(item => item.Comanda != null &&
+                           item.Comanda.StatusComanda == "FECHADA" &&
+                           item.Comanda.DataFechada >= dataInicio &&
+                           item.Comanda.DataFechada <= dataFim)
+            .SumAsync(item => (decimal?)(item.QtdProduto * item.PrecoUnitarioPago), cancellationToken) ?? 0m;
 
-        var relatorio = resultado.Single();
+        var despesas = await _context.Despesas
+            .Where(despesa => despesa.DataDespesa >= dataInicio && despesa.DataDespesa <= dataFim)
+            .SumAsync(despesa => (decimal?)despesa.ValorDespesa, cancellationToken) ?? 0m;
 
         return Ok(new
         {
             dataInicio,
             dataFim,
-            receita = relatorio.Receita,
-            despesas = relatorio.Despesas,
-            lucro = relatorio.Lucro
+            receita,
+            despesas,
+            lucro = receita - despesas
         });
     }
 

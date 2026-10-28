@@ -15,10 +15,12 @@ public class HealthCheckController : ControllerBase
 {
     // Injeção de dependência do banco de dados
     private readonly AppDbContext _context;
+    private readonly ILogger<HealthCheckController> _logger;
 
-    public HealthCheckController(AppDbContext context)
+    public HealthCheckController(AppDbContext context, ILogger<HealthCheckController> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     /// <summary>
@@ -28,8 +30,6 @@ public class HealthCheckController : ControllerBase
     [HttpGet]
     public IActionResult HealthCheck()
     {
-        Console.WriteLine("--> Alguém fez uma requisição de health check");
-
         return Ok(new RespostaPadraoDTO
         {
             Sucesso = true,
@@ -50,14 +50,10 @@ public class HealthCheckController : ControllerBase
     [HttpGet("database")]
     public async Task<IActionResult> HealthCheckDatabase()
     {
-        Console.WriteLine("--> Alguém tentou verificar a saúde do banco de dados");
-
         try
         {
             // Tentamos fazer uma conexão simples com o banco
             await _context.Database.ExecuteSqlRawAsync("SELECT 1");
-
-            Console.WriteLine("--> Banco de dados está respondendo corretamente");
 
             return Ok(new RespostaPadraoDTO
             {
@@ -73,7 +69,7 @@ public class HealthCheckController : ControllerBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"--> Erro ao conectar com banco de dados: {ex.Message}");
+            _logger.LogError(ex, "Database health check failed");
 
             return StatusCode(503, new RespostaPadraoDTO
             {
@@ -92,17 +88,15 @@ public class HealthCheckController : ControllerBase
     [HttpGet("info")]
     public IActionResult Info()
     {
-        Console.WriteLine("--> Alguém requisitou informações da API");
-
         return Ok(new RespostaPadraoDTO
         {
             Sucesso = true,
             Mensagem = "Informações da API",
             Dados = new
             {
-                nome = "PIM3.API",
+                nome = "Systemic API - PIM IV",
                 descricao = "API para gerenciamento de restaurante/bar",
-                versao = "1.0.0",
+                versao = "2.0.0",
                 ambiente = "Desenvolvimento",
                 desenvolvedor = "Turma de Estudantes",
                 urlBase = "http://localhost:5000"

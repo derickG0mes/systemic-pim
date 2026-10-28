@@ -41,8 +41,8 @@ public class JwtService
         };
 
         var token = new JwtSecurityToken(
-            issuer: "PIM3.API",
-            audience: "PIM3.API.Users",
+            issuer: "PIM4.API",
+            audience: "PIM4.API.Users",
             claims: claims,
             expires: DateTime.UtcNow.AddMinutes(_expirationMinutes),
             signingCredentials: credentials
