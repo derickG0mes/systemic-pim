@@ -12,7 +12,7 @@ public class Cliente
     public string NomeCliente { get; set; } = string.Empty;
 
     [Column("TELEFONE_CLIENTE")]
-    public string TelefoneCliente { get; set; } = string.Empty;
+    public string? TelefoneCliente { get; set; }
 
     [Column("FEEDBACK")]
     public string? Feedback { get; set; }

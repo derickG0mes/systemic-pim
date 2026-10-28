@@ -19,7 +19,7 @@ public class Funcionario
     public string EmailFuncionario { get; set; } = string.Empty;
 
     [Column("CARGO_FUNCIONARIO")]
-    public string? CargoFuncionario { get; set; }
+    public string CargoFuncionario { get; set; } = string.Empty;
 
     [Column("CPF_FUNCIONARIO")]
     [Required(ErrorMessage = "CPF é obrigatório")]

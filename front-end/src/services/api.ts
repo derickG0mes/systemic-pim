@@ -12,6 +12,22 @@ export function getAuthToken(): string | null {
   return token?.trim() ? token.trim() : null;
 }
 
+/**
+ * Retorna o ID numérico do funcionário logado, lido do localStorage.
+ * O objeto restaurant_user é gravado no login e contém apenas dados não-sensíveis.
+ */
+export function getLoggedUserId(): number | null {
+  try {
+    const raw = localStorage.getItem("restaurant_user");
+    if (!raw) return null;
+    const u = JSON.parse(raw);
+    const id = parseInt(u.id, 10);
+    return Number.isFinite(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
 function isPublicPath(endpoint: string): boolean {
   return PUBLIC_PATHS.some((p) => endpoint.startsWith(p));
 }
@@ -57,6 +73,10 @@ async function apiCall(endpoint: string, options: RequestInit = {}) {
   const text = await response.text();
 
   if (!response.ok) {
+    // Sinaliza ao AuthContext para fazer logout automático ao receber 401
+    if (response.status === 401) {
+      window.dispatchEvent(new Event("auth:unauthorized"));
+    }
     let detail = text;
     try {
       const parsed = text ? JSON.parse(text) : null;
@@ -70,6 +90,7 @@ async function apiCall(endpoint: string, options: RequestInit = {}) {
     console.error(err.message);
     throw err;
   }
+
 
   if (!text) return null;
   try {
@@ -121,10 +142,6 @@ export async function getFuncionarios() {
   return apiCall("/funcionario");
 }
 
-export async function getFuncionarioById(id: string) {
-  return apiCall(`/funcionario/${id}`);
-}
-
 export async function createFuncionario(data: any) {
   return apiCall("/funcionario", {
     method: "POST",
@@ -139,16 +156,16 @@ export async function updateFuncionario(id: string, data: any) {
   });
 }
 
+export async function desativarFuncionario(id: string) {
+  return apiCall(`/funcionario/${id}`, { method: "DELETE" });
+}
+
 // ============================================
 // PRODUTOS
 // ============================================
 
 export async function getProdutos() {
   return apiCall("/produto");
-}
-
-export async function getProdutoById(id: string) {
-  return apiCall(`/produto/${id}`);
 }
 
 export async function createProduto(data: any) {
@@ -165,23 +182,19 @@ export async function updateProduto(id: string, data: any) {
   });
 }
 
-export async function deleteProduto(id: string) {
-  return apiCall(`/produto/${id}`, {
-    method: "DELETE",
+export async function ajustarEstoque(
+  id: string,
+  data: { tipo: "ADICIONAR" | "REMOVER"; quantidade: number; motivo: string },
+) {
+  return apiCall(`/produto/${id}/ajustar-estoque`, {
+    method: "PUT",
+    body: JSON.stringify(data),
   });
 }
 
 // ============================================
 // PEDIDOS
 // ============================================
-
-export async function getPedidos() {
-  return apiCall("/pedidos");
-}
-
-export async function getPedidoById(id: string) {
-  return apiCall(`/pedidos/${id}`);
-}
 
 export async function createPedido(data: any) {
   console.log("📡 [API] POST /pedidos - Enviando:", data);
@@ -207,12 +220,6 @@ export async function updatePedidoStatus(id: string, status: string) {
   });
 }
 
-export async function deletePedido(id: string) {
-  return apiCall(`/pedidos/${id}`, {
-    method: "DELETE",
-  });
-}
-
 // ============================================
 // MESAS
 // ============================================
@@ -221,42 +228,9 @@ export async function getMesas() {
   return apiCall("/mesa");
 }
 
-export async function getMesaById(id: string) {
-  return apiCall(`/mesa/${id}`);
-}
-
-export async function createMesa(data: any) {
-  return apiCall("/mesa", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
-}
-
-export async function updateMesa(id: string, data: any) {
-  return apiCall(`/mesa/${id}`, {
-    method: "PUT",
-    body: JSON.stringify(data),
-  });
-}
-
 // ============================================
 // CLIENTES
 // ============================================
-
-export async function getClientes() {
-  return apiCall("/cliente");
-}
-
-export async function getClienteById(id: string) {
-  return apiCall(`/cliente/${id}`);
-}
-
-export async function createCliente(data: any) {
-  return apiCall("/cliente", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
-}
 
 // ============================================
 // COMANDAS / ABAS (TABS)
@@ -269,12 +243,10 @@ export async function getComandas() {
   return response;
 }
 
-export async function getLogSistema(pagina = 1, tamanho = 100) {
-  return apiCall(`/log/sistema?pagina=${pagina}&tamanho=${tamanho}`);
-}
-
-export async function getComandasByTable(tableNumber: number) {
-  return apiCall(`/comanda/mesa/${tableNumber}`);
+export async function getLogSistema(pagina = 1, tamanho = 100, filtro = "") {
+  const params = new URLSearchParams({ pagina: String(pagina), tamanho: String(tamanho) });
+  if (filtro.trim()) params.set("filtro", filtro.trim());
+  return apiCall(`/log/sistema?${params.toString()}`);
 }
 
 export async function createComanda(data: any) {
@@ -284,45 +256,23 @@ export async function createComanda(data: any) {
   });
 }
 
-export async function updateComanda(id: string, data: any) {
-  return apiCall(`/comanda/${id}`, {
-    method: "PUT",
-    body: JSON.stringify(data),
-  });
-}
-
-export async function addItemComanda(comandaId: string, itemData: any) {
-  return apiCall(`/comanda/${comandaId}/itens`, {
-    method: "POST",
-    body: JSON.stringify(itemData),
-  });
-}
-
-export async function removeItemComanda(comandaId: string, itemId: string) {
-  return apiCall(`/comanda/${comandaId}/itens/${itemId}`, {
-    method: "DELETE",
-  });
-}
-
-export async function closeComanda(comandaId: string) {
-  return apiCall(`/comanda/${comandaId}/fechar`, {
+/**
+ * Marca a comanda como inadimplente: fecha sem DETALHE_PAGAMENTO,
+ * registra log NAO_PAGO no banco e libera a mesa.
+ */
+export async function markComandaInadimplente(comandaId: string) {
+  return apiCall(`/comanda/${comandaId}/inadimplente`, {
     method: "PUT",
   });
 }
 
 export async function pagarComanda(
   comandaId: string,
-  data: { idFormaPagamento: number; idFuncionario?: number; troco?: number },
+  data: { idFormaPagamento: number; troco?: number },
 ) {
   return apiCall(`/comanda/${comandaId}/pagar`, {
     method: "PUT",
     body: JSON.stringify(data),
-  });
-}
-
-export async function deleteComanda(comandaId: string) {
-  return apiCall(`/comanda/${comandaId}`, {
-    method: "DELETE",
   });
 }
 
@@ -355,13 +305,19 @@ export async function getFaturamento() {
   return apiCall("/faturamento");
 }
 
+export async function getRelatorioFaturamento(dataInicio: string, dataFim: string) {
+  const params = new URLSearchParams({ dataInicio, dataFim });
+  return apiCall(`/faturamento/relatorio?${params.toString()}`);
+}
+
+export async function getReceitaPorForma(dataInicio: string, dataFim: string) {
+  const params = new URLSearchParams({ dataInicio, dataFim });
+  return apiCall(`/faturamento/receita-por-forma?${params.toString()}`);
+}
+
 // ============================================
 // FORMAS DE PAGAMENTO
 // ============================================
-
-export async function getFormasPagamento() {
-  return apiCall("/formapagamento");
-}
 
 // ============================================
 // BACKUP
@@ -375,6 +331,29 @@ export async function gerarBackup() {
 
 export async function listarBackups() {
   return apiCall("/backup/listar");
+}
+
+export async function restaurarBackup(file: File) {
+  const token = getAuthToken();
+  if (!token) throw new Error("Não autenticado.");
+
+  const formData = new FormData();
+  formData.append("Arquivo", file, file.name);
+  const response = await fetch(`${resolveApiUrl()}/backup/restore`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  const data = (await parseJsonResponse(response)) ?? {};
+  if (!response.ok) {
+    if (response.status === 401) window.dispatchEvent(new Event("auth:unauthorized"));
+    throw new Error(data.mensagem || data.message || `Erro ${response.status}: ${response.statusText}`);
+  }
+  return data;
 }
 
 export async function baixarBackup(nomeArquivo: string) {
@@ -407,10 +386,4 @@ export async function baixarBackup(nomeArquivo: string) {
   document.body.removeChild(a);
 }
 
-// ============================================
-// HEALTH CHECK (para testar se API está online)
-// ============================================
 
-export async function healthCheck() {
-  return apiCall("/healthcheck");
-}

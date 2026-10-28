@@ -3,6 +3,7 @@ import React, {
   useContext,
   useState,
   useCallback,
+  useEffect,
   ReactNode,
 } from "react";
 import { loginAPI, logoutAPI } from "@/services/api";
@@ -27,46 +28,9 @@ interface AuthContextType {
   isAuthenticated: boolean;
   failedAttempts: number;
   lockedUntil: number | null;
-  registeredUsers: (User & { password: string })[];
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
-
-// Usuários de teste (fallback se a API não estiver disponível)
-const MOCK_USERS: (User & { password: string })[] = [
-  {
-    id: "1",
-    name: "Carlos Silva",
-    email: "admin@restaurante.com",
-    password: "admin123",
-    role: "admin",
-    position: "Gerente",
-  },
-  {
-    id: "2",
-    name: "Proprietario",
-    email: "owner@restaurante.com",
-    password: "admin123",
-    role: "owner",
-    position: "Proprietario",
-  },
-  {
-    id: "3",
-    name: "Garçom",
-    email: "garcom@restaurante.com",
-    password: "admin123",
-    role: "employee",
-    position: "Garçom",
-  },
-  {
-    id: "4",
-    name: "Cozinheiro",
-    email: "cozinha@restaurante.com",
-    password: "admin123",
-    role: "employee",
-    position: "Cozinha",
-  },
-];
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
@@ -75,29 +39,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
-  const [registeredUsers, setRegisteredUsers] = useState<
-    (User & { password: string })[]
-  >(() => {
-    const storedUsers = localStorage.getItem("registered_users");
-    let additionalUsers: (User & { password: string })[] = [];
 
-    if (storedUsers) {
-      try {
-        additionalUsers = JSON.parse(storedUsers);
-      } catch (e) {
-        additionalUsers = [];
-      }
-    }
+  const logout = useCallback(() => {
+    setUser(null);
+    localStorage.removeItem("restaurant_user");
+    localStorage.removeItem("authToken");
+    logoutAPI();
+    window.dispatchEvent(new Event("authTokenChanged"));
+  }, []);
 
-    const combined = [...MOCK_USERS];
-    additionalUsers.forEach((newUser) => {
-      if (!combined.find((u) => u.email === newUser.email)) {
-        combined.push(newUser);
-      }
-    });
-
-    return combined;
-  });
+  // Escuta o evento "auth:unauthorized" emitido por api.ts quando recebe 401.
+  // Garante logout automático e redirecionamento para /login.
+  useEffect(() => {
+    const handle401 = () => {
+      logout();
+      window.location.replace("/login");
+    };
+    window.addEventListener("auth:unauthorized", handle401);
+    return () => window.removeEventListener("auth:unauthorized", handle401);
+  }, [logout]);
 
   const login = useCallback(
     async (email: string, password: string) => {
@@ -115,19 +75,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        // Tenta fazer login com a API do backend
+        // Faz login via API real: POST /api/autenticacao/login com campos email e password
         const response = await loginAPI(email, password);
 
         const token =
-          localStorage.getItem("authToken") ||
           response.dados?.token ||
           response.Dados?.token ||
           response.token;
 
-        if ((response.sucesso || token) && token) {
+        if (token) {
           localStorage.setItem("authToken", token);
 
           const dados = response.dados || response.Dados || response;
+          // Armazena apenas dados não sensíveis — sem senha
           const userData: User = {
             id: String(dados.id || email),
             name: dados.nomeUsuario || dados.name || email,
@@ -142,66 +102,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           window.dispatchEvent(new Event("authTokenChanged"));
           return { success: true, message: "Login realizado com sucesso!" };
         }
-      } catch (error) {
-        console.warn("API não disponível, usando fallback local", error);
-      }
 
-      // FALLBACK: se a API não responder, usa usuários mock (para desenvolvimento)
-      let found = MOCK_USERS.find(
-        (u) => u.email === email && u.password === password,
-      );
-
-      if (!found) {
-        const storedUsers = localStorage.getItem("registered_users");
-        if (storedUsers) {
-          try {
-            const additionalUsers = JSON.parse(storedUsers);
-            found = additionalUsers.find(
-              (u) => u.email === email && u.password === password,
-            );
-          } catch (e) {
-            // Ignorar erro
-          }
+        // API respondeu com 2xx mas sem token — credenciais rejeitadas
+        const newAttempts = failedAttempts + 1;
+        setFailedAttempts(newAttempts);
+        if (newAttempts >= 5) {
+          const lockTime = Date.now() + 15 * 60 * 1000;
+          setLockedUntil(lockTime);
+          return {
+            success: false,
+            message: "Muitas tentativas. Conta bloqueada por 15 minutos.",
+          };
         }
-      }
-
-      if (found) {
-        const { password: _, ...userData } = found;
-        setUser(userData);
-        localStorage.setItem("restaurant_user", JSON.stringify(userData));
-        setFailedAttempts(0);
-        return {
-          success: true,
-          message: "Login realizado com sucesso! (Modo offline)",
-        };
-      }
-
-      // Credenciais inválidas
-      const newAttempts = failedAttempts + 1;
-      setFailedAttempts(newAttempts);
-      if (newAttempts >= 5) {
-        const lockTime = Date.now() + 15 * 60 * 1000;
-        setLockedUntil(lockTime);
         return {
           success: false,
-          message: "Muitas tentativas. Conta bloqueada por 15 minutos.",
+          message: `Credenciais inválidas. ${5 - newAttempts} tentativas restantes.`,
+        };
+      } catch (error: any) {
+        const msg: string = error?.message ?? "";
+
+        // Erro de rede (fetch falhou antes de receber resposta)
+        if (error instanceof TypeError || msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
+          return {
+            success: false,
+            message: "Servidor indisponível. Verifique sua conexão e tente novamente.",
+          };
+        }
+
+        // 401 ou outras respostas de erro HTTP reportadas pela API
+        const newAttempts = failedAttempts + 1;
+        setFailedAttempts(newAttempts);
+        if (newAttempts >= 5) {
+          const lockTime = Date.now() + 15 * 60 * 1000;
+          setLockedUntil(lockTime);
+          return {
+            success: false,
+            message: "Muitas tentativas. Conta bloqueada por 15 minutos.",
+          };
+        }
+
+        // Exibe a mensagem vinda da API, removendo o prefixo interno "[API] ..."
+        const apiMsg = msg.replace(/^\[API\][^:]*:\s*/, "").trim();
+        return {
+          success: false,
+          message: apiMsg || `Credenciais inválidas. ${5 - newAttempts} tentativas restantes.`,
         };
       }
-      return {
-        success: false,
-        message: `Credenciais inválidas. ${5 - newAttempts} tentativas restantes.`,
-      };
     },
     [failedAttempts, lockedUntil],
   );
-
-  const logout = useCallback(() => {
-    setUser(null);
-    localStorage.removeItem("restaurant_user");
-    localStorage.removeItem("authToken");
-    logoutAPI();
-    window.dispatchEvent(new Event("authTokenChanged"));
-  }, []);
 
   return (
     <AuthContext.Provider
@@ -212,7 +161,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!user,
         failedAttempts,
         lockedUntil,
-        registeredUsers,
       }}
     >
       {children}

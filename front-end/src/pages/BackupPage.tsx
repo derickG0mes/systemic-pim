@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Database,
   Download,
@@ -10,8 +12,9 @@ import {
   AlertCircle,
   Loader2,
   HardDrive,
+  Upload,
 } from "lucide-react";
-import { gerarBackup, listarBackups, baixarBackup } from "@/services/api";
+import { gerarBackup, listarBackups, baixarBackup, restaurarBackup } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 
 interface Backup {
@@ -25,15 +28,14 @@ export default function BackupPage() {
   const [loadingList, setLoadingList] = useState(false);
   const [loadingBackup, setLoadingBackup] = useState(false);
   const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
+  const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const restoreInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  // Carregar backups ao montar o componente
-  useEffect(() => {
-    carregarBackups();
-  }, []);
-
-  const carregarBackups = async () => {
+  const carregarBackups = useCallback(async () => {
     try {
       setLoadingList(true);
       setError(null);
@@ -51,7 +53,11 @@ export default function BackupPage() {
     } finally {
       setLoadingList(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    void carregarBackups();
+  }, [carregarBackups]);
 
   const handleGerarBackup = async () => {
     try {
@@ -61,7 +67,7 @@ export default function BackupPage() {
 
       toast({
         title: "Backup criado com sucesso!",
-        description: `Arquivo: ${resultado?.dados?.nome || "backup.zip"}`,
+        description: `Arquivo: ${resultado?.dados?.nomeArquivo || "backup.zip"}`,
         className: "bg-green-50 border-green-200",
       });
 
@@ -78,6 +84,29 @@ export default function BackupPage() {
       });
     } finally {
       setLoadingBackup(false);
+    }
+  };
+
+  const handleRestaurar = async () => {
+    if (!restoreFile) return;
+    try {
+      setRestoring(true);
+      setError(null);
+      await restaurarBackup(restoreFile);
+      toast({
+        title: "Backup restaurado",
+        description: "Os dados foram substituídos e o backup anterior foi salvo.",
+      });
+      setRestoreDialogOpen(false);
+      setRestoreFile(null);
+      if (restoreInputRef.current) restoreInputRef.current.value = "";
+      await carregarBackups();
+    } catch (err) {
+      const mensagem = err instanceof Error ? err.message : "Erro ao restaurar backup";
+      setError(mensagem);
+      toast({ title: "Erro ao restaurar backup", description: mensagem, variant: "destructive" });
+    } finally {
+      setRestoring(false);
     }
   };
 
@@ -173,6 +202,50 @@ export default function BackupPage() {
           </Button>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Upload className="h-5 w-5 text-primary" />
+            Restaurar Backup
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Selecione um arquivo ZIP de backup para restaurar o banco de dados.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <Input
+              ref={restoreInputRef}
+              type="file"
+              accept=".zip,application/zip"
+              onChange={(event) => setRestoreFile(event.target.files?.[0] ?? null)}
+              className="max-w-md"
+            />
+            <Button onClick={() => setRestoreDialogOpen(true)} disabled={!restoreFile || restoring}>
+              <Upload className="h-4 w-4 mr-2" />
+              Restaurar
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={restoreDialogOpen} onOpenChange={setRestoreDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar restauração</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Os dados atuais do sistema serão substituídos pelo conteúdo de <strong>{restoreFile?.name}</strong>. Um backup automático do estado atual será criado antes da restauração. Essa operação não pode ser desfeita.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setRestoreDialogOpen(false)} disabled={restoring}>Cancelar</Button>
+            <Button variant="destructive" onClick={() => void handleRestaurar()} disabled={restoring}>
+              {restoring ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Restaurando...</> : "Confirmar restauração"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader>

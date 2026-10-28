@@ -16,6 +16,12 @@ public class Produto
     [Column("DESCRICAO_PRODUTO")]
     public string? DescricaoProduto { get; set; }
 
+    [Column("PRECO_CUSTO")]
+    public decimal? PrecoCusto { get; set; }
+
+    [Column("PRECO_VENDA")]
+    public decimal? PrecoVenda { get; set; }
+
     [Column("QTD_ESTOQUE")]
     [Range(0, int.MaxValue, ErrorMessage = "Quantidade em estoque deve ser >= 0")]
     public int QtdEstoque { get; set; }

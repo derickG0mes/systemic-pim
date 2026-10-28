@@ -78,6 +78,14 @@ public class AppDbContext : DbContext
             .HasPrecision(10, 2);
 
         modelBuilder.Entity<Produto>()
+            .Property(p => p.PrecoCusto)
+            .HasPrecision(10, 2);
+
+        modelBuilder.Entity<Produto>()
+            .Property(p => p.PrecoVenda)
+            .HasPrecision(10, 2);
+
+        modelBuilder.Entity<Produto>()
             .Property(p => p.CategoriaProduto)
             .HasColumnName("CATEGORIA_PRODUTO");
 

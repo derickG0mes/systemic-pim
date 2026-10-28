@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
 using PIM3.API.DTOs;
+using PIM3.API.Hubs;
 using PIM3.API.Models;
 
 namespace PIM3.API.Controllers;
@@ -18,10 +20,12 @@ public class PedidosController : ControllerBase
 {
     // Injeção de dependência do banco de dados
     private readonly AppDbContext _context;
+    private readonly IHubContext<CozinhaHub> _cozinhaHub;
 
-    public PedidosController(AppDbContext context)
+    public PedidosController(AppDbContext context, IHubContext<CozinhaHub> cozinhaHub)
     {
         _context = context;
+        _cozinhaHub = cozinhaHub;
     }
 
     /// <summary>
@@ -179,6 +183,8 @@ public class PedidosController : ControllerBase
 
             await _context.SaveChangesAsync();
             await _context.Entry(comandaExistente).ReloadAsync();
+
+            await NotificarPedidoNovo(comandaExistente.IdComanda, comandaExistente.IdMesa, pedidoDTO.Itens);
             
             Console.WriteLine($"--> Pedido adicionado com sucesso à comanda existente. ID: {comandaExistente.IdComanda}, Novo Total: R$ {comandaExistente.ValorTotal}");
 
@@ -274,6 +280,7 @@ public class PedidosController : ControllerBase
         await _context.SaveChangesAsync();
 
         await _context.Entry(novaComanda).ReloadAsync();
+        await NotificarPedidoNovo(novaComanda.IdComanda, novaComanda.IdMesa, pedidoDTO.Itens);
         Console.WriteLine($"--> Pedido criado com sucesso. ID: {novaComanda.IdComanda}, Total: R$ {novaComanda.ValorTotal}");
 
         return CreatedAtAction(nameof(ObterPedido), new { id = novaComanda.IdComanda }, new RespostaPadraoDTO
@@ -340,6 +347,13 @@ public class PedidosController : ControllerBase
 
         await _context.SaveChangesAsync();
         await _context.Entry(pedido).ReloadAsync();
+        await _cozinhaHub.Clients.All.SendAsync("ComandaAtualizada", new
+        {
+            idComanda = pedido.IdComanda,
+            idMesa = pedido.IdMesa,
+            novoStatus = pedido.StatusComanda,
+            timestamp = DateTime.UtcNow
+        });
 
         return Ok(new RespostaPadraoDTO
         {
@@ -388,6 +402,32 @@ public class PedidosController : ControllerBase
                 item.StatusItem = statusItem;
 
             await _context.SaveChangesAsync();
+            if (statusItem == "PREPARANDO")
+            {
+                await _cozinhaHub.Clients.All.SendAsync("PedidoEmPreparo", new
+                {
+                    idComanda = pedido.IdComanda,
+                    idMesa = pedido.IdMesa,
+                    timestamp = DateTime.UtcNow
+                });
+            }
+            else if (statusItem == "CONCLUIDO")
+            {
+                await _cozinhaHub.Clients.All.SendAsync("PedidoPronto", new
+                {
+                    idComanda = pedido.IdComanda,
+                    idMesa = pedido.IdMesa,
+                    timestamp = DateTime.UtcNow
+                });
+            }
+
+            await _cozinhaHub.Clients.All.SendAsync("ComandaAtualizada", new
+            {
+                idComanda = pedido.IdComanda,
+                idMesa = pedido.IdMesa,
+                novoStatus = statusItem,
+                timestamp = DateTime.UtcNow
+            });
             return Ok(new RespostaPadraoDTO
             {
                 Sucesso = true,
@@ -419,6 +459,13 @@ public class PedidosController : ControllerBase
 
         pedido.StatusComanda = statusComanda;
         await _context.SaveChangesAsync();
+        await _cozinhaHub.Clients.All.SendAsync("ComandaAtualizada", new
+        {
+            idComanda = pedido.IdComanda,
+            idMesa = pedido.IdMesa,
+            novoStatus = pedido.StatusComanda,
+            timestamp = DateTime.UtcNow
+        });
 
         return Ok(new RespostaPadraoDTO
         {
@@ -464,6 +511,13 @@ public class PedidosController : ControllerBase
         // Removemos o pedido do banco
         _context.Comandas.Remove(pedido);
         await _context.SaveChangesAsync();
+        await _cozinhaHub.Clients.All.SendAsync("ComandaAtualizada", new
+        {
+            idComanda = id,
+            idMesa = pedido.IdMesa,
+            novoStatus = "REMOVIDA",
+            timestamp = DateTime.UtcNow
+        });
 
         Console.WriteLine($"--> Pedido deletado com sucesso: {id}");
 
@@ -472,6 +526,22 @@ public class PedidosController : ControllerBase
             Sucesso = true,
             Mensagem = "Pedido deletado e mesa liberada com sucesso!",
             Dados = new { id }
+        });
+    }
+
+    private Task NotificarPedidoNovo(int idComanda, int idMesa, IEnumerable<ItemPedidoDTO> itens)
+    {
+        return _cozinhaHub.Clients.All.SendAsync("PedidoNovo", new
+        {
+            idComanda,
+            idMesa,
+            itens = itens.Select(item => new
+            {
+                idProduto = item.IdProduto,
+                qtdProduto = item.QtdProduto,
+                statusItem = "PREPARAR"
+            }),
+            timestamp = DateTime.UtcNow
         });
     }
 }

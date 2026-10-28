@@ -91,4 +91,29 @@ public class ReservaController : ControllerBase
 
         return Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Reserva criada com sucesso!", Dados = reserva });
     }
+
+    [HttpDelete("{id}")]
+    [Authorize]
+    public async Task<IActionResult> CancelarReserva(int id)
+    {
+        var reserva = await _context.Reservas.FirstOrDefaultAsync(r => r.IdReserva == id);
+        if (reserva == null)
+            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Reserva não encontrada" });
+
+        if (reserva.StatusReserva == "CANCELADA")
+            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Reserva já está cancelada" });
+
+        reserva.StatusReserva = "CANCELADA";
+        _context.Reservas.Update(reserva);
+        await _context.SaveChangesAsync();
+
+        try
+        {
+            LogSistemaHelper.Registrar(_context, "RESERVA", $"Reserva {id} cancelada");
+            await _context.SaveChangesAsync();
+        }
+        catch { /* log não bloqueia */ }
+
+        return Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Reserva cancelada com sucesso" });
+    }
 }

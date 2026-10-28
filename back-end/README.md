@@ -173,10 +173,19 @@ PUT    /api/mesa/{id}            # Atualizar
 
 ## 🗄️ Database
 
-**Nome:** `PIM3_DB`  
+**Nome:** `DB_RESTAURANTE`
 **Engine:** SQL Server  
 **Tabelas:** 12  
 **Relacionamentos:** Estruturados com Foreign Keys
+
+### Instalação do schema idempotente
+
+No SQL Server Management Studio, execute os scripts na ordem abaixo:
+
+1. `Scripts/01-create-database-idempotent.sql` cria o banco `DB_RESTAURANTE`, tabelas, índices, triggers e dados iniciais sem duplicar objetos/registros existentes.
+2. `Scripts/02-procedures-views.sql` cria ou atualiza as procedures e views usadas pela API.
+
+O script `Scripts/init-database.sql` permanece inalterado para compatibilidade com instalações existentes.
 
 ### **Tabelas Principais**
 

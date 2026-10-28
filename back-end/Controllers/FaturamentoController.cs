@@ -51,31 +51,40 @@ public class FaturamentoController : ControllerBase
     /// Calcula: Receita (vendas) - Despesas = Lucro
     /// </summary>
     [HttpGet("relatorio")]
-    public IActionResult GetRelatorio(DateTime dataInicio, DateTime dataFim)
+    public async Task<IActionResult> GetRelatorio(DateTime dataInicio, DateTime dataFim, CancellationToken cancellationToken)
     {
-        // Receita: soma de todos os itens de comandas fechadas
-        var receita = _context.ItensComanda
-            .Where(item => item.Comanda != null && 
-                          item.Comanda.DataFechada.HasValue &&
-                          item.Comanda.DataFechada.Value >= dataInicio &&
-                          item.Comanda.DataFechada.Value <= dataFim)
-            .Sum(item => (decimal?)item.QtdProduto * item.PrecoUnitarioPago) ?? 0m;
+        if (dataFim < dataInicio)
+            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Intervalo de datas inválido." });
 
-        // Despesas
-        var despesas = _context.Despesas
-            .Where(d => d.DataDespesa >= dataInicio && d.DataDespesa <= dataFim)
-            .Sum(d => d.ValorDespesa);
+        var resultado = await _context.Database
+            .SqlQueryRaw<FaturamentoSqlResultDto>(
+                "EXEC dbo.sp_relatorio_faturamento @DataInicio = {0}, @DataFim = {1}",
+                dataInicio,
+                dataFim)
+            .ToListAsync(cancellationToken);
 
-        var lucro = receita - despesas;
+        var relatorio = resultado.Single();
 
         return Ok(new
         {
             dataInicio,
             dataFim,
-            receita = receita,
-            despesas = despesas,
-            lucro = lucro
+            receita = relatorio.Receita,
+            despesas = relatorio.Despesas,
+            lucro = relatorio.Lucro
         });
+    }
+
+    [HttpGet("produtos-mais-vendidos")]
+    public async Task<IActionResult> GetProdutosMaisVendidos(CancellationToken cancellationToken)
+    {
+        var produtos = await _context.Database
+            .SqlQueryRaw<ProdutoMaisVendidoSqlResultDto>(
+                "SELECT IdProduto, NomeProduto, QuantidadeVendida FROM dbo.vw_produtos_mais_vendidos")
+            .OrderByDescending(produto => produto.QuantidadeVendida)
+            .ToListAsync(cancellationToken);
+
+        return Ok(produtos);
     }
 
     /// <summary>

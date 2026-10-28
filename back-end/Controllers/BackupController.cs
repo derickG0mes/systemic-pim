@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PIM3.API.Services;
@@ -15,10 +16,12 @@ namespace PIM3.API.Controllers;
 public class BackupController : ControllerBase
 {
     private readonly BackupService _backupService;
+    private readonly BackupRestoreService _restoreService;
 
-    public BackupController(BackupService backupService)
+    public BackupController(BackupService backupService, BackupRestoreService restoreService)
     {
         _backupService = backupService;
+        _restoreService = restoreService;
     }
 
     [HttpPost("gerar")]
@@ -62,7 +65,7 @@ public class BackupController : ControllerBase
         {
             // Sanitizar nome do arquivo para evitar Path Traversal
             var safeName = Path.GetFileName(nomeArquivo);
-            var zipPath = Path.Combine(@"C:\Backups\Systemic", safeName);
+            var zipPath = Path.Combine(_backupService.BackupDirectory, safeName);
 
             if (!System.IO.File.Exists(zipPath))
             {
@@ -101,23 +104,30 @@ public class BackupController : ControllerBase
     // ═══════════════════════════════════════════════════════════════════════════
     [Authorize(Roles = "admin,owner")]
     [HttpPost("restore")]
-    public async Task<IActionResult> Restore([FromForm] RestoreRequest request)
+    [RequestSizeLimit(101 * 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 100L * 1024 * 1024)]
+    public async Task<IActionResult> Restore([FromForm] RestoreRequest request, CancellationToken cancellationToken)
     {
         if (request?.Arquivo == null || request.Arquivo.Length == 0)
             return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Arquivo de backup inválido." });
 
         try
         {
-            var restoreService = HttpContext.RequestServices
-                .GetRequiredService<BackupRestoreService>();
-
-            await restoreService.RestaurarAsync(request.Arquivo);
+            var usuario = User.FindFirst(ClaimTypes.Name)?.Value
+                ?? User.Identity?.Name
+                ?? User.FindFirst("cpf")?.Value
+                ?? "usuario_autenticado";
+            await _restoreService.RestaurarAsync(request.Arquivo, usuario, cancellationToken);
 
             return Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Backup restaurado com sucesso." });
         }
-        catch (Exception ex)
+        catch (BackupValidationException ex)
         {
-            return StatusCode(500, new RespostaPadraoDTO { Sucesso = false, Mensagem = $"Falha ao restaurar backup: {ex.Message}" });
+            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = ex.Message });
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, new RespostaPadraoDTO { Sucesso = false, Mensagem = "Falha ao restaurar o backup." });
         }
     }
 }

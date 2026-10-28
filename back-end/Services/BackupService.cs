@@ -16,11 +16,16 @@ namespace PIM3.API.Services;
 public class BackupService
 {
     private readonly AppDbContext _context;
-    private const string BackupDirectory = @"C:\Backups\Systemic";
+    public string BackupDirectory { get; }
 
-    public BackupService(AppDbContext context)
+    public BackupService(AppDbContext context, IConfiguration configuration)
     {
         _context = context;
+        var configuredPath = Environment.GetEnvironmentVariable("BACKUP_PATH")
+            ?? configuration["BACKUP_PATH"];
+        BackupDirectory = Path.GetFullPath(string.IsNullOrWhiteSpace(configuredPath)
+            ? Path.Combine(AppContext.BaseDirectory, "backups")
+            : configuredPath);
     }
 
     public string GerarScriptSQL()
@@ -31,6 +36,7 @@ public class BackupService
         sqlBuilder.AppendLine("-- ==================================================\n");
 
         sqlBuilder.AppendLine("EXEC sp_MSforeachtable 'ALTER TABLE ? NOCHECK CONSTRAINT ALL';\n");
+        sqlBuilder.AppendLine("EXEC sp_MSforeachtable 'DELETE FROM ?';\n");
 
         var connection = _context.Database.GetDbConnection();
         var wasClosed = connection.State == ConnectionState.Closed;

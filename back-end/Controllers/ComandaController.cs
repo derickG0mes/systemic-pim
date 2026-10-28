@@ -1,9 +1,11 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
 using PIM3.API.DTOs;
+using PIM3.API.Hubs;
 using PIM3.API.Models;
 
 namespace PIM3.API.Controllers;
@@ -14,10 +16,12 @@ namespace PIM3.API.Controllers;
 public class ComandaController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly IHubContext<CozinhaHub> _cozinhaHub;
 
-    public ComandaController(AppDbContext context)
+    public ComandaController(AppDbContext context, IHubContext<CozinhaHub> cozinhaHub)
     {
         _context = context;
+        _cozinhaHub = cozinhaHub;
     }
 
     [HttpGet]
@@ -151,6 +155,7 @@ public class ComandaController : ControllerBase
 
         _context.Comandas.Update(comanda);
         await _context.SaveChangesAsync();
+        await NotificarComandaAtualizada(comanda.IdComanda, comanda.IdMesa, comanda.StatusComanda);
 
         return Ok(comanda);
     }
@@ -161,8 +166,17 @@ public class ComandaController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] Comanda comanda)
     {
-        if (comanda.IdMesa <= 0 || comanda.IdCliente <= 0)
-            return BadRequest(new { message = "Mesa e Cliente são obrigatórios" });
+        if (comanda.IdMesa <= 0)
+            return BadRequest(new { message = "Mesa é obrigatória" });
+
+        // Se nenhum cliente foi informado (idCliente = 0), usa o cliente padrão "Consumidor"
+        if (comanda.IdCliente <= 0)
+        {
+            var consumidor = _context.Clientes.FirstOrDefault(c => c.NomeCliente == "Consumidor");
+            if (consumidor == null)
+                return BadRequest(new { message = "Cliente padrão 'Consumidor' não encontrado. Execute a migration-cliente-consumidor.sql." });
+            comanda.IdCliente = consumidor.IdCliente;
+        }
 
         var mesa = _context.Mesas.FirstOrDefault(m => m.IdMesa == comanda.IdMesa)
             ?? _context.Mesas.FirstOrDefault(m => m.NumeroMesa == comanda.IdMesa);
@@ -188,6 +202,7 @@ public class ComandaController : ControllerBase
 
         _context.Comandas.Add(comanda);
         await _context.SaveChangesAsync();
+        await NotificarComandaAtualizada(comanda.IdComanda, comanda.IdMesa, comanda.StatusComanda);
 
         return CreatedAtAction(nameof(GetById), new { id = comanda.IdComanda }, comanda);
     }
@@ -235,6 +250,14 @@ public class ComandaController : ControllerBase
         await _context.SaveChangesAsync();
 
         var novoTotal = await _context.Comandas.Where(c => c.IdComanda == id).Select(c => c.ValorTotal).FirstAsync();
+        await _cozinhaHub.Clients.All.SendAsync("PedidoNovo", new
+        {
+            idComanda = id,
+            idMesa = comanda.IdMesa,
+            itens = new[] { new { idProduto = item.IdProduto, qtdProduto = item.QtdProduto, statusItem = item.StatusItem } },
+            timestamp = DateTime.UtcNow
+        });
+        await NotificarComandaAtualizada(comanda.IdComanda, comanda.IdMesa, comanda.StatusComanda);
         return Ok(new { message = "Item adicionado com sucesso", itemId = item.IdItemComanda, novoTotal });
     }
 
@@ -281,6 +304,7 @@ public class ComandaController : ControllerBase
         await _context.SaveChangesAsync();
 
         await _context.Entry(comanda).ReloadAsync();
+        await NotificarComandaAtualizada(comanda.IdComanda, comanda.IdMesa, comanda.StatusComanda);
         return Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Pagamento registrado e comanda fechada", Dados = comanda });
     }
 
@@ -322,6 +346,8 @@ public class ComandaController : ControllerBase
         await _context.SaveChangesAsync();
         await _context.Entry(comanda).ReloadAsync();
 
+        await NotificarComandaAtualizada(comanda.IdComanda, comanda.IdMesa, comanda.StatusComanda);
+
         return Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Comanda fechada via trigger de pagamento", Dados = comanda });
     }
 
@@ -357,7 +383,56 @@ public class ComandaController : ControllerBase
         await _context.SaveChangesAsync();
 
         var novoTotal = await _context.Comandas.Where(c => c.IdComanda == id).Select(c => c.ValorTotal).FirstAsync();
+        await NotificarComandaAtualizada(comanda.IdComanda, comanda.IdMesa, comanda.StatusComanda);
+
         return Ok(new { message = "Item removido com sucesso", novoTotal });
+    }
+
+    /// <summary>
+    /// Marca comanda como inadimplente: fecha sem registro de pagamento e registra log NAO_PAGO.
+    /// A comanda fica com status FECHADA mas sem DETALHE_PAGAMENTO, portanto não entra no faturamento.
+    /// PUT: api/comanda/{id}/inadimplente
+    /// </summary>
+    [HttpPut("{id}/inadimplente")]
+    public async Task<IActionResult> MarcarInadimplente(int id)
+    {
+        var comanda = await _context.Comandas
+            .Include(c => c.Mesa)
+            .FirstOrDefaultAsync(c => c.IdComanda == id);
+
+        if (comanda == null)
+            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Comanda não encontrada" });
+
+        if (comanda.StatusComanda == "FECHADA")
+            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Comanda já está fechada" });
+
+        // Fecha a comanda sem criar DETALHE_PAGAMENTO (não entra no faturamento)
+        comanda.StatusComanda = "FECHADA";
+        comanda.DataFechada = DateTime.UtcNow;
+        _context.Comandas.Update(comanda);
+
+        // Libera a mesa
+        if (comanda.Mesa != null)
+        {
+            comanda.Mesa.StatusMesa = "DISPONIVEL";
+            _context.Mesas.Update(comanda.Mesa);
+        }
+
+        await _context.SaveChangesAsync();
+
+        // Registra no log de sistema como inadimplência
+        LogSistemaHelper.Registrar(_context, "NAO_PAGO",
+            $"Comanda {id} fechada como inadimplente — sem pagamento registrado");
+        await _context.SaveChangesAsync();
+
+        await NotificarComandaAtualizada(comanda.IdComanda, comanda.IdMesa, comanda.StatusComanda);
+
+        return Ok(new RespostaPadraoDTO
+        {
+            Sucesso = true,
+            Mensagem = "Comanda marcada como inadimplente e mesa liberada",
+            Dados = new { idComanda = id, status = "FECHADA", inadimplente = true }
+        });
     }
 
     /// <summary>
@@ -382,6 +457,19 @@ public class ComandaController : ControllerBase
         _context.Comandas.Remove(comanda);
         await _context.SaveChangesAsync();
 
+        await NotificarComandaAtualizada(comanda.IdComanda, comanda.IdMesa, "REMOVIDA");
+
         return Ok(new { message = "Comanda deletada e mesa liberada com sucesso" });
+    }
+
+    private Task NotificarComandaAtualizada(int idComanda, int idMesa, string novoStatus)
+    {
+        return _cozinhaHub.Clients.All.SendAsync("ComandaAtualizada", new
+        {
+            idComanda,
+            idMesa,
+            novoStatus,
+            timestamp = DateTime.UtcNow
+        });
     }
 }

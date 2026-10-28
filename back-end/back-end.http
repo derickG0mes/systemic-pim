@@ -1,6 +1,12 @@
-@PIM3.API_HostAddress = http://localhost:5130
+@PIM3.API_HostAddress = http://localhost:5050
+@token = cole_um_token_jwt_valido_aqui
 
-GET {{PIM3.API_HostAddress}}/weatherforecast/
+GET {{PIM3.API_HostAddress}}/api/faturamento/relatorio?dataInicio=2026-01-01T00:00:00&dataFim=2026-12-31T23:59:59
 Accept: application/json
+Authorization: Bearer {{token}}
 
 ###
+
+GET {{PIM3.API_HostAddress}}/api/faturamento/produtos-mais-vendidos
+Accept: application/json
+Authorization: Bearer {{token}}

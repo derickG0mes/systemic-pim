@@ -87,13 +87,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ClockSkew = TimeSpan.FromMinutes(5)
         };
 
-        // Suporte a JWT via QueryString para SignalR (comunicação em tempo real)
+                // Navegadores enviam o access token na query string para o hub SignalR.
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
             {
                 var accessToken = context.Request.Query["access_token"];
-                if (!string.IsNullOrEmpty(accessToken) && context.HttpContext.WebSockets.IsWebSocketRequest)
+                if (!string.IsNullOrEmpty(accessToken)
+                    && context.HttpContext.Request.Path.StartsWithSegments("/hubs/cozinha"))
                 {
                     context.Token = accessToken;
                 }

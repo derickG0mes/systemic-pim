@@ -18,8 +18,6 @@ import UsersPage from "@/pages/UsersPage";
 import AuditPage from "@/pages/AuditPage";
 import BackupPage from "@/pages/BackupPage";
 import AccessibilityPage from "@/pages/AccessibilityPage";
-import GestaoEstoquePage from "@/pages/GestaoEstoquePage";
-import GerenciarFuncionariosPage from "@/pages/GerenciarFuncionariosPage";
 import NotFound from "@/pages/NotFound";
 import { hasPermission } from "@/lib/rbac";
 
@@ -95,14 +93,6 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/estoque"
-        element={
-          <ProtectedRoute permission="inventory">
-            <GestaoEstoquePage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
         path="/reservations"
         element={
           <ProtectedRoute permission="reservations">
@@ -123,14 +113,6 @@ function AppRoutes() {
         element={
           <ProtectedRoute permission="users">
             <UsersPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/funcionarios"
-        element={
-          <ProtectedRoute permission="users">
-            <GerenciarFuncionariosPage />
           </ProtectedRoute>
         }
       />

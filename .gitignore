@@ -29,3 +29,5 @@ build_output.txt
 # OS / Editor
 .DS_Store
 Thumbs.db
+
+.vscode

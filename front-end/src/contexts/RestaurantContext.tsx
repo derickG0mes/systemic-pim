@@ -11,24 +11,28 @@ import {
   createPedido,
   updatePedido,
   updatePedidoStatus,
-  deletePedido,
   getMesas,
-  createMesa,
-  updateMesa,
-  closeComanda,
   pagarComanda,
+  markComandaInadimplente,
   createComanda,
-  addItemComanda,
   getComandas,
   getProdutos,
   createProduto,
+  updateProduto,
   createReserva,
+  deleteReserva,
   getFuncionarios,
+  createFuncionario,
+  updateFuncionario,
   getFaturamento,
   getAuthToken,
+  getLoggedUserId,
   getLogSistema,
   getReservas,
+  ajustarEstoque,
+  API_URL,
 } from "@/services/api";
+import { useSignalR } from "@/hooks/useSignalR";
 
 export interface Product {
   id: string;
@@ -90,6 +94,12 @@ export interface Employee {
   active: boolean;
 }
 
+interface StockAdjustmentResult {
+  quantidadeAnterior?: number;
+  quantidadeNova?: number;
+  produto?: { qtdEstoque?: number };
+}
+
 interface RestaurantContextType {
   products: Product[];
   orders: Order[];
@@ -98,23 +108,23 @@ interface RestaurantContextType {
   employees: Employee[];
   auditLogs: AuditLog[];
   addProduct: (p: Omit<Product, "id">) => void;
-  updateProduct: (id: string, p: Partial<Product>) => void;
+  updateProduct: (id: string, p: Partial<Product>) => Promise<void>;
+  adjustProductStock: (id: string, adjustment: { tipo: "ADICIONAR" | "REMOVER"; quantidade: number; motivo: string }) => Promise<StockAdjustmentResult>;
   addOrder: (o: Omit<Order, "id" | "createdAt" | "updatedAt">) => void;
   editOrder: (id: string, items: OrderItem[]) => void;
   updateOrderStatus: (id: string, status: OrderStatus) => void;
-  openTab: (tableNumber: number) => void;
-  closeTab: (id: string, paymentMethod: PaymentMethod) => void;
-  markTabUnpaid: (id: string) => void;
-  addOrderToTab: (tabId: string, orderId: string) => void;
+  openTab: (tableNumber: number) => Promise<void>;
+  closeTab: (id: string, paymentMethod: PaymentMethod) => Promise<void>;
+  markTabUnpaid: (id: string) => Promise<void>;
+  addOrderToTab: (tabId: string, orderId: string) => Promise<void>;
   addReservation: (
     r: Omit<Reservation, "id">,
   ) => Promise<{ success: boolean; message: string }>;
-  cancelReservation: (id: string) => void;
-  addEmployee: (e: Omit<Employee, "id">) => {
-    success: boolean;
-    message: string;
-  };
-  updateEmployee: (id: string, e: Partial<Employee>) => void;
+  cancelReservation: (id: string) => Promise<void>;
+  addEmployee: (
+    e: Omit<Employee, "id">,
+  ) => Promise<{ success: boolean; message: string }>;
+  updateEmployee: (id: string, e: Partial<Employee>) => Promise<void>;
   dailySales: {
     total: number;
     byMethod: Record<PaymentMethod, number>;
@@ -299,6 +309,24 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const { connected: hubConnected, enabled: hubEnabled } = useSignalR(
+    `${API_URL.replace(/\/api$/, "")}/hubs/cozinha`,
+    {
+      PedidoNovo: () => { void syncComandas(); },
+      PedidoEmPreparo: () => { void syncComandas(); },
+      PedidoPronto: () => { void syncComandas(); },
+      ComandaAtualizada: () => { void syncComandas(); },
+    },
+  );
+
+  useEffect(() => {
+    if (!hubEnabled || hubConnected) return;
+    const poll = setInterval(() => {
+      if (hasAuthToken()) void syncComandas();
+    }, 60000);
+    return () => clearInterval(poll);
+  }, [hubConnected, hubEnabled, syncComandas]);
+
   // Carrega dados da API quando o componente é montado OU quando o token muda
   useEffect(() => {
     const loadDataFromAPI = async () => {
@@ -437,12 +465,8 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     };
 
     window.addEventListener("authTokenChanged", handleTokenChanged);
-    const poll = setInterval(() => {
-      if (hasAuthToken()) syncComandas();
-    }, 10000);
     return () => {
       window.removeEventListener("authTokenChanged", handleTokenChanged);
-      clearInterval(poll);
     };
   }, [syncComandas, syncLogs, syncReservations]);
 
@@ -484,13 +508,61 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   );
 
   const updateProduct = useCallback(
-    (id: string, p: Partial<Product>) => {
-      setProducts((prev) =>
-        prev.map((x) => (x.id === id ? { ...x, ...p } : x)),
-      );
-      log("UPDATE_PRODUCT", `Produto ${id} atualizado`);
+    async (id: string, p: Partial<Product>) => {
+      // Extrai o ID numérico do produto (formato "p123" → 123)
+      const numericId = parseInt(id.replace(/\D/g, ""), 10);
+      if (!numericId) {
+        console.error("[updateProduct] ID inválido:", id);
+        return;
+      }
+      try {
+        const existing = products.find((x) => x.id === id);
+        if (!existing) return;
+        const merged = { ...existing, ...p };
+        await updateProduto(String(numericId), {
+          nomeProduto: merged.name,
+          categoria: merged.category,
+          precoProduto: merged.price,
+          qtdEstoque: merged.stock,
+          estoqueMinimo: merged.minStock,
+          statusProduto: "DISPONIVEL",
+        });
+        // Atualiza estado local apenas após sucesso da API
+        setProducts((prev) =>
+          prev.map((x) => (x.id === id ? { ...x, ...p } : x)),
+        );
+        log("UPDATE_PRODUCT", `Produto ${id} atualizado`);
+      } catch (error: any) {
+        console.error("[updateProduct] Falha na API:", error);
+        window.dispatchEvent(
+          new CustomEvent("restaurant:toast", {
+            detail: { type: "error", message: "Falha ao atualizar produto no servidor." },
+          }),
+        );
+      }
     },
-    [log],
+    [products, log],
+  );
+
+  const adjustProductStock = useCallback(
+    async (id: string, adjustment: { tipo: "ADICIONAR" | "REMOVER"; quantidade: number; motivo: string }) => {
+      const numericId = parseInt(id.replace(/\D/g, ""), 10);
+      if (!numericId) throw new Error("ID do produto inválido");
+
+      const response = await ajustarEstoque(String(numericId), adjustment);
+      const result = (response?.dados ?? response?.Dados ?? response) as StockAdjustmentResult;
+      const updatedProduct = result?.produto;
+      const newStock = Number(updatedProduct?.qtdEstoque ?? result?.quantidadeNova);
+
+      if (Number.isFinite(newStock)) {
+        setProducts((prev) =>
+          prev.map((product) => (product.id === id ? { ...product, stock: newStock } : product)),
+        );
+      }
+
+      return result;
+    },
+    [],
   );
 
   const addOrder = useCallback(
@@ -515,10 +587,9 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
       });
 
       try {
-        // ✅ Sincronizar com API e aguardar sucesso
+        // Cria pedido na API — idCliente omitido, backend resolve para "Consumidor"
         const pedidoResponse = await createPedido({
           idMesa: o.tableNumber,
-          idCliente: 1, // TODO: pegar do contexto autenticado
           itens: o.items.map((item) => ({
             idProduto: parseInt(item.productId.replace(/\D/g, ""), 10) || 0,
             qtdProduto: item.quantity,
@@ -531,7 +602,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
           pedidoResponse,
         );
 
-        // ✅ Se sucesso, sincronizar as comandas do banco
+        // Se sucesso, sincroniza as comandas do banco
         console.log(
           "📡 [ADDORDER] Sincronizando comandas após criar pedido...",
         );
@@ -542,8 +613,13 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
           "CREATE_ORDER",
           `Pedido criado para mesa ${o.tableNumber} - Total: R$ ${orderTotal.toFixed(2)}`,
         );
-      } catch (error) {
+      } catch (error: any) {
         console.error("❌ [ADDORDER] Erro ao criar pedido na API:", error);
+        window.dispatchEvent(
+          new CustomEvent("restaurant:toast", {
+            detail: { type: "error", message: "Falha ao criar pedido no servidor." },
+          }),
+        );
       }
     },
     [log, syncComandas],
@@ -637,12 +713,18 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   const openTab = useCallback(
     async (tableNumber: number) => {
       try {
-        await createComanda({ idMesa: tableNumber, idCliente: 1 });
+        // idCliente omitido (0) — o backend resolve automaticamente para o cliente "Consumidor"
+        await createComanda({ idMesa: tableNumber, idCliente: 0 });
         await syncComandas();
-      } catch (error) {
+        log("OPEN_TAB", `Comanda aberta para mesa ${tableNumber}`);
+      } catch (error: any) {
         console.error("Erro ao abrir comanda na API:", error);
+        window.dispatchEvent(
+          new CustomEvent("restaurant:toast", {
+            detail: { type: "error", message: "Falha ao abrir comanda no servidor." },
+          }),
+        );
       }
-      log("OPEN_TAB", `Comanda aberta para mesa ${tableNumber}`);
     },
     [log, syncComandas],
   );
@@ -656,34 +738,48 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         cash: 4,
       };
       try {
+        // O backend lê o idFuncionario diretamente do token JWT — não é mais passado pelo frontend
         await pagarComanda(id, {
           idFormaPagamento: formaMap[paymentMethod],
-          idFuncionario: 1,
           troco: 0,
         });
         await syncComandas();
-      } catch (error) {
+        log("CLOSE_TAB", `Comanda ${id} fechada (${paymentMethod})`);
+      } catch (error: any) {
         console.error("Erro ao fechar comanda na API:", error);
+        window.dispatchEvent(
+          new CustomEvent("restaurant:toast", {
+            detail: { type: "error", message: "Falha ao registrar pagamento no servidor." },
+          }),
+        );
       }
-      log("CLOSE_TAB", `Comanda ${id} fechada (${paymentMethod})`);
     },
     [log, syncComandas],
   );
 
   const markTabUnpaid = useCallback(
-    (id: string) => {
-      setTabs((prev) =>
-        prev.map((t) =>
-          t.id === id ? { ...t, status: "unpaid" as const } : t,
-        ),
-      );
-      log("MARK_UNPAID", `Comanda ${id} marcada como não paga`);
+    async (id: string) => {
+      try {
+        // Fecha a comanda no banco sem DETALHE_PAGAMENTO; registra NAO_PAGO no LOG_SISTEMA
+        await markComandaInadimplente(id);
+        await syncComandas();
+        log("MARK_UNPAID", `Comanda ${id} marcada como não paga`);
+      } catch (error: any) {
+        console.error("Erro ao marcar comanda como inadimplente:", error);
+        window.dispatchEvent(
+          new CustomEvent("restaurant:toast", {
+            detail: { type: "error", message: "Falha ao registrar inadimplência no servidor." },
+          }),
+        );
+      }
     },
-    [log],
+    [log, syncComandas],
   );
 
   const addOrderToTab = useCallback(
-    (tabId: string, orderId: string) => {
+    async (tabId: string, orderId: string) => {
+      // O backend já vincula itens à comanda pela própria estrutura da comanda.
+      // Esta função sincroniza o estado local após qualquer agrupamento feito via UI.
       const order = orders.find((o) => o.id === orderId);
       setTabs((prev) =>
         prev.map((t) =>
@@ -696,8 +792,14 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
             : t,
         ),
       );
+      // Sincroniza com o banco para garantir consistência
+      try {
+        await syncComandas();
+      } catch {
+        // Falha na sincronização não bloqueia o fluxo visual
+      }
     },
-    [orders],
+    [orders, syncComandas],
   );
 
   const addReservation = useCallback(
@@ -743,38 +845,95 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   );
 
   const cancelReservation = useCallback(
-    (id: string) => {
-      setReservations((prev) => prev.filter((r) => r.id !== id));
-      log("CANCEL_RESERVATION", `Reserva ${id} cancelada`);
+    async (id: string) => {
+      try {
+        await deleteReserva(id);
+        // Atualiza lista local apenas após confirmação do servidor
+        setReservations((prev) => prev.filter((r) => r.id !== id));
+        log("CANCEL_RESERVATION", `Reserva ${id} cancelada`);
+      } catch (error: any) {
+        console.error("Erro ao cancelar reserva na API:", error);
+        window.dispatchEvent(
+          new CustomEvent("restaurant:toast", {
+            detail: { type: "error", message: "Falha ao cancelar reserva no servidor." },
+          }),
+        );
+      }
     },
     [log],
   );
 
   const addEmployee = useCallback(
-    (e: Omit<Employee, "id">) => {
-      const dup = employees.find((x) => x.email === e.email);
-      if (dup) return { success: false, message: "E-mail já cadastrado." };
-      const newEmployee = { ...e, id: `e${Date.now()}` };
-      setEmployees((prev) => [...prev, newEmployee]);
-
-      // Sincronizar com auth context
-      const storedUsers = localStorage.getItem("registered_users");
-      const users = storedUsers ? JSON.parse(storedUsers) : [];
-      users.push(newEmployee);
-      localStorage.setItem("registered_users", JSON.stringify(users));
-
-      log("CREATE_EMPLOYEE", `Funcionário "${e.name}" cadastrado`);
-      return { success: true, message: "Funcionário cadastrado!" };
+    async (e: Omit<Employee, "id">) => {
+      try {
+        const resp = await createFuncionario({
+          nomeFuncionario: e.name,
+          cpfFuncionario: e.email, // se não houver CPF explícito, usar email como fallback
+          emailFuncionario: e.email,
+          cargoFuncionario: e.position,
+          role: e.role,
+          senha: e.password,
+          telefoneFuncionario: "",
+        });
+        const saved = resp?.dados ?? resp?.Dados ?? resp;
+        const newEmployee: Employee = {
+          id: saved?.idFuncionario ? String(saved.idFuncionario) : `e${Date.now()}`,
+          name: saved?.nomeFuncionario ?? e.name,
+          email: saved?.emailFuncionario ?? e.email,
+          password: "", // nunca armazenamos senha no front
+          role: e.role,
+          position: e.position,
+          active: true,
+        };
+        setEmployees((prev) => [...prev, newEmployee]);
+        log("CREATE_EMPLOYEE", `Funcionário "${e.name}" cadastrado`);
+        return { success: true, message: "Funcionário cadastrado!" };
+      } catch (error: any) {
+        console.error("[addEmployee] Falha na API:", error);
+        const msg = error?.message?.replace(/^\[API\][^:]*:\s*/, "").trim();
+        window.dispatchEvent(
+          new CustomEvent("restaurant:toast", {
+            detail: { type: "error", message: msg || "Falha ao cadastrar funcionário." },
+          }),
+        );
+        return { success: false, message: msg || "Falha ao cadastrar funcionário." };
+      }
     },
-    [employees, log],
+    [log],
   );
 
+
   const updateEmployee = useCallback(
-    (id: string, e: Partial<Employee>) => {
-      setEmployees((prev) =>
-        prev.map((x) => (x.id === id ? { ...x, ...e } : x)),
-      );
-      log("UPDATE_EMPLOYEE", `Funcionário ${id} atualizado`);
+    async (id: string, e: Partial<Employee>) => {
+      const numericId = parseInt(id.replace(/\D/g, ""), 10);
+      if (!numericId) {
+        console.error("[updateEmployee] ID inválido:", id);
+        return;
+      }
+      try {
+        await updateFuncionario(String(numericId), {
+          nomeFuncionario: e.name,
+          emailFuncionario: e.email,
+          cargoFuncionario: e.position,
+          role: e.role,
+          // Senha vazia significa "não alterar" no backend
+          senha: "",
+          telefoneFuncionario: "",
+        });
+        // Atualiza estado local apenas após sucesso
+        setEmployees((prev) =>
+          prev.map((x) => (x.id === id ? { ...x, ...e } : x)),
+        );
+        log("UPDATE_EMPLOYEE", `Funcionário ${id} atualizado`);
+      } catch (error: any) {
+        console.error("[updateEmployee] Falha na API:", error);
+        const msg = error?.message?.replace(/^\[API\][^:]*:\s*/, "").trim();
+        window.dispatchEvent(
+          new CustomEvent("restaurant:toast", {
+            detail: { type: "error", message: msg || "Falha ao atualizar funcionário." },
+          }),
+        );
+      }
     },
     [log],
   );
@@ -814,6 +973,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         auditLogs,
         addProduct,
         updateProduct,
+        adjustProductStock,
         addOrder,
         editOrder,
         updateOrderStatus,

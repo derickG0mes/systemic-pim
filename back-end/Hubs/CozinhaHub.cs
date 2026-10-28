@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
 namespace PIM3.API.Hubs;
@@ -6,6 +7,7 @@ namespace PIM3.API.Hubs;
 /// Hub SignalR para notificações em tempo real da cozinha
 /// Envia atualizações de status de pedidos para todos os clientes conectados
 /// </summary>
+[Authorize]
 public class CozinhaHub : Hub
 {
     public override async Task OnConnectedAsync()
