@@ -10,6 +10,7 @@ public class JwtService
     private static readonly HashSet<string> ExampleSecretKeys = new(StringComparer.Ordinal)
     {
         "TROQUE_ESTA_CHAVE_ANTES_DE_USAR_1234",
+        "SUBSTITUA_POR_CHAVE_GERADA_COM_OPENSSL",
         "change_this_for_a_random_secret_at_least_32_characters_long_12345",
         "chave_secreta_jwt_de_exemplo_com_pelo_menos_32_caracteres_12345"
     };

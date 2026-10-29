@@ -49,6 +49,7 @@ namespace back_end.Tests
 
         [Theory]
         [InlineData("TROQUE_ESTA_CHAVE_ANTES_DE_USAR_1234")]
+        [InlineData("SUBSTITUA_POR_CHAVE_GERADA_COM_OPENSSL")]
         [InlineData("change_this_for_a_random_secret_at_least_32_characters_long_12345")]
         [InlineData("chave_secreta_jwt_de_exemplo_com_pelo_menos_32_caracteres_12345")]
         public void JwtService_rejects_example_secret_outside_development(string secretKey)
@@ -57,6 +58,15 @@ namespace back_end.Tests
                 () => JwtService.ValidateSecretKey(secretKey, isDevelopment: false));
 
             Assert.Contains("valor de exemplo/placeholder", exception.Message);
+        }
+
+        [Fact]
+        public void JwtService_rejects_short_secret_outside_development()
+        {
+            var exception = Assert.Throws<InvalidOperationException>(
+                () => JwtService.ValidateSecretKey("curta", isDevelopment: false));
+
+            Assert.Contains("menos de 32 caracteres", exception.Message);
         }
 
         [Fact]

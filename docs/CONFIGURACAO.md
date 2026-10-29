@@ -14,9 +14,9 @@ Copy-Item .env.example .env
 Edite `.env`: defina uma senha SQL Server válida e substitua
 `JWT_SECRET_KEY` por uma chave exclusiva com pelo menos 32 caracteres. Gere-a
 com `openssl rand -base64 48`. O valor presente no `.env.example` é apenas um
-placeholder e a API o rejeita fora do ambiente `Development`; as chaves JWT
-antigas dos arquivos de exemplo também são bloqueadas. Não reutilize nem
-versione a chave real.
+placeholder (`SUBSTITUA_POR_CHAVE_GERADA_COM_OPENSSL`) e a API o rejeita fora
+do ambiente `Development`. Chaves ausentes ou com menos de 32 caracteres também
+impedem a inicialização. Não reutilize nem versione a chave real.
 
 ```sh
 docker compose up --build
