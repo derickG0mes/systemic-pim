@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes, Navigate } from "react-router";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import { RestaurantProvider } from "@/contexts/RestaurantContext";
 import { AccessibilityProvider } from "@/contexts/AccessibilityContext";
 import AppLayout from "@/components/AppLayout";
@@ -19,23 +20,9 @@ import AuditPage from "@/pages/AuditPage";
 import BackupPage from "@/pages/BackupPage";
 import AccessibilityPage from "@/pages/AccessibilityPage";
 import NotFound from "@/pages/NotFound";
-import { hasPermission, Permission } from "@/lib/rbac";
+import { hasPermission } from "@/lib/rbac";
 
 const queryClient = new QueryClient();
-
-function ProtectedRoute({
-  children,
-  permission,
-}: {
-  children: React.ReactNode;
-  permission?: Permission;
-}) {
-  const { user, isAuthenticated } = useAuth();
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (permission && user && !hasPermission(user.role, permission))
-    return <Navigate to="/orders" replace />;
-  return <AppLayout>{children}</AppLayout>;
-}
 
 function AppRoutes() {
   const { isAuthenticated, user } = useAuth();
