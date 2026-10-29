@@ -1,9 +1,10 @@
 # Relatório de verificação da auditoria PIM IV
 
-Verificação do arquivo `auditoria_pim_iv_v2.md` anexado, confrontado com o código
-presente no repositório em 28/10/2026. A classificação considera a afirmação tal como
-está escrita no relatório original; não implica que um teste estático prove o
-comportamento em um SQL Server.
+Verificação do arquivo `auditoria_pim_iv_v2.md` anexado, confrontado originalmente
+com o código presente no repositório em 28/10/2026 e atualizado em 29/10/2026 após
+as fases de follow-up. A classificação considera a afirmação tal como está escrita
+no relatório original; não implica que um teste estático prove o comportamento em
+um SQL Server.
 
 ## 1. Resumo
 
@@ -19,10 +20,13 @@ Foram avaliados 49 grupos de afirmações das seções 2 a 7:
 O relatório anexado contém vários achados que já não correspondem ao código atual,
 inclusive a restauração anônima, as operações de funcionários, o fallback de login
 simulado, a integração SignalR, os caminhos de backup e a configuração de Swagger.
-Este follow-up corrigiu os problemas de validação de token, exposição de erro no health,
-metadados da API, divergência do log de pedidos, bloqueio de login, persistência de
-backup e erros do lint. Permanecem avisos de auditoria npm que exigem atualizações de
-versão principal e limitações descritas abaixo.
+Os follow-ups corrigiram os problemas de validação de token, exposição de erro no
+health, metadados da API, divergência do log de pedidos, bloqueio de login,
+persistência de backup e erros do lint. React Router v7 eliminou as vulnerabilidades
+reportadas pelo `npm audit`; os testes de fluxo do front-end e a etapa de testes no CI
+também foram adicionados. A validação operacional de SQL Server continua pendente de
+registro, e a cobertura total do front-end e o armazenamento do token permanecem
+limitações descritas abaixo.
 
 ## 2. Verificação item a item
 
@@ -38,20 +42,20 @@ versão principal e limitações descritas abaixo.
 | 8 | Seção 4C: operações de criação/alteração de funcionário permitem qualquer perfil autenticado | DESATUALIZADO | `FuncionarioController.cs` exige `admin,owner` para listar, consultar, criar, atualizar e excluir funcionários. | O acesso às consultas também foi restringido a `admin,owner` no follow-up. Um administrador não pode criar perfil `owner`; essa ação exige que o ator também seja `owner`. |
 | 9 | Seções 3, 4C e 7: o front-end não consome SignalR | DESATUALIZADO | `RestaurantContext.tsx:312-319` usa `useSignalR`; o pacote está em `front-end/package.json`; o servidor publica os eventos em `back-end/Hubs/CozinhaHub.cs`. | O cliente ainda mantém polling de contingência a cada 60 segundos quando o hub está habilitado, mas desconectado. |
 | 10 | Seções 3 e 4D: não existe aplicativo mobile nativo, híbrido ou PWA | CONFIRMADO | Não há projeto mobile, manifest PWA ou service worker; a aplicação é React web responsiva. | O layout responsivo não equivale a um aplicativo mobile/PWA. |
-| 11 | Seções 3 e 4E: o banco tem 12 tabelas e 3 triggers | CONFIRMADO | `AppDbContext.cs:12-23` declara 12 DbSets; `01-create-database-idempotent.sql` e `init-database.sql` definem `trg_abrir_comanda`, `trg_atualizar_valor_total` e `trg_fechar_comanda`. | Confirmado por inspeção dos scripts, não por execução no SQL Server. |
+| 11 | Seções 3 e 4E: o banco tem 12 tabelas e 3 triggers | CONFIRMADO | `AppDbContext.cs:12-23` declara 12 DbSets; `01-create-database-idempotent.sql` e `init-database.sql` definem `trg_abrir_comanda`, `trg_atualizar_valor_total` e `trg_fechar_comanda`. | A definição foi conferida estaticamente; a validação real e a idempotência estão pendentes: [PREENCHER: resultado da validação]. |
 | 12 | Seções 3 e 4E: não existem procedures nem views | INCORRETO | `02-procedures-views.sql` declara 3 procedures e 2 views. | Objetos encontrados: `sp_fechar_comanda`, `sp_relatorio_faturamento`, `sp_ajustar_estoque`, `vw_comandas_abertas` e `vw_produtos_mais_vendidos`. |
-| 13 | Seções 3, 4F e 7: não há Docker nem CI | DESATUALIZADO | `docker-compose.yml`, `back-end/Dockerfile`, `front-end/Dockerfile` e `.github/workflows/ci.yml` existem. | Docker e CI estão configurados; não foi possível executar containers porque o daemon Docker não está disponível nesta máquina. |
+| 13 | Seções 3, 4F e 7: não há Docker nem CI | DESATUALIZADO | `docker-compose.yml`, `back-end/Dockerfile`, `front-end/Dockerfile` e `.github/workflows/ci.yml` existem; `docker compose build front-end` passou. | O build da imagem do front-end foi executado; o Compose completo e o job remoto de CI não foram iniciados nesta sessão. |
 | 14 | Seção 4F: caminho de backup é fixo em `C:\Backups\Systemic` | DESATUALIZADO | `BackupService.cs` usa `BACKUP_PATH` ou `AppContext.BaseDirectory/backups`; o Compose configura `/app/backups` em `backup_data`. | A configuração é ajustável e o Compose persiste o diretório configurado em volume nomeado. |
-| 15 | Seção 4G: há somente 3 testes de back-end e 1 teste dummy no front-end | DESATUALIZADO | `dotnet test tests/back-end.Tests.csproj` executou 26 testes após incluir os casos de autorização, claims e bloqueio; `npm test -- --run` executou 1 teste em `example.test.ts`. | A baixa cobertura de fluxos críticos e o caráter trivial do teste front-end continuam sendo limitações. |
+| 15 | Seção 4G: há somente 3 testes de back-end e 1 teste dummy no front-end | DESATUALIZADO | `dotnet test tests/back-end.Tests.csproj` executou 32 testes; `npm test -- --run --coverage` executou 12 testes que cobrem autenticação, RBAC, pedidos e pagamento. | A cobertura front-end total ainda é parcial: 41,47% de statements e 43,22% de linhas. |
 | 16 | Seção 4G/H: não há `.gitignore` e binários de `tests/bin` estão versionados | INCORRETO | `.gitignore`, `back-end/.gitignore` e `front-end/.gitignore` existem; `git ls-files tests/bin tests/obj` não retorna arquivos. | Os arquivos de build são ignorados; não encontrei binários de testes rastreados pelo Git. |
 | 17 | Seções 4H e 6: `POST /api/backup/restore` é anônimo | DESATUALIZADO | `BackupController.cs:15,105` exige `[Authorize(Roles = "admin,owner")]`. | A exigência existe no controller e no método; não foi testada contra um servidor SQL. |
 | 18 | Seções 4H e 6: restore extrai arquivos arbitrários com risco de Zip Slip | DESATUALIZADO | `BackupRestoreService.cs:45-80` lê um único `.sql` do ZIP sem extrair a árvore; `:132-167` rejeita caminhos absolutos, `..` e links simbólicos. | A alegação sobre escrita de arquivos arbitrários não corresponde ao serviço atual. O endpoint ainda executa SQL de backup, por design, sob perfil privilegiado. |
-| 19 | Seções 4H, 4K e 7: o restore não executa SQL | DESATUALIZADO | `BackupRestoreService.cs:92-107` cria backup de segurança e executa o script com `ExecuteSqlRawAsync`, dentro de transação. | Execução validada por leitura, não pelo SQL Server, que estava indisponível. |
+| 19 | Seções 4H, 4K e 7: o restore não executa SQL | DESATUALIZADO | `BackupRestoreService.cs:92-107` cria backup de segurança e executa o script com `ExecuteSqlRawAsync`, dentro de transação. | O fluxo foi confirmado por inspeção do código; o resultado operacional no SQL Server é [PREENCHER: resultado da validação]. |
 | 20 | Seções 4K e 7: a interface não oferece restauração | INCORRETO | `BackupPage.tsx` tem seleção de ZIP, confirmação e chama `restaurarBackup`; `api.ts` envia `Arquivo` como multipart. | A interface de restauração existe. |
 | 21 | Seções 4H e 6: usuário employee pode criar/alterar/excluir funcionários ou promover-se a admin | DESATUALIZADO | `FuncionarioController.cs` exige `admin,owner` para consultas e escritas; criação de perfil `owner` exige ator `owner`. | O risco descrito foi corrigido; nenhum dos endpoints de funcionário está disponível ao perfil `employee`. |
 | 22 | Seções 4H e 6: `POST /api/log/registrar` é anônimo | INCORRETO | `LogController.cs:13` exige `[Authorize(Roles = "admin,owner")]` para o controller. | A rota não é anônima e agora também está limitada a `admin` ou `owner`. |
 | 23 | Seções 4H e 6: `MOCK_USERS` e senhas em texto puro no `localStorage` | DESATUALIZADO | `AuthContext.tsx` autentica via API e grava token e dados sem senha em `authToken` e `restaurant_user`; não há `MOCK_USERS` nem `registered_users`. | O JWT permanece em `localStorage`, o que mantém o risco de exposição em caso de XSS; senha não é persistida. |
-| 24 | Seções 4H e 6: fallback literal de segredo JWT no código/appsettings | DESATUALIZADO | `Program.cs:37-42` e `JwtService.cs:16-22` exigem chave de ambiente/configuração com pelo menos 32 caracteres e falham sem ela; `appsettings.json` não contém segredo. | A aplicação não tem fallback literal, mas `.env.example` fornece uma chave de exemplo fixa que passa na validação. É preciso substituí-la antes de uso real. |
+| 24 | Seções 4H e 6: fallback literal de segredo JWT no código/appsettings | DESATUALIZADO | `Program.cs:37-42` e `JwtService.cs:16-22` exigem chave de ambiente/configuração com pelo menos 32 caracteres e falham sem ela; `appsettings.json` não contém segredo. | Não há fallback literal; os `.env.example` usam placeholder explícito, rejeitado fora de `Development`, e instruem como gerar uma chave exclusiva. |
 | 25 | Seção 4E: connection string usa autenticação integrada do Windows | INCORRETO | `Program.cs:21-35` monta a connection string com `DB_SERVER`, `DB_NAME`, `DB_USER` e `DB_PASSWORD`. | O caminho executado usa credenciais SQL; o `DefaultConnection` do appsettings não é usado por essa montagem. |
 | 26 | Seção 4E e 5: `PRECO_CUSTO` e `PRECO_VENDA` existem no SQL, mas não no modelo Produto | INCORRETO | `Produto.cs:19,22` declara as duas propriedades mapeadas; `01-create-database-idempotent.sql` cria as colunas. | A divergência apontada para essas duas colunas já não existe. |
 | 27 | Seção 4E: telefone do cliente e cargo do funcionário divergem em nulabilidade | INCORRETO | `Cliente.cs:15` declara `string?`; `Funcionario.cs:22` declara `string` não anulável; SQL declara telefone nullable e cargo NOT NULL. | As definições atuais correspondem nesses dois pontos. |
@@ -64,18 +68,18 @@ versão principal e limitações descritas abaixo.
 | 34 | Seções 4B e 4K: cancelar reserva só altera estado local | DESATUALIZADO | `RestaurantContext.tsx:847-864` chama a exclusão de reserva e sincroniza. | O controller expõe `DELETE /api/reserva/{id}`. |
 | 35 | Seções 4B e 4K: incremento de estoque altera somente estado local | DESATUALIZADO | `RestaurantContext.tsx` chama `updateProduto` na atualização e oferece `adjustProductStock` via `PUT /api/produto/{id}/ajustar-estoque`. | O fluxo antigo de somente memória não corresponde ao atual. A tela de incremento rápido usa atualização de produto; o fluxo de ajuste dedicado é o que envia motivo ao back-end. |
 | 36 | Seções 4B e 4K: cadastro/edição de funcionário apenas altera estado e localStorage | DESATUALIZADO | `UsersPage.tsx` chama API; `RestaurantContext.tsx:866-930` chama `createFuncionario` e `updateFuncionario`. | Dados de senha não são guardados no estado persistido de funcionário. |
-| 37 | Seção 4K: falta integração de restauração e endpoint só extrai ZIP | INCORRETO | `BackupPage.tsx`, `api.ts` e `BackupRestoreService.cs:92-107` implementam upload, confirmação e execução SQL. | Não foi possível confirmar o resultado em SQL Server real. |
-| 38 | Seção 5: hash de senha é bcrypt | CONFIRMADO como discrepância documental | `PasswordHashService.cs` usa PBKDF2/HMAC-SHA256 com 10.000 iterações, salt de 16 bytes e saída de 20 bytes; os docs antigos afirmavam bcrypt. | A descrição correta será PBKDF2. |
+| 37 | Seção 4K: falta integração de restauração e endpoint só extrai ZIP | INCORRETO | `BackupPage.tsx`, `api.ts` e `BackupRestoreService.cs:92-107` implementam upload, confirmação e execução SQL. | A validação operacional do restore no SQL Server está pendente: [PREENCHER: resultado da validação]. |
+| 38 | Seção 5: hash de senha é bcrypt | CONFIRMADO como discrepância documental | `PasswordHashService.cs` usa PBKDF2/HMAC-SHA256 com 10.000 iterações, salt de 16 bytes e saída de 20 bytes; os docs antigos afirmavam bcrypt. | A descrição correta foi atualizada para PBKDF2. |
 | 39 | Seção 5: JWT dura 1 hora e a documentação cita configuração em appsettings | CONFIRMADO como discrepância documental | `JwtService.cs:25-26` usa `JWT_EXPIRATION_MINUTES` ou configuração e padrão 480; `.env.example` informa 480. | A duração efetiva padrão é 480 minutos. |
-| 40 | Seção 5: o exemplo React usa Axios e rota inexistente | CONFIRMADO | `docs/EXEMPLO_INTEGRACAO_REACT.ts` usa Axios e contém rotas sem correspondente nos controllers. | O exemplo será reescrito e compilado como TypeScript. |
+| 40 | Seção 5: o exemplo React usa Axios e rota inexistente | CONFIRMADO | O exemplo citado foi substituído por `docs/EXEMPLO_INTEGRACAO_REACT.ts`, que usa `fetch` e foi compilado como TypeScript. | O exemplo foi reescrito e compilado como TypeScript. |
 | 41 | Seções 5 e 6: documentação antiga ainda cita PIM III, URL/porta e credenciais de teste | DESATUALIZADO | Os documentos antigos não refletiam por completo a versão/porta atuais; o seed contém hashes, não senhas em texto claro verificáveis. | Documentos atualizados para PIM IV e portas 5050/8080. Nenhuma senha presumida foi publicada. |
 | 42 | Seções 5 e 6: referência antiga a issuer/audience PIM3 | DESATUALIZADO | `Program.cs:52-54` e `JwtService.cs` usam issuer `PIM4.API` e audience `PIM4.API.Users`. | Os namespaces de código `PIM3.API.*` permanecem nomes internos; não são identidade exibida do produto. |
 | 43 | Seção 6: falta `.gitignore` na raiz | INCORRETO | `.gitignore` raiz e regras para bin/obj/node_modules estão presentes. | As saídas de build não são rastreadas. |
-| 44 | Seção 7: falta Docker Compose e CI | DESATUALIZADO | `docker-compose.yml` e `.github/workflows/ci.yml` já existem. | O workflow executa build/test .NET, npm ci, lint e build; não executa `npm test`. |
+| 44 | Seção 7: falta Docker Compose e CI | DESATUALIZADO | `docker-compose.yml` e `.github/workflows/ci.yml` já existem. | O workflow inclui build/test .NET, `npm ci`, lint, `npm test -- --run` e build do front-end, nesta ordem. |
 | 45 | Seção 7: falta integrar SignalR | DESATUALIZADO | `RestaurantContext.tsx:312-319` registra handlers dos eventos do hub. | Existe polling de contingência; SignalR não é o único mecanismo de atualização. |
-| 46 | Seção 7: falta eliminar IDs de cliente/funcionário fixos | DESATUALIZADO | O ID do cliente `1` aparece somente no log de depuração, não no corpo enviado; o pagamento usa a claim do JWT. | Não encontrei esses IDs fixos nos requests reais descritos. O log de pedido imprime um payload que não corresponde exatamente ao request enviado. |
+| 46 | Seção 7: falta eliminar IDs de cliente/funcionário fixos | DESATUALIZADO | O log e o corpo enviado a `POST /api/pedidos` agora usam o mesmo payload (`idMesa` e `itens`, sem `idCliente`; ver item 31 e item 8 da seção 3). O pagamento não envia `idFuncionario`; a API lê essa claim do JWT. | Não há IDs fixos nos requests atuais. A ausência de `idCliente` no payload da interface é intencional quando a tela exige comanda aberta; sem comanda, a API valida o cliente exigido pelo DTO. |
 | 47 | Seção 4 e 7: contagem de histórico Git e autoria informada | NÃO VERIFICÁVEL | A cópia atual do histórico contém commits posteriores a maio de 2026; o relatório não define se usa branch ou snapshot específico. | A contagem e a autoria não são propriedades estáveis do código e não podem ser comparadas sem o commit-base da auditoria. |
-| 48 | Seções 4 e 7: triggers estão operacionalmente ativas e script init executa corretamente | NÃO VERIFICÁVEL | `sqlcmd` está instalado, mas a conexão TCP local em `localhost:1433` falhou e Docker não está disponível. | Os objetos foram conferidos no texto SQL; nenhum trigger ou script foi executado. |
+| 48 | Seções 4 e 7: triggers estão operacionalmente ativas e script init executa corretamente | NÃO VERIFICÁVEL | Os scripts definem os objetos e o Compose configura a inicialização; esta sessão não tem evidência registrada de execução no SQL Server: [PREENCHER: resultado da validação]. | Não se afirma que triggers estejam ativas nem que o init tenha sido executado corretamente sem o resultado operacional. |
 | 49 | Manter credenciais de teste publicadas na documentação | NÃO VERIFICÁVEL | `init-database.sql` e `01-create-database-idempotent.sql` inserem quatro contas com hashes em `PASSWORD_FUNCIONARIO`; não há senhas em texto claro junto aos registros. | Não é possível confirmar que `admin@restaurante.com / admin123` ou outras senhas conhecidas correspondem aos hashes; a documentação não deve apresentar credenciais presumidas. |
 
 ### Fluxos e diferenças de comportamento que permanecem
@@ -106,10 +110,9 @@ Prioridade alta:
    produtos, mesas e formas de pagamento permanecem disponíveis aos três perfis.
    A nova suíte `RbacIntegrationTests.cs` verifica que um token `employee` recebe 403
    nos endpoints administrativos.
-2. **Chave fixa nos arquivos de exemplo.** O código rejeita segredo ausente ou menor que
-   32 caracteres, mas o valor padrão versionado em `.env.example` é fixo e satisfaz
-   essa validação. Se usado sem substituição, instalações diferentes compartilham um
-   segredo conhecido.
+2. **RESOLVIDO — chave fixa nos arquivos de exemplo.** Os `.env.example` agora usam
+   placeholder explícito com instrução `openssl rand -base64 48`; `JwtService`
+   rejeita esse valor fora de `Development`, além de rejeitar chaves curtas.
 3. **RESOLVIDO — `/api/autenticacao/validar` exigia autenticação e não inspecionava
    claims.** O endpoint agora exige `[Authorize]` e retorna id, nome e role das claims.
    Testes de integração confirmam 401 sem token e o conteúdo da resposta com token válido.
@@ -121,11 +124,8 @@ Prioridade média:
    no log e não há mensagem, connection string ou stack trace no JSON.
 5. **RESOLVIDO — versão/URL dos endpoints de health divergiam.** Versão `2.0` e
    porta `5050` agora vêm de `ApiMetadata`, compartilhado com Swagger.
-6. **Auditoria npm ainda aponta 7 vulnerabilidades.** `npm audit fix`, sem `--force`,
-   reduziu o total de 17 para 7. A resolução restante requer majors: Vite 8 para
-   corrigir esbuild via Vite; React Router 7 para corrigir avisos em `react-router`;
-   Vitest 5 para corrigir vulnerabilidades críticas em `tinypool`. Nenhum major foi
-   aplicado sem autorização.
+6. **RESOLVIDO — auditoria npm.** Após migrar para React Router 7.18.5 e remover
+   `react-router-dom`, `npm audit` reporta zero vulnerabilidades.
 7. **RESOLVIDO — lint front-end tinha 28 erros.** Os erros de `no-explicit-any` foram
    corrigidos com tipos, sem desativar regras; `npm run lint` termina com 0 erros e
    mantém 7 avisos de Fast Refresh.
@@ -137,16 +137,21 @@ Prioridade operacional/qualidade:
 
 9. **RESOLVIDO — backups dentro do Docker não tinham volume persistente.** O Compose
    agora passa `BACKUP_PATH` e monta o volume nomeado `backup_data` nesse caminho.
-10. **Cobertura de front-end mínima.** Há um teste dummy que só verifica `true`; não
-   cobre os fluxos críticos.
+10. **Cobertura front-end ampliada, ainda parcial.** Foram adicionados 12 testes
+   para login, bloqueio, RBAC/ProtectedRoute, criação de pedido e pagamento.
+   A cobertura medida é 41,47% de statements e 43,22% de linhas no projeto.
 11. **RESOLVIDO — paridade dos bloqueios de login.** Os dois controllers usam a
     política única de 5 tentativas e 15 minutos, coberta por teste. O estado adicional
     de bloqueio do React continua volátil em memória.
 
-Continuam pendentes a chave fixa nos arquivos de exemplo, a cobertura limitada do
-front-end e os upgrades de versão principal indicados pelo `npm audit`. A remoção de
-pictogramas abaixo não altera valores usados como status, identificadores, chaves,
-nomes SQL ou enums.
+12. **RESOLVIDO — testes de front-end no CI.** O workflow executa `npm test -- --run`
+    após o lint e antes do build.
+
+Continuam pendentes o registro dos resultados operacionais de SQL Server
+([PREENCHER: resultado da validação]), a ampliação da cobertura front-end e a decisão
+sobre mitigações para o token em `localStorage` (Fase 7). O `npm audit` final está
+limpo. A remoção de pictogramas abaixo não altera valores usados como status,
+identificadores, chaves, nomes SQL ou enums.
 
 ## 4. Comandos e resultados
 
@@ -155,17 +160,19 @@ nomes SQL ou enums.
 | `dotnet restore` em `back-end/` | Concluído. |
 | `dotnet build systemic-pim.sln` | Sucesso, 0 avisos e 0 erros. |
 | `dotnet restore` em `tests/` | Concluído. |
-| `dotnet test tests/back-end.Tests.csproj` | Sucesso: 26 aprovados, 0 falhas, incluindo RBAC, validação de token e política de bloqueio. |
+| `dotnet test tests/back-end.Tests.csproj` | Sucesso: 32 aprovados, 0 falhas (30 do baseline mais 2 testes de rejeição do segredo JWT). |
 | `dotnet list package --vulnerable --include-transitive` em `back-end/` | Nenhum pacote vulnerável informado pelas fontes NuGet consultadas. |
 | `dotnet list package --vulnerable --include-transitive` em `tests/` | Nenhum pacote vulnerável informado pelas fontes NuGet consultadas. |
-| `npm audit` em `front-end/` | Antes do fix: 17 vulnerabilidades (2 críticas, 8 altas, 7 moderadas); após o fix: 7 (2 críticas, 1 alta, 4 moderadas). Retorno não-zero pelas vulnerabilidades restantes, que exigem majors. |
-| `npm audit fix` em `front-end/` | Executado sem `--force`; aplicou atualizações compatíveis. Não foram aplicadas atualizações de versão principal. |
+| `npm audit` em `front-end/` | Baseline da Fase 0: 2 vulnerabilidades moderadas em `react-router`; após React Router 7.18.5: 0 vulnerabilidades. |
+| Migração React Router | `react-router-dom` removido; dependência `react-router@7.18.5`; imports migrados para `react-router`. |
 | `npm run lint` em `front-end/` | Sucesso: 0 erros e 7 avisos de Fast Refresh. |
 | `npm run build` em `front-end/` | Sucesso; TypeScript e Vite concluíram. Restam avisos de anotações PURE e chunk acima de 500 kB. |
-| `npm test -- --run` em `front-end/` | Sucesso: 1 arquivo, 1 teste aprovado. |
+| `npm test -- --run --coverage` em `front-end/` | Sucesso: 1 arquivo, 12 testes aprovados; 41,47% statements, 22,88% branches, 29,25% funções e 43,22% linhas. |
+| `docker compose build front-end` | Sucesso; imagem frontend construída, Vite 8.3.5 e zero vulnerabilidades no `npm ci` da imagem. |
+| Validação de `.github/workflows/ci.yml` | YAML parseado localmente; ordem verificada: lint, `npm test -- --run`, build. O job remoto não foi executado nesta sessão. |
 | `docker compose config --quiet` | Sucesso; configuração validada com arquivo `.env` temporário, removido após o comando. Nenhum container foi iniciado. |
 | TypeScript isolado de `docs/EXEMPLO_INTEGRACAO_REACT.ts` | Sucesso com `tsc --noEmit --target ES2020 --module ESNext --moduleResolution bundler --lib ES2020,DOM --strict --skipLibCheck`. |
-| Validação SQL Server de triggers e `init-database.sql` | Não executada: `localhost:1433` recusou conexão e o daemon Docker não está disponível. Inspeção estática dos scripts concluída. |
+| Validação operacional SQL Server | [PREENCHER: resultado da validação]. Os pontos específicos estão listados na seção 7. |
 
 ## 5. Ocorrências pictográficas antes da remoção
 
@@ -207,3 +214,22 @@ incluindo `.vs` e `front-end/dist`, ignorando somente `.git`, `node_modules`,
 - [Arquitetura e estrutura do projeto](./ARQUITETURA.md)
 - [Exemplo TypeScript usando fetch](./EXEMPLO_INTEGRACAO_REACT.ts)
 - [README do back-end](../back-end/README.md)
+
+## 7. Pontos de validação SQL Server para preencher
+
+Esta sessão não tem resultados operacionais de SQL Server para afirmar. Preencha
+cada ponto com o comando executado, o resultado observado e o ambiente utilizado:
+
+- Scripts de criação e inicialização (`01-create-database-idempotent.sql`,
+  `02-procedures-views.sql` e `init-database.sql`, distinguindo o script legado):
+  [PREENCHER: resultado da validação].
+- Idempotência ao executar novamente os scripts aplicáveis:
+  [PREENCHER: resultado da validação].
+- Criação/estado e comportamento das três triggers:
+  [PREENCHER: resultado da validação].
+- Criação e execução das procedures e views:
+  [PREENCHER: resultado da validação].
+- Geração, persistência e leitura de backup:
+  [PREENCHER: resultado da validação].
+- Restore de backup, validações, backup de segurança e execução transacional do
+  SQL: [PREENCHER: resultado da validação].

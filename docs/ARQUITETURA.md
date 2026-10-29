@@ -31,7 +31,7 @@ front-end/src/
   lib/                      RBAC, auditoria em memória e utilitários
   pages/                    Telas do sistema
   services/api.ts           Chamadas HTTP com fetch
-  test/                     Teste e configuração de teste
+  test/                     Testes Vitest e configuração de teste
   App.tsx                   Rotas e providers
 
 docs/                        Guias, exemplo de integração e relatório
@@ -64,8 +64,19 @@ O script idempotente declara três triggers:
 `IX_FUNCIONARIO_EMAIL`, `IX_ITEM_COMANDA_ID_COMANDA`,
 `IX_COMANDA_STATUS_COMANDA` e `IX_DETALHE_PAGAMENTO_DATA_PAGAMENTO`.
 `migration-logs-sistema.sql` também declara o índice `IDX_LOG_SISTEMA_DATA`.
-Os objetos foram conferidos estaticamente; a execução no SQL Server não foi
-possível durante a verificação registrada no relatório.
+O resultado da execução dos scripts, idempotência e verificação dos objetos no
+SQL Server está pendente de registro: [PREENCHER: resultado da validação].
+
+### Criação de pedidos
+
+`CriarPedidoDTO` contém `idMesa`, `idCliente` e `itens`. A interface monta o
+payload com `idMesa` e `itens`, sem `idCliente`, pois a tela só permite enviar
+o pedido quando já existe uma comanda aberta para a mesa. Nesse caso, a API
+adiciona os itens à comanda existente. Se não houver comanda aberta, a API
+valida o `idCliente` recebido no DTO; se o cliente não existir, retorna erro
+`CLIENTE_INVALIDO`, e, se existir, cria uma nova comanda. Esse fluxo não é o
+endpoint de abertura de comanda (`POST /api/comanda`), que tem regra própria
+para o cliente padrão.
 
 ## Front-end: páginas, rotas e permissões
 
@@ -88,21 +99,22 @@ As páginas existentes são `LoginPage`, `DashboardPage`, `OrdersPage`,
 | `/accessibility` | AccessibilityPage | Sim | Sim | Sim |
 
 `/` redireciona para `/dashboard` quando permitido ou `/orders`; rotas
-desconhecidas exibem `NotFound`. A mesma matriz é aplicada no back-end: usuários
-`employee` acessam operações de pedidos, comandas e reservas; `admin` e `owner`
-também acessam gestão de produtos, mesas, clientes e formas de pagamento,
-faturamento, logs, funcionários e backups. Leituras de produtos, mesas e formas
-de pagamento permanecem disponíveis aos três perfis para suportar as operações
-de atendimento.
+desconhecidas exibem `NotFound`. A API aplica autorização por perfil,
+independentemente da navegação: `employee` acessa operações de pedidos,
+comandas e reservas; `admin` e `owner` também acessam gestão de produtos, mesas,
+clientes e formas de pagamento, faturamento, logs, funcionários e backups.
+Leituras de produtos, mesas e formas de pagamento permanecem disponíveis aos
+três perfis para suportar as operações de atendimento.
 
 ## Autenticação, hash e estado
 
 O login por email envia `email` e `password` a
 `POST /api/autenticacao/login`; o endpoint de funcionário por CPF continua
 disponível em `POST /api/funcionario/login`. Os dois verificam hashes PBKDF2
-com SHA-256. A emissão do JWT usa validade padrão de 480 minutos. As regras de
-bloqueio de cada login são diferentes e estão descritas em
-[CONFIGURACAO.md](CONFIGURACAO.md).
+com SHA-256. A emissão do JWT usa validade padrão de 480 minutos. Os dois
+controllers usam a política única `LoginLockoutPolicy`: bloqueio após 5
+tentativas por 15 minutos. O `AuthContext` também mantém um bloqueio temporário
+em memória no navegador; consulte [CONFIGURACAO.md](CONFIGURACAO.md).
 
 O navegador armazena o token e dados não sensíveis do usuário em
 `localStorage`. O log de auditoria do `RestaurantContext` é mantido em uma
@@ -136,8 +148,11 @@ transação.
   versão `2.0` e URL base na porta `5050`; falhas de conexão não expõem detalhes
   da exceção na resposta.
 - O log do fluxo de criação de pedido registra o mesmo payload enviado. O campo
-  `idCliente` continua omitido pela interface; não houve alteração das regras
-  de criação de pedidos.
-- O SQL Server não estava disponível para execução dos scripts durante a
-  verificação. Consulte [RELATORIO_VERIFICACAO.md](RELATORIO_VERIFICACAO.md)
-  para resultados de build, testes, lint e vulnerabilidades.
+  `idCliente` continua omitido pela interface; as diferenças entre o DTO e o
+  fluxo sem comanda aberta estão descritas acima, sem alteração das regras de
+  negócio.
+- A validação operacional no SQL Server está pendente de registro:
+  [PREENCHER: resultado da validação]. Os pontos a preencher estão no fim de
+  [RELATORIO_VERIFICACAO.md](RELATORIO_VERIFICACAO.md).
+- O token JWT permanece em `localStorage`; a escolha entre cookie HttpOnly e
+  mitigações para o armazenamento atual ainda depende de decisão.

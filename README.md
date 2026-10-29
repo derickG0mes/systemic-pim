@@ -79,8 +79,9 @@ npm run lint
 npm run build
 ```
 
-O workflow de CI executa build e testes .NET, `npm ci`, lint e build do
-front-end em push e pull request. Não há deploy em nuvem configurado.
+O workflow de CI executa build e testes .NET, `npm ci`, lint, testes do
+front-end (`npm test -- --run`) e build em push e pull request. Não há deploy
+em nuvem configurado.
 
 ## Documentação
 
@@ -94,7 +95,10 @@ front-end em push e pull request. Não há deploy em nuvem configurado.
 
 O repositório não contém aplicativo mobile nem integração/deploy em nuvem. As
 credenciais das contas inseridas pelo seed não estão documentadas porque o SQL
-contém hashes, não as senhas correspondentes. A RBAC das páginas é aplicada no
-front-end; várias rotas da API exigem autenticação, mas não restringem o perfil.
-Consulte o relatório de verificação para os demais problemas confirmados e os
-resultados dos testes.
+contém hashes, não as senhas correspondentes. A interface aplica a matriz de
+permissões às páginas e a API também autoriza por perfil: `employee` acessa
+operações de pedidos, comandas e reservas; gestão de produtos, mesas, clientes,
+formas de pagamento, faturamento, logs, funcionários e backups exige `admin`
+ou `owner`, enquanto leituras de produtos, mesas e formas de pagamento também
+estão disponíveis a `employee`. Consulte [CONFIGURACAO.md](docs/CONFIGURACAO.md)
+para a matriz por rota e o relatório de verificação para os resultados atualizados.

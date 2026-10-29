@@ -117,10 +117,11 @@ tenha sido confirmada.
 
 ## Regras de acesso
 
-`JWT` significa que o endpoint exige autenticação. A menos que indicado,
-nenhum perfil específico é exigido pela API. `Público` significa que o
-controller não exige autenticação. Isso é diferente da matriz de permissões de
-página, que é aplicada no front-end.
+`JWT` significa que o endpoint exige autenticação. O perfil é indicado em cada
+linha: quando a linha informa somente `JWT`, a API valida o token sem exigir
+uma role específica. `Público` significa que o controller não exige
+autenticação. A matriz de páginas do front-end e as regras da API são controles
+independentes.
 
 | Perfil do front-end | Páginas permitidas |
 |---|---|
@@ -128,10 +129,12 @@ página, que é aplicada no front-end.
 | `admin` | Todas as páginas protegidas |
 | `owner` | Todas as páginas protegidas |
 
-Na API, criar/atualizar/inativar funcionários e operações de backup exigem
-`admin` ou `owner`. A criação ou promoção de outro `owner` exige que o ator
-também seja `owner`. As demais restrições por perfil não são aplicadas de forma
-geral nos controllers.
+Na API, `employee`, `admin` e `owner` podem executar as operações operacionais
+de pedidos, comandas e reservas. `admin` e `owner` podem gerenciar produtos,
+mesas, clientes, formas de pagamento, faturamento, logs, funcionários e
+backups; as leituras de produtos, mesas e formas de pagamento também aceitam
+`employee`. A criação ou promoção de outro `owner` exige que o ator também seja
+`owner`. A tabela abaixo registra as regras efetivas de cada endpoint.
 
 ## Tabela completa de endpoints
 
@@ -227,10 +230,13 @@ e no script idempotente têm hashes no banco, não senhas verificáveis em texto
 claro. `migration-logs-sistema.sql` declara também o índice
 `IDX_LOG_SISTEMA_DATA`.
 
-No fluxo de pedidos da interface, o log de depuração registra o mesmo objeto
-enviado a `POST /api/pedidos`. O payload atual inclui `idMesa` e `itens`, sem
-`idCliente`. A tela exige uma comanda aberta antes de permitir o envio; sem uma
-comanda aberta, a API valida o cliente indicado no DTO.
+`CriarPedidoDTO` contém `idMesa`, `idCliente` e `itens`. No fluxo da interface,
+`RestaurantContext` envia a `POST /api/pedidos` apenas `idMesa` e `itens`, sem
+`idCliente`; a tela exige uma comanda aberta e o servidor acrescenta os itens a
+essa comanda. Se a API receber o pedido sem comanda aberta, valida o `idCliente`
+do DTO: cliente inexistente resulta em HTTP 400 (`CLIENTE_INVALIDO`), e cliente
+válido permite criar uma nova comanda. O endpoint separado `POST /api/comanda`
+tem sua própria regra para resolver o cliente padrão.
 
 ## Backup e restauração
 
@@ -252,13 +258,17 @@ desconectado.
 
 ## CI e testes
 
-Em push e pull request, `.github/workflows/ci.yml` executa `dotnet build`,
-`dotnet test`, `npm ci`, `npm run lint` e `npm run build`. O workflow não
-executa `npm test`. Para rodar os testes do front-end localmente:
+Em push e pull request, `.github/workflows/ci.yml` executa build e testes .NET,
+`npm ci`, lint, `npm test -- --run` e build do front-end, nesta ordem. O YAML e
+a ordem das etapas foram validados localmente; o job remoto do GitHub Actions
+não foi executado nesta sessão. Os 12 testes Vitest passam; a execução com
+cobertura registrou 41,47% de statements e 43,22% de linhas. O `npm audit`
+final reporta zero vulnerabilidades. Para rodar os testes do front-end:
 
 ```sh
 cd front-end
 npm test -- --run
+npm test -- --run --coverage
 ```
 
 ## Limitações conhecidas verificadas
@@ -269,8 +279,10 @@ npm test -- --run
   independentemente do front-end; consulte a matriz de acesso nesta tabela.
 - `/api/healthcheck/database` continua público; erros retornam mensagem
   genérica, enquanto detalhes são registrados no log do servidor.
-- A execução real do schema e dos triggers não foi validada: o SQL Server não
-  estava acessível no ambiente de verificação.
-- O lint passa sem erros; permanecem 7 avisos de Fast Refresh. O `npm audit fix`
-  seguro reduziu os avisos de vulnerabilidade, mas 7 ainda exigem upgrades
-  incompatíveis de versão principal em Vite, React Router e Vitest.
+- A validação operacional de scripts, idempotência, triggers, procedures,
+  views, backup e restauração no SQL Server está pendente de registro:
+  [PREENCHER: resultado da validação]. Consulte a lista no fim de
+  [RELATORIO_VERIFICACAO.md](RELATORIO_VERIFICACAO.md).
+- O lint passa sem erros; permanecem 7 avisos de Fast Refresh. A cobertura
+  front-end ainda é parcial (41,47% de statements).
+- O token JWT continua em `localStorage`; a escolha de mitigação está pendente.
