@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { HubConnection, HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
-import { getAuthToken } from "@/services/api";
+import { hasAuthSession } from "@/services/api";
 
 /**
  * Hook para conectar ao SignalR Hub "CozinhaHub" e escutar eventos.
@@ -12,7 +12,7 @@ export function useSignalR(
   events: Record<string, (payload: unknown) => void>,
 ) {
   const [connected, setConnected] = useState(false);
-  const [enabled, setEnabled] = useState(() => Boolean(getAuthToken()));
+  const [enabled, setEnabled] = useState(() => hasAuthSession());
   const connectionRef = useRef<HubConnection | null>(null);
   const eventsRef = useRef(events);
 
@@ -21,9 +21,9 @@ export function useSignalR(
   }, [events]);
 
   useEffect(() => {
-    const updateAuthentication = () => setEnabled(Boolean(getAuthToken()));
-    window.addEventListener("authTokenChanged", updateAuthentication);
-    return () => window.removeEventListener("authTokenChanged", updateAuthentication);
+    const updateAuthentication = () => setEnabled(hasAuthSession());
+    window.addEventListener("authSessionChanged", updateAuthentication);
+    return () => window.removeEventListener("authSessionChanged", updateAuthentication);
   }, []);
 
   useEffect(() => {
@@ -37,8 +37,7 @@ export function useSignalR(
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     const connection = new HubConnectionBuilder()
       .withUrl(url, {
-        accessTokenFactory: () => getAuthToken() ?? "",
-        withCredentials: false,
+        withCredentials: true,
       })
       .configureLogging(LogLevel.Warning)
       .withAutomaticReconnect()

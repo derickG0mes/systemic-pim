@@ -67,7 +67,7 @@ npm run dev
 ```
 
 O Vite usa a porta 8080. O cliente HTTP forma a URL como
-`http://<host-do-navegador>:5050/api`; não lê `VITE_API_URL`.
+`<protocolo-da-página>://<host-do-navegador>:5050/api`; não lê `VITE_API_URL`.
 
 ## Swagger
 
@@ -88,8 +88,9 @@ ambiente Development do perfil de execução.
 { "email": "usuario@example.com", "password": "senha" }
 ```
 
-O sucesso usa o envelope `{ "sucesso": true, "mensagem": "...", "dados": {
-"token": "...", "nomeUsuario": "...", "role": "..." } }`.
+No sucesso, a API emite o JWT no cookie `systemic_auth` (`HttpOnly` e
+`SameSite=Lax`, com `Secure` quando a requisição usa HTTPS). O envelope JSON
+contém somente dados não sensíveis do usuário, sem o token.
 
 ### Login por CPF
 
@@ -99,7 +100,28 @@ O sucesso usa o envelope `{ "sucesso": true, "mensagem": "...", "dados": {
 { "cpfFuncionario": "12345678901", "senha": "senha" }
 ```
 
-O sucesso retorna `idFuncionario`, `nomeFuncionario` e `token` no corpo JSON.
+No sucesso, a API emite o mesmo cookie de autenticação e retorna
+`idFuncionario` e `nomeFuncionario`, sem token no corpo JSON.
+
+### Cookie e proteção CSRF
+
+O navegador envia o cookie JWT automaticamente; não armazene JWT em
+`localStorage` nem envie `Authorization: Bearer`. Antes do login, a aplicação
+obtém um request token em `GET /api/autenticacao/csrf` (o cookie antiforgery é
+HttpOnly) e envia o token no header `X-CSRF-TOKEN` em login e em toda requisição
+mutável (`POST`, `PUT`, `PATCH` ou `DELETE`). A API valida esses tokens por um
+filtro global. `POST /api/autenticacao/logout` também requer o header e apaga o
+cookie de autenticação.
+
+O CORS com credenciais permite as origens locais conhecidas em Development. Em
+outros ambientes, configure `CORS_ALLOWED_ORIGINS` com uma lista separada por
+vírgulas de origens confiáveis no `.env`; o Compose usa
+`http://localhost:8080` como padrão para execução local. A configuração de
+cookie pressupõe front-end e API no mesmo site; hospedagem em sites distintos
+exige revisar SameSite, CORS e CSRF.
+O Compose local serve HTTP, então o cookie não recebe `Secure` nesse modo; não
+exponha esse ambiente sem TLS. Em produção, configure HTTPS e encaminhamento
+confiável do protocolo HTTPS ao ASP.NET Core quando houver proxy TLS.
 
 As senhas são verificadas com PBKDF2, SHA-256, salt aleatório de 16 bytes,
 10.000 iterações e saída derivada de 20 bytes. Não se usa bcrypt. O JWT tem
@@ -117,11 +139,13 @@ tenha sido confirmada.
 
 ## Regras de acesso
 
-`JWT` significa que o endpoint exige autenticação. O perfil é indicado em cada
-linha: quando a linha informa somente `JWT`, a API valida o token sem exigir
-uma role específica. `Público` significa que o controller não exige
-autenticação. A matriz de páginas do front-end e as regras da API são controles
-independentes.
+`JWT` significa que o endpoint exige autenticação pelo cookie HttpOnly
+`systemic_auth` (a API também aceita Bearer para clientes não navegador). O
+perfil é indicado em cada linha: quando a linha informa somente `JWT`, a API
+valida o token sem exigir uma role específica. `Público` significa que o
+controller não exige autenticação. Todas as requisições mutáveis, inclusive
+login e logout, exigem `X-CSRF-TOKEN`. A matriz de páginas do front-end e as
+regras da API são controles independentes.
 
 | Perfil do front-end | Páginas permitidas |
 |---|---|
@@ -145,8 +169,10 @@ mensagens variam conforme a validação do controller.
 
 | Método e rota | Autenticação / perfil | Corpo ou parâmetros | Resposta de sucesso |
 |---|---|---|---|
-| `POST /api/autenticacao/login` | Público | JSON `{email, password}` | Envelope; `dados` contém `token`, `nomeUsuario`, `role` |
+| `GET /api/autenticacao/csrf` | Público | — | JSON `{requestToken}` e cookie antiforgery HttpOnly |
+| `POST /api/autenticacao/login` | Público; requer CSRF | JSON `{email, password}` | Envelope; `dados` contém id, `nomeUsuario`, `role`; JWT em cookie HttpOnly |
 | `GET /api/autenticacao/validar` | JWT | — | Envelope com `dados.id`, `dados.nome` e `dados.role`, lidos das claims |
+| `POST /api/autenticacao/logout` | Público; requer CSRF | Header `X-CSRF-TOKEN` | Envelope; expira o cookie JWT |
 | `POST /api/backup/gerar` | JWT; `admin` ou `owner` | — | JSON `{sucesso,mensagem,dados}` com nome, caminho e tamanho do ZIP |
 | `GET /api/backup/baixar/{nomeArquivo}` | JWT; `admin` ou `owner` | `nomeArquivo` na rota | Arquivo ZIP (`application/octet-stream`) |
 | `GET /api/backup/listar` | JWT; `admin` ou `owner` | — | JSON `{sucesso,dados}` com lista de backups |
@@ -180,7 +206,7 @@ mensagens variam conforme a validação do controller.
 | `POST /api/formapagamento` | JWT; `admin` ou `owner` | JSON `{nomeFormaPagamento}` | 201; entidade criada |
 | `PUT /api/formapagamento/{id}` | JWT; `admin` ou `owner` | `id` e JSON `FormaPagamento` | Entidade atualizada |
 | `DELETE /api/formapagamento/{id}` | JWT; `admin` ou `owner` | `id` na rota | JSON `{message}` |
-| `POST /api/funcionario/login` | Público | JSON `{cpfFuncionario, senha}` | JSON `{idFuncionario,nomeFuncionario,token}` |
+| `POST /api/funcionario/login` | Público; requer CSRF | JSON `{cpfFuncionario, senha}` | JSON `{idFuncionario,nomeFuncionario}`; JWT em cookie HttpOnly |
 | `GET /api/funcionario` | JWT; `admin` ou `owner` | — | Envelope; `dados` é lista de funcionários sem senha |
 | `GET /api/funcionario/{id}` | JWT; `admin` ou `owner` | `id` na rota | Envelope; `dados` é funcionário sem senha |
 | `POST /api/funcionario` | JWT; `admin` ou `owner` | JSON `{nomeFuncionario,cpfFuncionario,emailFuncionario,cargoFuncionario,role,telefoneFuncionario,senha}` | 201; Envelope com funcionário sem senha |
@@ -262,7 +288,7 @@ Em push e pull request, `.github/workflows/ci.yml` executa build e testes .NET,
 `npm ci`, lint, `npm test -- --run` e build do front-end, nesta ordem. O YAML e
 a ordem das etapas foram validados localmente; o job remoto do GitHub Actions
 não foi executado nesta sessão. Os 12 testes Vitest passam; a execução com
-cobertura registrou 41,47% de statements e 43,22% de linhas. O `npm audit`
+cobertura registrou 43,04% de statements e 44,79% de linhas. O `npm audit`
 final reporta zero vulnerabilidades. Para rodar os testes do front-end:
 
 ```sh
@@ -284,5 +310,6 @@ npm test -- --run --coverage
   [PREENCHER: resultado da validação]. Consulte a lista no fim de
   [RELATORIO_VERIFICACAO.md](RELATORIO_VERIFICACAO.md).
 - O lint passa sem erros; permanecem 7 avisos de Fast Refresh. A cobertura
-  front-end ainda é parcial (41,47% de statements).
-- O token JWT continua em `localStorage`; a escolha de mitigação está pendente.
+  front-end ainda é parcial (43,04% de statements).
+- O JWT usa cookie `HttpOnly`; os dados não sensíveis do perfil continuam em
+  `localStorage`. O cliente obtém e envia o token CSRF nos métodos mutáveis.

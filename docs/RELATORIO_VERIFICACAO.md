@@ -24,9 +24,10 @@ Os follow-ups corrigiram os problemas de validação de token, exposição de er
 health, metadados da API, divergência do log de pedidos, bloqueio de login,
 persistência de backup e erros do lint. React Router v7 eliminou as vulnerabilidades
 reportadas pelo `npm audit`; os testes de fluxo do front-end e a etapa de testes no CI
-também foram adicionados. A validação operacional de SQL Server continua pendente de
-registro, e a cobertura total do front-end e o armazenamento do token permanecem
-limitações descritas abaixo.
+também foram adicionados. Na Fase 7, o JWT passou a ser emitido em cookie HttpOnly,
+com proteção antiforgery e CORS com credenciais. A validação operacional de SQL
+Server continua pendente de registro e a cobertura total do front-end permanece
+parcial.
 
 ## 2. Verificação item a item
 
@@ -46,7 +47,7 @@ limitações descritas abaixo.
 | 12 | Seções 3 e 4E: não existem procedures nem views | INCORRETO | `02-procedures-views.sql` declara 3 procedures e 2 views. | Objetos encontrados: `sp_fechar_comanda`, `sp_relatorio_faturamento`, `sp_ajustar_estoque`, `vw_comandas_abertas` e `vw_produtos_mais_vendidos`. |
 | 13 | Seções 3, 4F e 7: não há Docker nem CI | DESATUALIZADO | `docker-compose.yml`, `back-end/Dockerfile`, `front-end/Dockerfile` e `.github/workflows/ci.yml` existem; `docker compose build front-end` passou. | O build da imagem do front-end foi executado; o Compose completo e o job remoto de CI não foram iniciados nesta sessão. |
 | 14 | Seção 4F: caminho de backup é fixo em `C:\Backups\Systemic` | DESATUALIZADO | `BackupService.cs` usa `BACKUP_PATH` ou `AppContext.BaseDirectory/backups`; o Compose configura `/app/backups` em `backup_data`. | A configuração é ajustável e o Compose persiste o diretório configurado em volume nomeado. |
-| 15 | Seção 4G: há somente 3 testes de back-end e 1 teste dummy no front-end | DESATUALIZADO | `dotnet test tests/back-end.Tests.csproj` executou 32 testes; `npm test -- --run --coverage` executou 12 testes que cobrem autenticação, RBAC, pedidos e pagamento. | A cobertura front-end total ainda é parcial: 41,47% de statements e 43,22% de linhas. |
+| 15 | Seção 4G: há somente 3 testes de back-end e 1 teste dummy no front-end | DESATUALIZADO | `dotnet test tests/back-end.Tests.csproj` executou 36 testes; `npm test -- --run --coverage` executou 12 testes que cobrem autenticação, RBAC, pedidos e pagamento. | A cobertura front-end total ainda é parcial: 43,04% de statements e 44,79% de linhas. |
 | 16 | Seção 4G/H: não há `.gitignore` e binários de `tests/bin` estão versionados | INCORRETO | `.gitignore`, `back-end/.gitignore` e `front-end/.gitignore` existem; `git ls-files tests/bin tests/obj` não retorna arquivos. | Os arquivos de build são ignorados; não encontrei binários de testes rastreados pelo Git. |
 | 17 | Seções 4H e 6: `POST /api/backup/restore` é anônimo | DESATUALIZADO | `BackupController.cs:15,105` exige `[Authorize(Roles = "admin,owner")]`. | A exigência existe no controller e no método; não foi testada contra um servidor SQL. |
 | 18 | Seções 4H e 6: restore extrai arquivos arbitrários com risco de Zip Slip | DESATUALIZADO | `BackupRestoreService.cs:45-80` lê um único `.sql` do ZIP sem extrair a árvore; `:132-167` rejeita caminhos absolutos, `..` e links simbólicos. | A alegação sobre escrita de arquivos arbitrários não corresponde ao serviço atual. O endpoint ainda executa SQL de backup, por design, sob perfil privilegiado. |
@@ -54,7 +55,7 @@ limitações descritas abaixo.
 | 20 | Seções 4K e 7: a interface não oferece restauração | INCORRETO | `BackupPage.tsx` tem seleção de ZIP, confirmação e chama `restaurarBackup`; `api.ts` envia `Arquivo` como multipart. | A interface de restauração existe. |
 | 21 | Seções 4H e 6: usuário employee pode criar/alterar/excluir funcionários ou promover-se a admin | DESATUALIZADO | `FuncionarioController.cs` exige `admin,owner` para consultas e escritas; criação de perfil `owner` exige ator `owner`. | O risco descrito foi corrigido; nenhum dos endpoints de funcionário está disponível ao perfil `employee`. |
 | 22 | Seções 4H e 6: `POST /api/log/registrar` é anônimo | INCORRETO | `LogController.cs:13` exige `[Authorize(Roles = "admin,owner")]` para o controller. | A rota não é anônima e agora também está limitada a `admin` ou `owner`. |
-| 23 | Seções 4H e 6: `MOCK_USERS` e senhas em texto puro no `localStorage` | DESATUALIZADO | `AuthContext.tsx` autentica via API e grava token e dados sem senha em `authToken` e `restaurant_user`; não há `MOCK_USERS` nem `registered_users`. | O JWT permanece em `localStorage`, o que mantém o risco de exposição em caso de XSS; senha não é persistida. |
+| 23 | Seções 4H e 6: `MOCK_USERS` e senhas em texto puro no `localStorage` | DESATUALIZADO | `AuthContext.tsx` autentica via API e grava somente dados não sensíveis em `restaurant_user`; não há `MOCK_USERS` nem `registered_users`. | O JWT é armazenado em cookie HttpOnly, não acessível ao JavaScript; senha não é persistida. |
 | 24 | Seções 4H e 6: fallback literal de segredo JWT no código/appsettings | DESATUALIZADO | `Program.cs:37-42` e `JwtService.cs:16-22` exigem chave de ambiente/configuração com pelo menos 32 caracteres e falham sem ela; `appsettings.json` não contém segredo. | Não há fallback literal; os `.env.example` usam placeholder explícito, rejeitado fora de `Development`, e instruem como gerar uma chave exclusiva. |
 | 25 | Seção 4E: connection string usa autenticação integrada do Windows | INCORRETO | `Program.cs:21-35` monta a connection string com `DB_SERVER`, `DB_NAME`, `DB_USER` e `DB_PASSWORD`. | O caminho executado usa credenciais SQL; o `DefaultConnection` do appsettings não é usado por essa montagem. |
 | 26 | Seção 4E e 5: `PRECO_CUSTO` e `PRECO_VENDA` existem no SQL, mas não no modelo Produto | INCORRETO | `Produto.cs:19,22` declara as duas propriedades mapeadas; `01-create-database-idempotent.sql` cria as colunas. | A divergência apontada para essas duas colunas já não existe. |
@@ -84,8 +85,8 @@ limitações descritas abaixo.
 
 ### Fluxos e diferenças de comportamento que permanecem
 
-- O front-end guarda o token JWT em `localStorage`; não guarda a senha nem uma lista
-  `MOCK_USERS`.
+- O front-end guarda somente dados não sensíveis do perfil em `localStorage`; o
+  JWT fica em cookie HttpOnly. A senha não é persistida e não há lista `MOCK_USERS`.
 - O front-end envia as requisições reais de pedidos, funcionários, reservas e
   pagamentos, mas algumas atualizações de estado são otimistas. Por exemplo,
   `RestaurantContext.tsx` atualiza a fila de pedidos antes da conclusão da chamada API;
@@ -139,7 +140,7 @@ Prioridade operacional/qualidade:
    agora passa `BACKUP_PATH` e monta o volume nomeado `backup_data` nesse caminho.
 10. **Cobertura front-end ampliada, ainda parcial.** Foram adicionados 12 testes
    para login, bloqueio, RBAC/ProtectedRoute, criação de pedido e pagamento.
-   A cobertura medida é 41,47% de statements e 43,22% de linhas no projeto.
+   A cobertura medida é 43,04% de statements e 44,79% de linhas no projeto.
 11. **RESOLVIDO — paridade dos bloqueios de login.** Os dois controllers usam a
     política única de 5 tentativas e 15 minutos, coberta por teste. O estado adicional
     de bloqueio do React continua volátil em memória.
@@ -148,10 +149,11 @@ Prioridade operacional/qualidade:
     após o lint e antes do build.
 
 Continuam pendentes o registro dos resultados operacionais de SQL Server
-([PREENCHER: resultado da validação]), a ampliação da cobertura front-end e a decisão
-sobre mitigações para o token em `localStorage` (Fase 7). O `npm audit` final está
-limpo. A remoção de pictogramas abaixo não altera valores usados como status,
-identificadores, chaves, nomes SQL ou enums.
+([PREENCHER: resultado da validação]) e a ampliação da cobertura front-end. A
+decisão da Fase 7 foi implementada: JWT em cookie HttpOnly, com antiforgery, CORS
+com credenciais e SignalR por cookie. O `npm audit` final está limpo. A remoção
+de pictogramas abaixo não altera valores usados como status, identificadores,
+chaves, nomes SQL ou enums.
 
 ## 4. Comandos e resultados
 
@@ -160,19 +162,20 @@ identificadores, chaves, nomes SQL ou enums.
 | `dotnet restore` em `back-end/` | Concluído. |
 | `dotnet build systemic-pim.sln` | Sucesso, 0 avisos e 0 erros. |
 | `dotnet restore` em `tests/` | Concluído. |
-| `dotnet test tests/back-end.Tests.csproj` | Sucesso: 32 aprovados, 0 falhas (30 do baseline mais 2 testes de rejeição do segredo JWT). |
+| `dotnet test tests/back-end.Tests.csproj` | Sucesso: 36 aprovados, 0 falhas (30 do baseline, 2 de segredo JWT e 4 de cookie/CSRF). |
 | `dotnet list package --vulnerable --include-transitive` em `back-end/` | Nenhum pacote vulnerável informado pelas fontes NuGet consultadas. |
 | `dotnet list package --vulnerable --include-transitive` em `tests/` | Nenhum pacote vulnerável informado pelas fontes NuGet consultadas. |
 | `npm audit` em `front-end/` | Baseline da Fase 0: 2 vulnerabilidades moderadas em `react-router`; após React Router 7.18.5: 0 vulnerabilidades. |
 | Migração React Router | `react-router-dom` removido; dependência `react-router@7.18.5`; imports migrados para `react-router`. |
 | `npm run lint` em `front-end/` | Sucesso: 0 erros e 7 avisos de Fast Refresh. |
 | `npm run build` em `front-end/` | Sucesso; TypeScript e Vite concluíram. Restam avisos de anotações PURE e chunk acima de 500 kB. |
-| `npm test -- --run --coverage` em `front-end/` | Sucesso: 1 arquivo, 12 testes aprovados; 41,47% statements, 22,88% branches, 29,25% funções e 43,22% linhas. |
+| `npm test -- --run --coverage` em `front-end/` | Sucesso: 1 arquivo, 12 testes aprovados; 43,04% statements, 23,87% branches, 29,94% funções e 44,79% linhas. |
 | `docker compose build front-end` | Sucesso; imagem frontend construída, Vite 8.3.5 e zero vulnerabilidades no `npm ci` da imagem. |
 | Validação de `.github/workflows/ci.yml` | YAML parseado localmente; ordem verificada: lint, `npm test -- --run`, build. O job remoto não foi executado nesta sessão. |
 | `docker compose config --quiet` | Sucesso; configuração validada com arquivo `.env` temporário, removido após o comando. Nenhum container foi iniciado. |
 | TypeScript isolado de `docs/EXEMPLO_INTEGRACAO_REACT.ts` | Sucesso com `tsc --noEmit --target ES2020 --module ESNext --moduleResolution bundler --lib ES2020,DOM --strict --skipLibCheck`. |
 | Validação operacional SQL Server | [PREENCHER: resultado da validação]. Os pontos específicos estão listados na seção 7. |
+| Fase 7: autenticação com cookie e CSRF | Build .NET e 36 testes de integração/unitários aprovados; inclui atributos do cookie, autenticação por cookie, logout, exigência de antiforgery e restore protegido. |
 
 ## 5. Ocorrências pictográficas antes da remoção
 

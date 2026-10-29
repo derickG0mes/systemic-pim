@@ -41,6 +41,11 @@ O arquivo `.env.example` contém valores demonstrativos. Troque `DB_PASSWORD` e
 `JWT_SECRET_KEY` por valores próprios; a chave JWT deve ter ao menos 32
 caracteres. Não use os valores de exemplo em produção.
 
+A autenticação usa cookie JWT HttpOnly; o front-end não persiste nem envia o
+token pelo JavaScript. Requisições que alteram dados também enviam token
+antiforgery. Consulte [CONFIGURACAO.md](docs/CONFIGURACAO.md) para detalhes de
+cookie, CORS e CSRF.
+
 ## Executar localmente sem Docker
 
 É necessário ter .NET SDK 10, Node.js/npm e SQL Server disponíveis. Inicialize

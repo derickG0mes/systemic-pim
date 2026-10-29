@@ -19,14 +19,22 @@ namespace Systemic.IntegrationTests
         {
             Environment.SetEnvironmentVariable("JWT_SECRET_KEY", "chave_secreta_jwt_de_testes_com_minimo_32_caracteres_12345");
             _factory = factory;
-            _client = factory.CreateClient();
+            _client = factory.CreateClient(new WebApplicationFactoryClientOptions
+            {
+                HandleCookies = true
+            });
         }
 
         [Fact]
         public async Task Restore_Endpoint_Returns_Unauthorized_When_Unauthenticated()
         {
-            var emptyContent = new MultipartFormDataContent();
-            var response = await _client.PostAsync("/api/backup/restore", emptyContent);
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/backup/restore")
+            {
+                Content = new MultipartFormDataContent()
+            };
+            await AddAntiforgeryTokenAsync(request);
+
+            var response = await _client.SendAsync(request);
             response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         }
 
@@ -37,6 +45,7 @@ namespace Systemic.IntegrationTests
             {
                 Content = new MultipartFormDataContent()
             };
+            await AddAntiforgeryTokenAsync(request);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", CreateToken("employee"));
 
             using var response = await _client.SendAsync(request);
@@ -56,6 +65,7 @@ namespace Systemic.IntegrationTests
             {
                 Content = content
             };
+            await AddAntiforgeryTokenAsync(request);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", CreateToken("admin"));
 
             using var response = await _client.SendAsync(request);
@@ -68,6 +78,17 @@ namespace Systemic.IntegrationTests
             using var scope = _factory.Services.CreateScope();
             return scope.ServiceProvider.GetRequiredService<JwtService>()
                 .GenerateToken(1, "Teste", "00000000000", role);
+        }
+
+        private async Task AddAntiforgeryTokenAsync(HttpRequestMessage request)
+        {
+            using var response = await _client.GetAsync("/api/autenticacao/csrf");
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            using var json = System.Text.Json.JsonDocument.Parse(
+                await response.Content.ReadAsStringAsync());
+            request.Headers.Add(
+                "X-CSRF-TOKEN",
+                json.RootElement.GetProperty("requestToken").GetString());
         }
     }
 }

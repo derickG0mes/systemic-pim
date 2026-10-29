@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.Data.SqlClient;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
@@ -59,12 +60,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         {
             OnMessageReceived = context =>
             {
-                var accessToken = context.Request.Query["access_token"];
-                if (!string.IsNullOrEmpty(accessToken)
-                    && context.HttpContext.Request.Path.StartsWithSegments("/hubs/cozinha"))
-                {
-                    context.Token = accessToken;
-                }
+                if (context.Request.Cookies.TryGetValue(JwtService.AuthCookieName, out var cookieToken))
+                    context.Token = cookieToken;
                 return Task.CompletedTask;
             }
         };
@@ -76,29 +73,46 @@ builder.Services.AddScoped<PIM3.API.Services.Backup.BackupRestoreService>();
 
 builder.Services.AddSignalR();
 
+var productionCorsOrigins = (builder.Configuration["CORS_ALLOWED_ORIGINS"] ?? "https://seusite.com")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
 builder.Services.AddCors(options =>
 {
-    // Política permissiva para desenvolvimento
     options.AddPolicy("DevCors", policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
-
-    // Política restrita para produção
-    options.AddPolicy("ProdCors", policy =>
-    {
-        policy.WithOrigins("https://seusite.com")
+        policy.WithOrigins(
+                "http://localhost:8080",
+                "http://127.0.0.1:8080",
+                "http://localhost:5173",
+                "http://127.0.0.1:5173")
               .AllowAnyMethod()
               .AllowAnyHeader()
-              .SetIsOriginAllowedToAllowWildcardSubdomains()
+              .AllowCredentials();
+    });
+
+    options.AddPolicy("ProdCors", policy =>
+    {
+        policy.WithOrigins(productionCorsOrigins)
+              .AllowAnyMethod()
+              .AllowAnyHeader()
               .AllowCredentials();
     });
 });
 
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-CSRF-TOKEN";
+    options.Cookie.Name = "systemic_csrf";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+});
+
 // 5. CONFIGURAÇÃO DE CONTROLLERS E DOCUMENTAÇÃO
-builder.Services.AddControllers().AddJsonOptions(options =>
+builder.Services.AddControllersWithViews(options =>
+{
+    options.Filters.Add(new AutoValidateAntiforgeryTokenAttribute());
+}).AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
     options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;

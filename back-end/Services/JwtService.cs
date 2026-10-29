@@ -7,6 +7,8 @@ namespace PIM3.API.Services;
 
 public class JwtService
 {
+    public const string AuthCookieName = "systemic_auth";
+
     private static readonly HashSet<string> ExampleSecretKeys = new(StringComparer.Ordinal)
     {
         "TROQUE_ESTA_CHAVE_ANTES_DE_USAR_1234",
@@ -29,6 +31,31 @@ public class JwtService
             ?? configuration["Jwt:ExpirationMinutes"];
         _expirationMinutes = int.TryParse(expStr, out var exp) ? exp : 480;
     }
+
+    public void SetAuthCookie(HttpResponse response, string token)
+    {
+        response.Cookies.Append(
+            AuthCookieName,
+            token,
+            CreateAuthCookieOptions(response.HttpContext));
+    }
+
+    public void ClearAuthCookie(HttpResponse response)
+    {
+        response.Cookies.Delete(
+            AuthCookieName,
+            CreateAuthCookieOptions(response.HttpContext));
+    }
+
+    private CookieOptions CreateAuthCookieOptions(HttpContext context) => new()
+    {
+        HttpOnly = true,
+        Secure = context.Request.IsHttps,
+        SameSite = SameSiteMode.Lax,
+        IsEssential = true,
+        Path = "/",
+        Expires = DateTimeOffset.UtcNow.AddMinutes(_expirationMinutes)
+    };
 
     public static string ValidateSecretKey(string? secretKey, bool isDevelopment)
     {

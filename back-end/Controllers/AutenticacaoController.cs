@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
 using PIM3.API.DTOs;
@@ -26,6 +27,26 @@ public class AutenticacaoController : ControllerBase
     {
         _context = context;
         _jwtService = jwtService;
+    }
+
+    [HttpGet("csrf")]
+    [AllowAnonymous]
+    public IActionResult GetCsrfToken([FromServices] IAntiforgery antiforgery)
+    {
+        var tokens = antiforgery.GetAndStoreTokens(HttpContext);
+        return Ok(new { requestToken = tokens.RequestToken });
+    }
+
+    [HttpPost("logout")]
+    [AllowAnonymous]
+    public IActionResult Logout()
+    {
+        _jwtService.ClearAuthCookie(Response);
+        return Ok(new RespostaPadraoDTO
+        {
+            Sucesso = true,
+            Mensagem = "Logout realizado com sucesso."
+        });
     }
 
     /// <summary>
@@ -102,12 +123,18 @@ public class AutenticacaoController : ControllerBase
 
         // Geramos o token JWT
         var token = _jwtService.GenerateToken(funcionario.IdFuncionario, funcionario.NomeFuncionario, funcionario.CpfFuncionario ?? "", funcionario.Role);
+        _jwtService.SetAuthCookie(Response, token);
 
         return Ok(new RespostaPadraoDTO
         {
             Sucesso = true,
             Mensagem = "Login realizado com sucesso!",
-            Dados = new { token, nomeUsuario = funcionario.NomeFuncionario, role = funcionario.Role }
+            Dados = new
+            {
+                id = funcionario.IdFuncionario,
+                nomeUsuario = funcionario.NomeFuncionario,
+                role = funcionario.Role
+            }
         });
     }
 

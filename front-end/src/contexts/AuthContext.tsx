@@ -43,9 +43,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     setUser(null);
     localStorage.removeItem("restaurant_user");
-    localStorage.removeItem("authToken");
-    logoutAPI();
-    window.dispatchEvent(new Event("authTokenChanged"));
+    void logoutAPI().catch((error: unknown) => {
+      console.error("Não foi possível encerrar a sessão no servidor:", error);
+    });
+    window.dispatchEvent(new Event("authSessionChanged"));
   }, []);
 
   // Escuta o evento "auth:unauthorized" emitido por api.ts quando recebe 401.
@@ -78,20 +79,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Faz login via API real: POST /api/autenticacao/login com campos email e password
         const response = await loginAPI(email, password);
 
-        const token =
-          response.dados?.token ||
-          response.Dados?.token ||
-          response.token;
-
-        if (token) {
-          localStorage.setItem("authToken", token);
-
+        if (response.sucesso === true || response.success === true) {
           const dados = response.dados || response.Dados || response;
-          // Armazena apenas dados não sensíveis — sem senha
           const userData: User = {
-            id: String(dados.id || email),
-            name: dados.nomeUsuario || dados.name || email,
-            email: email,
+            id: String(dados.id || dados.idFuncionario || email),
+            name: dados.nomeUsuario || dados.nomeFuncionario || dados.name || email,
+            email,
             role: dados.role || "employee",
             position: dados.position || "Funcionário",
           };
@@ -99,11 +92,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           localStorage.setItem("restaurant_user", JSON.stringify(userData));
           setUser(userData);
           setFailedAttempts(0);
-          window.dispatchEvent(new Event("authTokenChanged"));
+          window.dispatchEvent(new Event("authSessionChanged"));
           return { success: true, message: "Login realizado com sucesso!" };
         }
 
-        // API respondeu com 2xx mas sem token — credenciais rejeitadas
+        // A resposta bem-sucedida precisa confirmar explicitamente o login.
         const newAttempts = failedAttempts + 1;
         setFailedAttempts(newAttempts);
         if (newAttempts >= 5) {

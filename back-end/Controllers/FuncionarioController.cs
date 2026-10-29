@@ -78,12 +78,12 @@ public class FuncionarioController : ControllerBase
         _context.SaveChanges();
 
         var token = _jwtService.GenerateToken(funcionario.IdFuncionario, funcionario.NomeFuncionario, funcionario.CpfFuncionario, funcionario.Role);
+        _jwtService.SetAuthCookie(Response, token);
 
         return Ok(new LoginResponse
         {
             IdFuncionario = funcionario.IdFuncionario,
-            NomeFuncionario = funcionario.NomeFuncionario,
-            Token = token
+            NomeFuncionario = funcionario.NomeFuncionario
         });
     }
 

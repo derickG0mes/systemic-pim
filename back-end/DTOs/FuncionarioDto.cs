@@ -11,7 +11,6 @@ public class LoginResponse
 {
     public int IdFuncionario { get; set; }
     public string NomeFuncionario { get; set; } = string.Empty;
-    public string Token { get; set; } = string.Empty;
 }
 
 // DTO para Funcionário (sem senha)

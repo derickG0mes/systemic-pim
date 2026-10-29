@@ -25,7 +25,7 @@ import {
   createFuncionario,
   updateFuncionario,
   getFaturamento,
-  getAuthToken,
+  hasAuthSession,
   getLoggedUserId,
   getLogSistema,
   getReservas,
@@ -217,11 +217,9 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     lucro: 0,
   });
 
-  const hasAuthToken = () => !!getAuthToken();
-
   // Função para sincronizar comandas com o banco
   const syncComandas = useCallback(async () => {
-    if (!hasAuthToken()) return;
+    if (!hasAuthSession()) return;
     try {
       const comandasData = await getComandas();
       console.log("DEBUG: Dados brutos recebidos do backend:", comandasData);
@@ -331,7 +329,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
 
   // Sincronizar Logs do Backend
   const syncLogs = useCallback(async () => {
-    if (!hasAuthToken()) return;
+    if (!hasAuthSession()) return;
     try {
       const data = await getLogSistema(1, 100);
       if (!data) return;
@@ -356,7 +354,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
 
   // Sincronizar Reservas do Backend
   const syncReservations = useCallback(async () => {
-    if (!hasAuthToken()) return;
+    if (!hasAuthSession()) return;
     try {
       const data = await getReservas();
       if (!data) return;
@@ -394,16 +392,16 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!hubEnabled || hubConnected) return;
     const poll = setInterval(() => {
-      if (hasAuthToken()) void syncComandas();
+      if (hasAuthSession()) void syncComandas();
     }, 60000);
     return () => clearInterval(poll);
   }, [hubConnected, hubEnabled, syncComandas]);
 
-  // Carrega dados da API quando o componente é montado OU quando o token muda
+  // Carrega dados da API quando o componente é montado ou a sessão muda.
   useEffect(() => {
     const loadDataFromAPI = async () => {
-      if (!hasAuthToken()) {
-        console.warn("Aviso: Sem token — ignorando carga da API");
+      if (!hasAuthSession()) {
+        console.warn("Aviso: Sem sessão — ignorando carga da API");
         return;
       }
 
@@ -526,23 +524,23 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    if (hasAuthToken()) {
+    if (hasAuthSession()) {
       loadDataFromAPI().catch((err) =>
         console.error("Erro: loadDataFromAPI falhou:", err),
       );
     }
 
     const handleTokenChanged = async () => {
-      if (hasAuthToken()) {
+      if (hasAuthSession()) {
         await loadDataFromAPI().catch((err) =>
           console.error("Erro: loadDataFromAPI falhou:", err),
         );
       }
     };
 
-    window.addEventListener("authTokenChanged", handleTokenChanged);
+    window.addEventListener("authSessionChanged", handleTokenChanged);
     return () => {
-      window.removeEventListener("authTokenChanged", handleTokenChanged);
+      window.removeEventListener("authSessionChanged", handleTokenChanged);
     };
   }, [syncComandas, syncLogs, syncReservations]);
 

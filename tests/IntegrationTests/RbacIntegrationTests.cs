@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using PIM3.API.Services;
@@ -18,7 +19,10 @@ public class RbacIntegrationTests : IClassFixture<WebApplicationFactory<Program>
     {
         Environment.SetEnvironmentVariable("JWT_SECRET_KEY", "chave_secreta_jwt_de_testes_com_minimo_32_caracteres_12345");
         _factory = factory;
-        _client = factory.CreateClient();
+        _client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            HandleCookies = true
+        });
     }
 
     [Fact]
@@ -46,6 +50,66 @@ public class RbacIntegrationTests : IClassFixture<WebApplicationFactory<Program>
         dados.GetProperty("role").GetString().Should().Be("employee");
     }
 
+    [Fact]
+    public async Task Token_validation_accepts_the_http_only_auth_cookie()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/autenticacao/validar");
+        request.Headers.Add(
+            "Cookie",
+            $"{JwtService.AuthCookieName}={CreateToken("employee")}");
+
+        using var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public void Auth_cookie_is_http_only_and_secure_over_https()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var jwtService = scope.ServiceProvider.GetRequiredService<JwtService>();
+        var context = new DefaultHttpContext();
+        context.Request.Scheme = "https";
+
+        jwtService.SetAuthCookie(context.Response, "cookie-test");
+
+        var cookie = context.Response.Headers.SetCookie.ToString();
+        cookie.Should().Contain($"{JwtService.AuthCookieName}=cookie-test");
+        cookie.ToLowerInvariant().Should().Contain("httponly");
+        cookie.ToLowerInvariant().Should().Contain("secure");
+        cookie.ToLowerInvariant().Should().Contain("samesite=lax");
+    }
+
+    [Fact]
+    public async Task Logout_clears_the_auth_cookie_and_requires_csrf()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/autenticacao/logout");
+        await AddAntiforgeryTokenAsync(request);
+
+        using var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Headers.GetValues("Set-Cookie")
+            .Should().Contain(value =>
+                value.StartsWith($"{JwtService.AuthCookieName}=", StringComparison.Ordinal)
+                && value.Contains("expires=", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Unsafe_requests_require_an_antiforgery_token()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/log/registrar")
+        {
+            Content = new StringContent("{}", Encoding.UTF8, "application/json")
+        };
+        request.Headers.Authorization =
+            new AuthenticationHeaderValue("Bearer", CreateToken("admin"));
+
+        using var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     [Theory]
     [InlineData("GET", "/api/cliente")]
     [InlineData("POST", "/api/cliente")]
@@ -69,7 +133,13 @@ public class RbacIntegrationTests : IClassFixture<WebApplicationFactory<Program>
     {
         using var request = new HttpRequestMessage(new HttpMethod(method), path);
         if (method is "POST" or "PUT")
+        {
             request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
+        }
+        if (method is "POST" or "PUT" or "DELETE")
+        {
+            await AddAntiforgeryTokenAsync(request);
+        }
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", CreateToken("employee"));
 
         using var response = await _client.SendAsync(request);
@@ -82,5 +152,15 @@ public class RbacIntegrationTests : IClassFixture<WebApplicationFactory<Program>
         using var scope = _factory.Services.CreateScope();
         return scope.ServiceProvider.GetRequiredService<JwtService>()
             .GenerateToken(1, "Teste", "00000000000", role);
+    }
+
+    private async Task AddAntiforgeryTokenAsync(HttpRequestMessage request)
+    {
+        using var response = await _client.GetAsync("/api/autenticacao/csrf");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        request.Headers.Add(
+            "X-CSRF-TOKEN",
+            json.RootElement.GetProperty("requestToken").GetString());
     }
 }

@@ -1,15 +1,14 @@
 const currentHost = window.location.hostname;
-export const API_URL = `http://${currentHost}:5050/api`;
+export const API_URL = `${window.location.protocol}//${currentHost}:5050/api`;
 
 function resolveApiUrl(): string {
   return API_URL;
 }
 
-const PUBLIC_PATHS = ["/autenticacao/login", "/healthcheck"];
+let csrfRequestToken: string | null = null;
 
-export function getAuthToken(): string | null {
-  const token = localStorage.getItem("authToken");
-  return token?.trim() ? token.trim() : null;
+export function hasAuthSession(): boolean {
+  return Boolean(localStorage.getItem("restaurant_user"));
 }
 
 /**
@@ -28,8 +27,20 @@ export function getLoggedUserId(): number | null {
   }
 }
 
-function isPublicPath(endpoint: string): boolean {
-  return PUBLIC_PATHS.some((p) => endpoint.startsWith(p));
+async function getCsrfRequestToken(): Promise<string> {
+  if (csrfRequestToken) return csrfRequestToken;
+
+  const response = await fetch(`${resolveApiUrl()}/autenticacao/csrf`, {
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok || typeof data?.requestToken !== "string") {
+    throw new Error("Não foi possível obter o token de proteção CSRF.");
+  }
+
+  csrfRequestToken = data.requestToken;
+  return csrfRequestToken;
 }
 
 async function parseJsonResponse(response: Response) {
@@ -42,31 +53,22 @@ async function parseJsonResponse(response: Response) {
   }
 }
 
-// Função auxiliar: token lido do localStorage no instante de cada requisição
+// A sessão é enviada automaticamente pelo cookie HttpOnly do navegador.
 async function apiCall(endpoint: string, options: RequestInit = {}) {
-  const token = getAuthToken();
-  const needsAuth = !isPublicPath(endpoint);
-
-  if (needsAuth && !token) {
-    const err = new Error(
-      `[API] ${endpoint} — não autenticado (token ausente)`,
-    );
-    console.error(err.message);
-    throw err;
-  }
-
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
     ...(options.headers as Record<string, string>),
   };
 
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+  const method = (options.method ?? "GET").toUpperCase();
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+    headers["X-CSRF-TOKEN"] = await getCsrfRequestToken();
   }
 
   const response = await fetch(`${resolveApiUrl()}${endpoint}`, {
     ...options,
+    credentials: "include",
     headers,
   });
 
@@ -107,9 +109,14 @@ async function apiCall(endpoint: string, options: RequestInit = {}) {
 // ============================================
 
 export async function loginAPI(email: string, password: string) {
+  const csrfToken = await getCsrfRequestToken();
   const response = await fetch(`${resolveApiUrl()}/autenticacao/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRF-TOKEN": csrfToken,
+    },
     body: JSON.stringify({ email, password }),
   });
 
@@ -121,17 +128,15 @@ export async function loginAPI(email: string, password: string) {
     );
   }
 
-  const token = data.dados?.token || data.Dados?.token || data.token;
-  if (token) {
-    localStorage.setItem("authToken", token);
-  }
-
   return data;
 }
 
-export function logoutAPI() {
-  localStorage.removeItem("authToken");
-  localStorage.removeItem("restaurant_user");
+export async function logoutAPI() {
+  try {
+    await apiCall("/autenticacao/logout", { method: "POST" });
+  } finally {
+    localStorage.removeItem("restaurant_user");
+  }
 }
 
 // ============================================
@@ -334,16 +339,15 @@ export async function listarBackups() {
 }
 
 export async function restaurarBackup(file: File) {
-  const token = getAuthToken();
-  if (!token) throw new Error("Não autenticado.");
-
   const formData = new FormData();
   formData.append("Arquivo", file, file.name);
+  const csrfToken = await getCsrfRequestToken();
   const response = await fetch(`${resolveApiUrl()}/backup/restore`, {
     method: "POST",
+    credentials: "include",
     headers: {
       Accept: "application/json",
-      Authorization: `Bearer ${token}`,
+      "X-CSRF-TOKEN": csrfToken,
     },
     body: formData,
   });
@@ -357,15 +361,10 @@ export async function restaurarBackup(file: File) {
 }
 
 export async function baixarBackup(nomeArquivo: string) {
-  const token = getAuthToken();
-  const headers: Record<string, string> = {
-    ...(token && { Authorization: `Bearer ${token}` }),
-  };
-
   const response = await fetch(
     `${resolveApiUrl()}/backup/baixar/${encodeURIComponent(nomeArquivo)}`,
     {
-      headers,
+      credentials: "include",
     },
   );
 

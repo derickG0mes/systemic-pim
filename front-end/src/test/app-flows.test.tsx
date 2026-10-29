@@ -142,19 +142,20 @@ afterEach(() => {
 
 describe("autenticação", () => {
   it("autentica com sucesso usando a resposta da API", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        jsonResponse({
-          dados: {
-            token: "token-de-teste",
-            id: 8,
-            nomeUsuario: "Admin de teste",
-            role: "admin",
-          },
-        }),
-      ),
-    );
+    const fetchMock = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/autenticacao/csrf")) {
+        return jsonResponse({ requestToken: "csrf-de-teste" });
+      }
+      return jsonResponse({
+        sucesso: true,
+        dados: {
+          id: 8,
+          nomeUsuario: "Admin de teste",
+          role: "admin",
+        },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
 
     render(
       <AuthProvider>
@@ -166,20 +167,25 @@ describe("autenticação", () => {
 
     expect(await screen.findByText("Login realizado com sucesso!")).toBeInTheDocument();
     expect(screen.getByTestId("authenticated")).toHaveTextContent("admin");
-    expect(localStorage.getItem("authToken")).toBe("token-de-teste");
+    expect(localStorage.getItem("authToken")).toBeNull();
     expect(JSON.parse(localStorage.getItem("restaurant_user") ?? "{}")).toMatchObject({
       id: "8",
       role: "admin",
     });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({
+      credentials: "include",
+      headers: expect.objectContaining({ "X-CSRF-TOKEN": "csrf-de-teste" }),
+    });
   });
 
   it("mostra a falha de autenticação reportada pela API", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        jsonResponse({ mensagem: "Credenciais inválidas" }, 401),
-      ),
+    const fetchMock = vi.fn().mockImplementation(async (input: RequestInfo | URL) =>
+      String(input).endsWith("/autenticacao/csrf")
+        ? jsonResponse({ requestToken: "csrf-de-teste" })
+        : jsonResponse({ mensagem: "Credenciais inválidas" }, 401),
     );
+    vi.stubGlobal("fetch", fetchMock);
 
     render(
       <AuthProvider>
@@ -197,8 +203,10 @@ describe("autenticação", () => {
   it("bloqueia após cinco falhas e não envia novas requisições", async () => {
     const fetchMock = vi
       .fn()
-      .mockImplementation(async () =>
-        jsonResponse({ mensagem: "Credenciais inválidas" }, 401),
+      .mockImplementation(async (input: RequestInfo | URL) =>
+        String(input).endsWith("/autenticacao/csrf")
+          ? jsonResponse({ requestToken: "csrf-de-teste" })
+          : jsonResponse({ mensagem: "Credenciais inválidas" }, 401),
       );
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
@@ -264,14 +272,18 @@ describe("rotas protegidas e permissões", () => {
 
 describe("pedidos e pagamentos", () => {
   function prepareRestaurantFetch() {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse([]));
+    const fetchMock = vi.fn().mockImplementation(async (input: RequestInfo | URL) =>
+      String(input).endsWith("/autenticacao/csrf")
+        ? jsonResponse({ requestToken: "csrf-de-teste" })
+        : jsonResponse([]),
+    );
     vi.stubGlobal("fetch", fetchMock);
     render(
       <RestaurantProvider>
         <RestaurantProbe />
       </RestaurantProvider>,
     );
-    localStorage.setItem("authToken", "token-de-teste");
+    setAuthenticatedUser("employee");
     return fetchMock;
   }
 
@@ -293,6 +305,10 @@ describe("pedidos e pagamentos", () => {
     )!;
     expect(String(url)).toContain("/pedidos");
     expect(options?.method).toBe("POST");
+    expect(options?.credentials).toBe("include");
+    expect(options?.headers).toMatchObject({
+      "X-CSRF-TOKEN": "csrf-de-teste",
+    });
     expect(JSON.parse(String(options?.body))).toEqual({
       idMesa: 9,
       itens: [{ idProduto: 7, qtdProduto: 2, precoUnitarioPago: 6 }],
@@ -318,6 +334,7 @@ describe("pedidos e pagamentos", () => {
     )!;
     expect(String(url)).toContain("/comanda/42/pagar");
     expect(options?.method).toBe("PUT");
+    expect(options?.credentials).toBe("include");
     expect(JSON.parse(String(options?.body))).toEqual({
       idFormaPagamento: 1,
       troco: 0,

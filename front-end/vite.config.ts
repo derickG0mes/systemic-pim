@@ -19,7 +19,7 @@ export default defineConfig(() => ({
       "react",
       "react-dom",
       "react/jsx-runtime",
-      "react-router-dom",
+      "react-router",
       "@tanstack/react-query",
       "lucide-react",
       "recharts",

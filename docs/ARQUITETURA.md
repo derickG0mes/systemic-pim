@@ -20,7 +20,7 @@ back-end/
   Services/
     Backup/                 Validação e restauração de ZIP
     BackupService.cs        Geração/listagem de backups
-    JwtService.cs           Emissão de tokens
+    JwtService.cs           Emissão e gerenciamento do cookie JWT
     PasswordHashService.cs  Hash e verificação de senha
   Program.cs                Configuração da API
 
@@ -116,9 +116,15 @@ controllers usam a política única `LoginLockoutPolicy`: bloqueio após 5
 tentativas por 15 minutos. O `AuthContext` também mantém um bloqueio temporário
 em memória no navegador; consulte [CONFIGURACAO.md](CONFIGURACAO.md).
 
-O navegador armazena o token e dados não sensíveis do usuário em
-`localStorage`. O log de auditoria do `RestaurantContext` é mantido em uma
-lista em memória, não persistida no banco nem em `localStorage`.
+O JWT é armazenado em cookie `HttpOnly`, `SameSite=Lax` e `Secure` em conexões
+HTTPS; o JavaScript não consegue ler o token. O navegador mantém somente
+dados não sensíveis do usuário em `localStorage`. Requisições mutáveis usam
+token antiforgery no header `X-CSRF-TOKEN`; CORS aceita credenciais somente de
+origens configuradas. SignalR também autentica pelo cookie, sem token na query
+string. O front-end e a API devem ser implantados no mesmo site para que as
+políticas SameSite funcionem como esperado. O log de auditoria do
+`RestaurantContext` é mantido em uma lista em memória, não persistida no banco
+nem em `localStorage`.
 
 ## Atualização da cozinha
 
@@ -154,5 +160,5 @@ transação.
 - A validação operacional no SQL Server está pendente de registro:
   [PREENCHER: resultado da validação]. Os pontos a preencher estão no fim de
   [RELATORIO_VERIFICACAO.md](RELATORIO_VERIFICACAO.md).
-- O token JWT permanece em `localStorage`; a escolha entre cookie HttpOnly e
-  mitigações para o armazenamento atual ainda depende de decisão.
+- O cookie de autenticação é `HttpOnly`, mas uma implantação em sites distintos
+  exige reavaliar `SameSite`, CORS e proteção CSRF antes de ser habilitada.
