@@ -132,6 +132,44 @@ export async function loginAPI(email: string, password: string) {
   return data;
 }
 
+export interface AuthenticatedProfile {
+  id: number;
+  nome: string;
+  role: string;
+}
+
+export async function getAuthenticatedProfileAPI(): Promise<AuthenticatedProfile | null> {
+  const response = await fetch(`${resolveApiUrl()}/autenticacao/validar`, {
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  });
+  if (response.status === 401) return null;
+
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(
+      data?.mensagem || `Erro ${response.status}: ${response.statusText}`,
+    );
+  }
+
+  const profile = data?.dados ?? data?.Dados;
+  if (
+    (data?.sucesso !== true && data?.success !== true) ||
+    !Number.isInteger(Number(profile?.id)) ||
+    Number(profile.id) <= 0 ||
+    typeof profile?.nome !== "string" ||
+    typeof profile?.role !== "string"
+  ) {
+    throw new Error("A API retornou um perfil de autenticação inválido.");
+  }
+
+  return {
+    id: Number(profile.id),
+    nome: profile.nome,
+    role: profile.role,
+  };
+}
+
 export async function logoutAPI() {
   try {
     await apiCall("/autenticacao/logout", { method: "POST" });

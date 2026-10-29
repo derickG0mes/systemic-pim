@@ -4,9 +4,14 @@ import React, {
   useState,
   useCallback,
   useEffect,
+  useRef,
   ReactNode,
 } from "react";
-import { loginAPI, logoutAPI } from "@/services/api";
+import {
+  getAuthenticatedProfileAPI,
+  loginAPI,
+  logoutAPI,
+} from "@/services/api";
 
 export type UserRole = "employee" | "admin" | "owner";
 
@@ -26,22 +31,94 @@ interface AuthContextType {
   ) => Promise<{ success: boolean; message: string }>;
   logout: () => void;
   isAuthenticated: boolean;
+  authReady: boolean;
   failedAttempts: number;
   lockedUntil: number | null;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
+function parseUserRole(role: unknown): UserRole | null {
+  return role === "employee" || role === "admin" || role === "owner"
+    ? role
+    : null;
+}
+
+function getStoredUserDetails(): Pick<User, "email" | "position"> {
+  try {
     const saved = localStorage.getItem("restaurant_user");
-    return saved ? JSON.parse(saved) : null;
-  });
+    const user = saved ? JSON.parse(saved) : null;
+    return {
+      email: typeof user?.email === "string" ? user.email : "",
+      position:
+        typeof user?.position === "string" ? user.position : "Funcionário",
+    };
+  } catch (error) {
+    console.error("Não foi possível ler os dados locais do perfil:", error);
+    localStorage.removeItem("restaurant_user");
+    return { email: "", position: "Funcionário" };
+  }
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
+  const sessionVersion = useRef(0);
+
+  useEffect(() => {
+    let active = true;
+    const validationVersion = sessionVersion.current;
+
+    void getAuthenticatedProfileAPI()
+      .then((profile) => {
+        if (!active || validationVersion !== sessionVersion.current) return;
+
+        if (!profile) {
+          setUser(null);
+          localStorage.removeItem("restaurant_user");
+          window.dispatchEvent(new Event("authSessionChanged"));
+          return;
+        }
+
+        const role = parseUserRole(profile.role);
+        if (!role) {
+          throw new Error("A API retornou um papel de usuário desconhecido.");
+        }
+
+        const userData: User = {
+          id: String(profile.id),
+          name: profile.nome,
+          role,
+          ...getStoredUserDetails(),
+        };
+        setUser(userData);
+        localStorage.setItem("restaurant_user", JSON.stringify(userData));
+        window.dispatchEvent(new Event("authSessionChanged"));
+      })
+      .catch((error: unknown) => {
+        if (!active || validationVersion !== sessionVersion.current) return;
+        console.error("Não foi possível validar a sessão no servidor:", error);
+        setUser(null);
+        localStorage.removeItem("restaurant_user");
+        window.dispatchEvent(new Event("authSessionChanged"));
+      })
+      .finally(() => {
+        if (active && validationVersion === sessionVersion.current) {
+          setAuthReady(true);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const logout = useCallback(() => {
+    sessionVersion.current += 1;
     setUser(null);
+    setAuthReady(true);
     localStorage.removeItem("restaurant_user");
     void logoutAPI().catch((error: unknown) => {
       console.error("Não foi possível encerrar a sessão no servidor:", error);
@@ -81,16 +158,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (response.sucesso === true || response.success === true) {
           const dados = response.dados || response.Dados || response;
+          const role = parseUserRole(dados.role);
+          if (!role) {
+            const error = new Error(
+              "A API não retornou um papel de usuário válido.",
+            );
+            console.error(error.message);
+            return { success: false, message: error.message };
+          }
           const userData: User = {
             id: String(dados.id || dados.idFuncionario || email),
             name: dados.nomeUsuario || dados.nomeFuncionario || dados.name || email,
             email,
-            role: dados.role || "employee",
+            role,
             position: dados.position || "Funcionário",
           };
 
+          sessionVersion.current += 1;
           localStorage.setItem("restaurant_user", JSON.stringify(userData));
           setUser(userData);
+          setAuthReady(true);
           setFailedAttempts(0);
           window.dispatchEvent(new Event("authSessionChanged"));
           return { success: true, message: "Login realizado com sucesso!" };
@@ -152,6 +239,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         logout,
         isAuthenticated: !!user,
+        authReady,
         failedAttempts,
         lockedUntil,
       }}

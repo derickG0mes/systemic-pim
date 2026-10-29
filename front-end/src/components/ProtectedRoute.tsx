@@ -13,7 +13,8 @@ export default function ProtectedRoute({
   children,
   permission,
 }: ProtectedRouteProps) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, authReady } = useAuth();
+  if (!authReady) return <div role="status">Validando sessão...</div>;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (permission && user && !hasPermission(user.role, permission))
     return <Navigate to="/orders" replace />;

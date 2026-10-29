@@ -23,6 +23,21 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+function stubProfileValidation(role: UserRole | null) {
+  const fetchMock = vi.fn().mockImplementation(async (input: RequestInfo | URL) =>
+    String(input).endsWith("/autenticacao/validar")
+      ? role
+        ? jsonResponse({
+            sucesso: true,
+            dados: { id: 1, nome: "Perfil do servidor", role },
+          })
+        : jsonResponse({ sucesso: false }, 401)
+      : jsonResponse({}),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
 function LoginProbe() {
   const { login, user, failedAttempts, lockedUntil } = useAuth();
   const [message, setMessage] = useState("");
@@ -143,6 +158,9 @@ afterEach(() => {
 describe("autenticação", () => {
   it("autentica com sucesso usando a resposta da API", async () => {
     const fetchMock = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/autenticacao/validar")) {
+        return jsonResponse({ sucesso: false }, 401);
+      }
       if (String(input).endsWith("/autenticacao/csrf")) {
         return jsonResponse({ requestToken: "csrf-de-teste" });
       }
@@ -172,8 +190,11 @@ describe("autenticação", () => {
       id: "8",
       role: "admin",
     });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[1][1]).toMatchObject({
+    const loginRequest = fetchMock.mock.calls.find(([input]) =>
+      String(input).endsWith("/autenticacao/login"),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(loginRequest?.[1]).toMatchObject({
       credentials: "include",
       headers: expect.objectContaining({ "X-CSRF-TOKEN": "csrf-de-teste" }),
     });
@@ -183,7 +204,9 @@ describe("autenticação", () => {
     const fetchMock = vi.fn().mockImplementation(async (input: RequestInfo | URL) =>
       String(input).endsWith("/autenticacao/csrf")
         ? jsonResponse({ requestToken: "csrf-de-teste" })
-        : jsonResponse({ mensagem: "Credenciais inválidas" }, 401),
+        : String(input).endsWith("/autenticacao/validar")
+          ? jsonResponse({ sucesso: false }, 401)
+          : jsonResponse({ mensagem: "Credenciais inválidas" }, 401),
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -204,9 +227,11 @@ describe("autenticação", () => {
     const fetchMock = vi
       .fn()
       .mockImplementation(async (input: RequestInfo | URL) =>
-        String(input).endsWith("/autenticacao/csrf")
-          ? jsonResponse({ requestToken: "csrf-de-teste" })
-          : jsonResponse({ mensagem: "Credenciais inválidas" }, 401),
+        String(input).endsWith("/autenticacao/validar")
+          ? jsonResponse({ sucesso: false }, 401)
+          : String(input).endsWith("/autenticacao/csrf")
+            ? jsonResponse({ requestToken: "csrf-de-teste" })
+            : jsonResponse({ mensagem: "Credenciais inválidas" }, 401),
       );
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
@@ -229,10 +254,14 @@ describe("autenticação", () => {
     expect(Number(screen.getByTestId("locked-until").textContent)).toBeGreaterThan(
       Date.now(),
     );
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    const loginRequests = () =>
+      fetchMock.mock.calls.filter(([input]) =>
+        String(input).endsWith("/autenticacao/login"),
+      );
+    expect(loginRequests()).toHaveLength(5);
 
     await user.click(loginButton);
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(loginRequests()).toHaveLength(5);
   });
 });
 
@@ -249,25 +278,46 @@ describe("rotas protegidas e permissões", () => {
     },
   );
 
-  it("redireciona usuário anônimo para login", () => {
+  it("redireciona usuário anônimo para login após validar a sessão", async () => {
+    stubProfileValidation(null);
     renderProtectedDashboard();
-    expect(screen.getByText("Login")).toBeInTheDocument();
+    expect(await screen.findByText("Login")).toBeInTheDocument();
   });
 
-  it("redireciona employee sem permissão para pedidos", () => {
+  it("redireciona employee sem permissão para pedidos", async () => {
     setAuthenticatedUser("employee");
+    stubProfileValidation("employee");
     renderProtectedDashboard();
-    expect(screen.getByText("Pedidos")).toBeInTheDocument();
+    expect(await screen.findByText("Pedidos")).toBeInTheDocument();
   });
 
   it.each(["admin", "owner"] as const)(
     "permite que %s acesse o dashboard",
-    (role) => {
+    async (role) => {
       setAuthenticatedUser(role);
+      stubProfileValidation(role);
       renderProtectedDashboard();
-      expect(screen.getByText("Dashboard protegida")).toBeInTheDocument();
+      expect(await screen.findByText("Dashboard protegida")).toBeInTheDocument();
     },
   );
+
+  it("ignora o role admin local quando o servidor confirma employee", async () => {
+    setAuthenticatedUser("admin");
+    const fetchMock = stubProfileValidation("employee");
+
+    renderProtectedDashboard();
+
+    expect(await screen.findByText("Pedidos")).toBeInTheDocument();
+    expect(screen.queryByText("Dashboard protegida")).not.toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem("restaurant_user") ?? "{}")).toMatchObject({
+      role: "employee",
+      name: "Perfil do servidor",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/autenticacao\/validar$/),
+      expect.objectContaining({ credentials: "include" }),
+    );
+  });
 });
 
 describe("pedidos e pagamentos", () => {
