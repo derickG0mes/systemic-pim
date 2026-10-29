@@ -128,6 +128,7 @@ export async function loginAPI(email: string, password: string) {
     );
   }
 
+  csrfRequestToken = null;
   return data;
 }
 
