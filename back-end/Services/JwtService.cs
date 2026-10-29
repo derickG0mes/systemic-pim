@@ -19,6 +19,7 @@ public class JwtService
 
     private readonly string _secretKey;
     private readonly int _expirationMinutes;
+    private readonly bool _secureCookie;
 
     public JwtService(IConfiguration configuration, IHostEnvironment environment)
     {
@@ -26,6 +27,7 @@ public class JwtService
         var secretKey = Environment.GetEnvironmentVariable("JWT_SECRET_KEY")
             ?? configuration["Jwt:SecretKey"];
         _secretKey = ValidateSecretKey(secretKey, environment.IsDevelopment());
+        _secureCookie = !environment.IsDevelopment();
             
         var expStr = Environment.GetEnvironmentVariable("JWT_EXPIRATION_MINUTES") 
             ?? configuration["Jwt:ExpirationMinutes"];
@@ -50,7 +52,7 @@ public class JwtService
     private CookieOptions CreateAuthCookieOptions(HttpContext context) => new()
     {
         HttpOnly = true,
-        Secure = context.Request.IsHttps,
+        Secure = _secureCookie || context.Request.IsHttps,
         SameSite = SameSiteMode.Lax,
         IsEssential = true,
         Path = "/",

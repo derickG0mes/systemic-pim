@@ -119,9 +119,12 @@ vírgulas de origens confiáveis no `.env`; o Compose usa
 `http://localhost:8080` como padrão para execução local. A configuração de
 cookie pressupõe front-end e API no mesmo site; hospedagem em sites distintos
 exige revisar SameSite, CORS e CSRF.
-O Compose local serve HTTP, então o cookie não recebe `Secure` nesse modo; não
-exponha esse ambiente sem TLS. Em produção, configure HTTPS e encaminhamento
-confiável do protocolo HTTPS ao ASP.NET Core quando houver proxy TLS.
+O Compose local serve HTTP, mas a API roda fora de Development e sempre marca o
+cookie JWT como `Secure`; por isso, o acesso local direto por HTTP não pode
+autenticar cookies. Em produção, termine TLS no proxy e envie
+`X-Forwarded-Proto: https`. Configure `FORWARDED_HEADERS_KNOWN_PROXIES` com os
+IPs confiáveis separados por vírgulas; somente esses proxies podem informar o
+protocolo encaminhado. A API processa um salto de encaminhamento.
 
 Novos hashes usam PBKDF2-SHA-256, salt aleatório de 16 bytes e 600.000
 iterações, armazenados no formato versionado

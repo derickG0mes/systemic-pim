@@ -1,7 +1,9 @@
 using System.Text;
+using System.Net;
 using Microsoft.Data.SqlClient;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
@@ -35,6 +37,28 @@ var connectionString = csBuilder.ConnectionString;
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(connectionString)
 );
+
+var forwardedProxyAddresses = builder.Configuration["FORWARDED_HEADERS_KNOWN_PROXIES"];
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 1;
+
+    if (string.IsNullOrWhiteSpace(forwardedProxyAddresses))
+        return;
+
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+    foreach (var address in forwardedProxyAddresses.Split(
+                 ',',
+                 StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+    {
+        if (!IPAddress.TryParse(address, out var proxyAddress))
+            throw new InvalidOperationException("FORWARDED_HEADERS_KNOWN_PROXIES deve conter endereços IP válidos separados por vírgula.");
+
+        options.KnownProxies.Add(proxyAddress);
+    }
+});
 
 var jwtSecretKey = JwtService.ValidateSecretKey(
     Environment.GetEnvironmentVariable("JWT_SECRET_KEY") ?? builder.Configuration["Jwt:SecretKey"],
@@ -131,6 +155,7 @@ builder.Services.AddSwaggerGen(options =>
 
 // CONSTRUIR E CONFIGURAR A APLICAÇÃO
 var app = builder.Build();
+app.UseForwardedHeaders();
 
 // Mostrar documentação Swagger em desenvolvimento
 if (app.Environment.IsDevelopment())

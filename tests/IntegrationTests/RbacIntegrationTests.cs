@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -78,6 +79,24 @@ public class RbacIntegrationTests : IClassFixture<WebApplicationFactory<Program>
         cookie.ToLowerInvariant().Should().Contain("httponly");
         cookie.ToLowerInvariant().Should().Contain("secure");
         cookie.ToLowerInvariant().Should().Contain("samesite=lax");
+    }
+
+    [Fact]
+    public void Auth_cookie_is_secure_in_production_even_when_request_is_http()
+    {
+        var productionFactory = _factory.WithWebHostBuilder(builder =>
+            builder.UseEnvironment("Production"));
+        using var scope = productionFactory.Services.CreateScope();
+        var jwtService = scope.ServiceProvider.GetRequiredService<JwtService>();
+        var context = new DefaultHttpContext();
+        context.Request.Scheme = "http";
+
+        jwtService.SetAuthCookie(context.Response, "cookie-test");
+
+        var cookie = context.Response.Headers.SetCookie.ToString().ToLowerInvariant();
+        cookie.Should().Contain("httponly");
+        cookie.Should().Contain("secure");
+        cookie.Should().Contain("samesite=lax");
     }
 
     [Fact]
