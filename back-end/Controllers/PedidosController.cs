@@ -15,7 +15,7 @@ namespace PIM3.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]  // Requer autenticação
+[Authorize(Roles = "employee,admin,owner")]
 public class PedidosController : ControllerBase
 {
     // Injeção de dependência do banco de dados
@@ -39,9 +39,9 @@ public class PedidosController : ControllerBase
         // Aqui buscamos todas as comandas com seus itens relacionados
         var pedidos = await _context.Comandas
             .Include(c => c.ItensComanda)
-            .ThenInclude(i => i.Produto)  // ✅ CRÍTICA: Incluir dados do produto nos itens
-            .Include(c => c.Mesa)  // ✅ Incluir dados da mesa
-            .Include(c => c.Cliente)  // ✅ Incluir dados do cliente
+            .ThenInclude(i => i.Produto)
+            .Include(c => c.Mesa)
+            .Include(c => c.Cliente)
             .ToListAsync();
 
         return Ok(new RespostaPadraoDTO
@@ -202,7 +202,7 @@ public class PedidosController : ControllerBase
             ItensComanda = new List<ItemComanda>()
         };
 
-        // ✅ Processar cada item do pedido
+        // Processar cada item do pedido
         foreach (var itemDTO in pedidoDTO.Itens)
         {
             if (itemDTO.QtdProduto <= 0)
@@ -286,7 +286,7 @@ public class PedidosController : ControllerBase
         if (pedido == null)
             return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Pedido não encontrado" });
 
-        // ✅ Limpar itens antigos
+        // Limpar itens antigos
         var itensAntigos = _context.ItensComanda.Where(i => i.IdComanda == id).ToList();
         foreach (var item in itensAntigos)
         {
@@ -300,7 +300,7 @@ public class PedidosController : ControllerBase
             _context.ItensComanda.Remove(item);
         }
 
-        // ✅ Adicionar novos itens
+        // Adicionar novos itens
         foreach (var itemDTO in pedidoAtualizado.Itens)
         {
             var produto = await _context.Produtos.FindAsync(itemDTO.IdProduto);

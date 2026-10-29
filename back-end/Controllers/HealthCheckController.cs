@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
 using PIM3.API.DTOs;
+using PIM3.API;
 
 namespace PIM3.API.Controllers;
 
@@ -33,12 +34,12 @@ public class HealthCheckController : ControllerBase
         return Ok(new RespostaPadraoDTO
         {
             Sucesso = true,
-            Mensagem = "API está funcionando perfeitamente! 🚀",
+            Mensagem = "API está funcionando perfeitamente!",
             Dados = new
             {
                 status = "SAUDÁVEL",
                 timestamp = DateTime.UtcNow,
-                versao = "1.0.0"
+                versao = ApiMetadata.Version
             }
         });
     }
@@ -74,9 +75,8 @@ public class HealthCheckController : ControllerBase
             return StatusCode(503, new RespostaPadraoDTO
             {
                 Sucesso = false,
-                Mensagem = "Ops! O banco de dados não está acessível.",
+                Mensagem = "Serviço temporariamente indisponível.",
                 CodigoErro = "DATABASE_INDISPONIVEL",
-                Dados = new { erro = ex.Message }
             });
         }
     }
@@ -96,10 +96,10 @@ public class HealthCheckController : ControllerBase
             {
                 nome = "Systemic API - PIM IV",
                 descricao = "API para gerenciamento de restaurante/bar",
-                versao = "2.0.0",
+                versao = ApiMetadata.Version,
                 ambiente = "Desenvolvimento",
                 desenvolvedor = "Turma de Estudantes",
-                urlBase = "http://localhost:5000"
+                urlBase = ApiMetadata.BaseUrl
             }
         });
     }

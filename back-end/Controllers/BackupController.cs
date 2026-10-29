@@ -99,9 +99,7 @@ public class BackupController : ControllerBase
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // 🔄 NOVO ENDPOINT: Restauração de Backup (aditivo, sem alterar rotas acima)
-    // ═══════════════════════════════════════════════════════════════════════════
+    // Restauração de backup.
     [Authorize(Roles = "admin,owner")]
     [HttpPost("restore")]
     [RequestSizeLimit(101 * 1024 * 1024)]

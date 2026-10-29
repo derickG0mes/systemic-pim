@@ -14,10 +14,6 @@ public class FuncionarioController : ControllerBase
     private readonly AppDbContext _context;
     private readonly JwtService _jwtService;
 
-    // Constantes para bloqueio
-    private const int MAX_LOGIN_ATTEMPTS = 5;
-    private const int LOCK_DURATION_MINUTES = 15;
-
     public FuncionarioController(AppDbContext context, JwtService jwtService)
     {
         _context = context;
@@ -64,15 +60,15 @@ public class FuncionarioController : ControllerBase
             funcionario.LoginAttempts++;
 
             // Bloqueia a conta após 5 tentativas falhadas
-            if (funcionario.LoginAttempts >= MAX_LOGIN_ATTEMPTS)
+            if (funcionario.LoginAttempts >= LoginLockoutPolicy.MaxAttempts)
             {
-                funcionario.LockedUntil = DateTime.UtcNow.AddMinutes(LOCK_DURATION_MINUTES);
+                funcionario.LockedUntil = DateTime.UtcNow.AddMinutes(LoginLockoutPolicy.DurationMinutes);
                 _context.SaveChanges();
                 return Unauthorized(new { message = "Conta bloqueada por 15 minutos devido a múltiplas tentativas falhadas" });
             }
 
             _context.SaveChanges();
-            var tentativasRestantes = MAX_LOGIN_ATTEMPTS - funcionario.LoginAttempts;
+            var tentativasRestantes = LoginLockoutPolicy.MaxAttempts - funcionario.LoginAttempts;
             return Unauthorized(new { message = $"CPF ou senha inválidos. Tentativas restantes: {tentativasRestantes}" });
         }
 
@@ -96,7 +92,7 @@ public class FuncionarioController : ControllerBase
     /// Requer autenticação
     /// </summary>
     [HttpGet]
-    [Authorize]
+    [Authorize(Roles = "admin,owner")]
     public IActionResult GetAll()
     {
         var funcionarios = _context.Funcionarios.ToList().Select(f => new FuncionarioDto
@@ -119,7 +115,7 @@ public class FuncionarioController : ControllerBase
     /// Retorna um funcionário específico
     /// </summary>
     [HttpGet("{id}")]
-    [Authorize]
+    [Authorize(Roles = "admin,owner")]
     public IActionResult GetById(int id)
     {
         var funcionario = _context.Funcionarios.FirstOrDefault(f => f.IdFuncionario == id);

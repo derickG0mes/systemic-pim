@@ -9,6 +9,7 @@ namespace PIM3.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "employee,admin,owner")]
 public class ReservaController : ControllerBase
 {
     private readonly AppDbContext _context;
@@ -19,7 +20,6 @@ public class ReservaController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize]
     public async Task<IActionResult> ListarReservas()
     {
         var reservas = await _context.Reservas
@@ -41,7 +41,6 @@ public class ReservaController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize]
     public async Task<IActionResult> CriarReserva([FromBody] CriarReservaDTO dto)
     {
         if (string.IsNullOrWhiteSpace(dto.NomeCliente))
@@ -93,7 +92,6 @@ public class ReservaController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    [Authorize]
     public async Task<IActionResult> CancelarReserva(int id)
     {
         var reserva = await _context.Reservas.FirstOrDefaultAsync(r => r.IdReserva == id);

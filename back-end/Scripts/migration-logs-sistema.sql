@@ -16,10 +16,10 @@ BEGIN
         DADO_NOVO VARCHAR(MAX) NULL
     );
     
-    PRINT '✅ Tabela LOG_SISTEMA criada com sucesso';
+    PRINT 'OK: Tabela LOG_SISTEMA criada com sucesso';
 END
 ELSE
-    PRINT '⚠️ Tabela LOG_SISTEMA já existe';
+    PRINT 'Aviso: Tabela LOG_SISTEMA já existe';
 
 GO
 
@@ -29,10 +29,10 @@ BEGIN
     CREATE NONCLUSTERED INDEX IDX_LOG_SISTEMA_DATA
     ON LOG_SISTEMA(DATA_LOG DESC);
     
-    PRINT '✅ Índice IDX_LOG_SISTEMA_DATA criado com sucesso';
+    PRINT 'OK: Índice IDX_LOG_SISTEMA_DATA criado com sucesso';
 END
 ELSE
-    PRINT '⚠️ Índice IDX_LOG_SISTEMA_DATA já existe';
+    PRINT 'Aviso: Índice IDX_LOG_SISTEMA_DATA já existe';
 
 GO
 
@@ -50,14 +50,14 @@ BEGIN
         DEFAULT (CAST(GETUTCDATE() AT TIME ZONE 'UTC' AT TIME ZONE 'E. South America Standard Time' AS DATETIME2))
         FOR DATA_LOG;
         
-        PRINT '✅ DEFAULT constraint adicionado a LOG_COMANDA.DATA_LOG';
+        PRINT 'OK: DEFAULT constraint adicionado a LOG_COMANDA.DATA_LOG';
     END
     ELSE
-        PRINT '⚠️ DEFAULT constraint já existe em LOG_COMANDA';
+        PRINT 'Aviso: DEFAULT constraint já existe em LOG_COMANDA';
 END
 
 GO
 
 PRINT '================================';
-PRINT '✅ Migração concluída com sucesso!';
+PRINT 'OK: Migração concluída com sucesso!';
 PRINT '================================';

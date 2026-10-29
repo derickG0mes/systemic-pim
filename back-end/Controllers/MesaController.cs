@@ -8,7 +8,7 @@ namespace PIM3.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = "employee,admin,owner")]
 public class MesaController : ControllerBase
 {
     private readonly AppDbContext _context;
@@ -22,7 +22,7 @@ public class MesaController : ControllerBase
     public IActionResult GetAll()
     {
         var mesas = _context.Mesas.ToList();
-        return Ok(new RespostaPadraoDTO { Sucesso = true, Dados = mesas });  // ✅ PADRONIZADO: Retorna RespostaPadraoDTO
+        return Ok(new RespostaPadraoDTO { Sucesso = true, Dados = mesas });
     }
 
     [HttpGet("{id}")]
@@ -32,10 +32,11 @@ public class MesaController : ControllerBase
         if (mesa == null)
             return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Mesa não encontrada" });
 
-        return Ok(new RespostaPadraoDTO { Sucesso = true, Dados = mesa });  // ✅ PADRONIZADO
+        return Ok(new RespostaPadraoDTO { Sucesso = true, Dados = mesa });
     }
 
     [HttpPost]
+    [Authorize(Roles = "admin,owner")]
     public async Task<IActionResult> Create([FromBody] Mesa mesa)
     {
         if (mesa.NumeroMesa <= 0 || mesa.CapacidadeMesa <= 0)
@@ -48,6 +49,7 @@ public class MesaController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Roles = "admin,owner")]
     public async Task<IActionResult> Update(int id, [FromBody] Mesa mesaAtualizada)
     {
         var mesa = _context.Mesas.FirstOrDefault(m => m.IdMesa == id);
@@ -83,6 +85,7 @@ public class MesaController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Roles = "admin,owner")]
     public async Task<IActionResult> Delete(int id)
     {
         var mesa = _context.Mesas.FirstOrDefault(m => m.IdMesa == id);

@@ -63,7 +63,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<LogSistema>()
             .HasKey(l => l.IdLogSistema);
 
-        // ✅ Mapear nomes das tabelas
+        // Mapear nomes das tabelas
         modelBuilder.Entity<Funcionario>().ToTable("FUNCIONARIO");
         modelBuilder.Entity<Cliente>().ToTable("CLIENTE");
         modelBuilder.Entity<Mesa>().ToTable("MESA");
@@ -104,7 +104,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<LogComanda>().ToTable("LOG_COMANDA");
         modelBuilder.Entity<LogSistema>().ToTable("LOG_SISTEMA");
         modelBuilder.Entity<Comanda>()
-            .ToTable("COMANDA", tb => tb.HasTrigger("trg_abrir_comanda")); // ✅ Nome correto da tabela no banco
+            .ToTable("COMANDA", tb => tb.HasTrigger("trg_abrir_comanda")); // Nome correto da tabela no banco
 
         // Configurar nomes das colunas da tabela COMANDA
         modelBuilder.Entity<Comanda>()
@@ -134,13 +134,13 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Comanda>()
             .Property(c => c.ValorTotal)
             .HasColumnName("VALOR_TOTAL")
-            .HasColumnType("decimal(18,2)"); // ✅ Configurar precisão decimal
+            .HasColumnType("decimal(18,2)"); // Configurar precisão decimal
 
         modelBuilder.Entity<ItemComanda>()
             .HasKey(ic => ic.IdItemComanda);
 
         modelBuilder.Entity<ItemComanda>()
-            .ToTable("ITEM_COMANDA", tb => tb.HasTrigger("trg_atualizar_valor_total")); // ✅ Nome correto da tabela no banco
+            .ToTable("ITEM_COMANDA", tb => tb.HasTrigger("trg_atualizar_valor_total")); // Nome correto da tabela no banco
 
         // Configurar nomes das colunas da tabela ITEM_COMANDA
         modelBuilder.Entity<ItemComanda>()
@@ -162,7 +162,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<ItemComanda>()
             .Property(ic => ic.PrecoUnitarioPago)
             .HasColumnName("PRECO_UNITARIO_PAGO")
-            .HasColumnType("decimal(18,2)"); // ✅ Configurar precisão decimal
+            .HasColumnType("decimal(18,2)"); // Configurar precisão decimal
 
         modelBuilder.Entity<DetalhePagamento>()
             .HasKey(dp => dp.IdDetalhePagamento);

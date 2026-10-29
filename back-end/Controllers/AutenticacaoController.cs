@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
@@ -31,7 +33,7 @@ public class AutenticacaoController : ControllerBase
     /// POST: api/autenticacao/login
     /// </summary>
     [HttpPost("login")]
-    [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+    [AllowAnonymous]
     public async Task<IActionResult> Login([FromBody] LoginDTO loginDTO)
     {
         // Validação básica dos dados de entrada
@@ -77,10 +79,10 @@ public class AutenticacaoController : ControllerBase
             // Incrementar tentativas de login falhadas
             funcionario.LoginAttempts++;
             
-            // Se ultrapassar 5 tentativas, bloqueia por 30 minutos
-            if (funcionario.LoginAttempts >= 5)
+            // O bloqueio usa os mesmos limites do login por CPF.
+            if (funcionario.LoginAttempts >= LoginLockoutPolicy.MaxAttempts)
             {
-                funcionario.LockedUntil = DateTime.UtcNow.AddMinutes(30);
+                funcionario.LockedUntil = DateTime.UtcNow.AddMinutes(LoginLockoutPolicy.DurationMinutes);
             }
 
             await _context.SaveChangesAsync();
@@ -114,13 +116,26 @@ public class AutenticacaoController : ControllerBase
     /// GET: api/autenticacao/validar
     /// </summary>
     [HttpGet("validar")]
+    [Authorize]
     public IActionResult Validar()
     {
+        var idClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var nome = User.FindFirstValue(ClaimTypes.Name);
+        var role = User.FindFirstValue(ClaimTypes.Role);
+        if (!int.TryParse(idClaim, out var id) || string.IsNullOrWhiteSpace(nome) || string.IsNullOrWhiteSpace(role))
+        {
+            return Unauthorized(new RespostaPadraoDTO
+            {
+                Sucesso = false,
+                Mensagem = "Token inválido."
+            });
+        }
+
         return Ok(new RespostaPadraoDTO
         {
             Sucesso = true,
             Mensagem = "Token válido!",
-            Dados = new { autenticado = true }
+            Dados = new { id, nome, role }
         });
     }
 }

@@ -8,7 +8,7 @@ namespace PIM3.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = "admin,owner")]
 public class ClienteController : ControllerBase
 {
     private readonly AppDbContext _context;
@@ -22,7 +22,7 @@ public class ClienteController : ControllerBase
     public IActionResult GetAll()
     {
         var clientes = _context.Clientes.ToList();
-        return Ok(new RespostaPadraoDTO { Sucesso = true, Dados = clientes });  // ✅ PADRONIZADO
+        return Ok(new RespostaPadraoDTO { Sucesso = true, Dados = clientes });
     }
 
     [HttpGet("{id}")]
@@ -32,7 +32,7 @@ public class ClienteController : ControllerBase
         if (cliente == null)
             return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Cliente não encontrado" });
 
-        return Ok(new RespostaPadraoDTO { Sucesso = true, Dados = cliente });  // ✅ PADRONIZADO
+        return Ok(new RespostaPadraoDTO { Sucesso = true, Dados = cliente });
     }
 
     [HttpPost]

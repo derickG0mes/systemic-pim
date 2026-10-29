@@ -9,7 +9,7 @@ namespace PIM3.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = "admin,owner")]
 public class FaturamentoController : ControllerBase
 {
     private readonly AppDbContext _context;

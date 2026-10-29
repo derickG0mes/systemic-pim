@@ -7,7 +7,7 @@ namespace PIM3.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = "employee,admin,owner")]
 public class FormaPagamentoController : ControllerBase
 {
     private readonly AppDbContext _context;
@@ -21,7 +21,7 @@ public class FormaPagamentoController : ControllerBase
     public IActionResult GetAll()
     {
         var formas = _context.FormasPagamento.ToList();
-        return Ok(new { sucesso = true, dados = formas });  // ✅ CRÍTICA: Estrutura consistente
+        return Ok(new { sucesso = true, dados = formas });
     }
 
     [HttpGet("{id}")]
@@ -31,10 +31,11 @@ public class FormaPagamentoController : ControllerBase
         if (forma == null)
             return NotFound(new { sucesso = false, mensagem = "Forma de pagamento não encontrada" });
 
-        return Ok(new { sucesso = true, dados = forma });  // ✅ Estrutura consistente
+        return Ok(new { sucesso = true, dados = forma });
     }
 
     [HttpPost]
+    [Authorize(Roles = "admin,owner")]
     public async Task<IActionResult> Create([FromBody] FormaPagamento forma)
     {
         if (string.IsNullOrEmpty(forma.NomeFormaPagamento))
@@ -47,6 +48,7 @@ public class FormaPagamentoController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Roles = "admin,owner")]
     public async Task<IActionResult> Update(int id, [FromBody] FormaPagamento formaAtualizada)
     {
         var forma = _context.FormasPagamento.FirstOrDefault(f => f.IdFormaPagamento == id);
@@ -62,6 +64,7 @@ public class FormaPagamentoController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Roles = "admin,owner")]
     public async Task<IActionResult> Delete(int id)
     {
         var forma = _context.FormasPagamento.FirstOrDefault(f => f.IdFormaPagamento == id);

@@ -8,7 +8,7 @@ namespace PIM3.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = "employee,admin,owner")]
 public class ProdutoController : ControllerBase
 {
     private readonly AppDbContext _context;
@@ -36,6 +36,7 @@ public class ProdutoController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "admin,owner")]
     public async Task<IActionResult> Create([FromBody] ProdutoDto dto)
     {
         if (string.IsNullOrEmpty(dto.NomeProduto))
@@ -62,6 +63,7 @@ public class ProdutoController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Roles = "admin,owner")]
     public async Task<IActionResult> Update(int id, [FromBody] ProdutoDto dto)
     {
         var produto = _context.Produtos.FirstOrDefault(p => p.IdProduto == id);
@@ -86,6 +88,7 @@ public class ProdutoController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Roles = "admin,owner")]
     public async Task<IActionResult> Delete(int id)
     {
         var produto = _context.Produtos.FirstOrDefault(p => p.IdProduto == id);
@@ -101,6 +104,7 @@ public class ProdutoController : ControllerBase
     }
 
     [HttpPut("{id}/ajustar-estoque")]
+    [Authorize(Roles = "admin,owner")]
     public async Task<IActionResult> AjustarEstoque(int id, [FromBody] AjusteEstoqueDTO ajuste)
     {
         if (ajuste == null || string.IsNullOrEmpty(ajuste.Motivo))

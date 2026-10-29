@@ -12,7 +12,7 @@ namespace PIM3.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = "employee,admin,owner")]
 public class ComandaController : ControllerBase
 {
     private readonly AppDbContext _context;
@@ -38,7 +38,7 @@ public class ComandaController : ControllerBase
             .ThenInclude(dp => dp.FormaPagamento)
             .ToList();
 
-        return Ok(new { sucesso = true, dados = comandas });  // ✅ CRÍTICA: Estrutura consistente
+        return Ok(new { sucesso = true, dados = comandas });
     }
 
     [HttpGet("{id}")]
@@ -54,7 +54,7 @@ public class ComandaController : ControllerBase
         if (comanda == null)
             return NotFound(new { sucesso = false, mensagem = "Comanda não encontrada" });
 
-        return Ok(new { sucesso = true, dados = comanda });  // ✅ Estrutura consistente
+        return Ok(new { sucesso = true, dados = comanda });
     }
 
     /// <summary>
@@ -62,7 +62,7 @@ public class ComandaController : ControllerBase
     /// Endpoint específico para o frontend atualizar a UI
     /// </summary>
     [HttpGet("abertas/todas")]
-    [Authorize]  // ✅ CRÍTICA: Exigir autenticação em vez de AllowAnonymous
+    [Authorize]
     public IActionResult GetAbertasComTotais()
     {
 

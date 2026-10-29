@@ -8,12 +8,13 @@ using PIM3.API.Data;
 using PIM3.API.Helpers;
 using PIM3.API.Hubs;
 using PIM3.API.Services;
+using PIM3.API;
 
 // Carregar variáveis de ambiente do arquivo .env
 EnvLoader.Load(Path.Combine(Directory.GetCurrentDirectory(), ".env"));
 
 var builder = WebApplication.CreateBuilder(args);
-builder.WebHost.UseUrls("http://0.0.0.0:5050");
+builder.WebHost.UseUrls(ApiMetadata.ListenUrl);
 
 var dbServer = Environment.GetEnvironmentVariable("DB_SERVER") ?? "localhost";
 var dbName = Environment.GetEnvironmentVariable("DB_NAME") ?? "DB_RESTAURANTE";
@@ -34,12 +35,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(connectionString)
 );
 
-var jwtSecretKey = Environment.GetEnvironmentVariable("JWT_SECRET_KEY") ?? builder.Configuration["Jwt:SecretKey"];
-
-if (string.IsNullOrWhiteSpace(jwtSecretKey) || jwtSecretKey.Length < 32)
-{
-    throw new InvalidOperationException("Falha na inicialização: A variável de ambiente JWT_SECRET_KEY não foi definida ou possui menos de 32 caracteres. Configure uma chave segura no arquivo .env antes de executar a aplicação.");
-}
+var jwtSecretKey = JwtService.ValidateSecretKey(
+    Environment.GetEnvironmentVariable("JWT_SECRET_KEY") ?? builder.Configuration["Jwt:SecretKey"],
+    builder.Environment.IsDevelopment());
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -99,9 +97,7 @@ builder.Services.AddCors(options =>
     });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// 5️⃣  CONFIGURAÇÃO DE CONTROLLERS E DOCUMENTAÇÃO
-// ═══════════════════════════════════════════════════════════════════════════════
+// 5. CONFIGURAÇÃO DE CONTROLLERS E DOCUMENTAÇÃO
 builder.Services.AddControllers().AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
@@ -113,14 +109,13 @@ builder.Services.AddSwaggerGen(options =>
     options.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "Systemic API - PIM IV",
-        Version = "2.0",
+        Version = ApiMetadata.Version,
         Description = "API para gerenciamento de restaurantes e operações do Systemic."
     });
+    options.AddServer(new OpenApiServer { Url = ApiMetadata.BaseUrl });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// 🚀 CONSTRUIR E CONFIGURAR A APLICAÇÃO
-// ═══════════════════════════════════════════════════════════════════════════════
+// CONSTRUIR E CONFIGURAR A APLICAÇÃO
 var app = builder.Build();
 
 // Mostrar documentação Swagger em desenvolvimento
@@ -129,7 +124,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Systemic API - PIM IV v2.0");
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", $"Systemic API - PIM IV v{ApiMetadata.Version}");
         c.RoutePrefix = "swagger";
     });
 }
@@ -145,24 +140,22 @@ else
 }
 app.UseAuthentication();
 
-// 🔷 Usar autorização
+// Usar autorização
 app.UseAuthorization();
 
-// 🔷 Redirecionar HTTP para HTTPS (segurança) - apenas em produção
+// Redirecionar HTTP para HTTPS (segurança) - apenas em produção
 if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
 }
 
-// 🔷 Mapear todos os controllers
+// Mapear todos os controllers
 app.MapControllers();
 
-// 🔷 Mapear SignalR Hub para comunicação em tempo real
+// Mapear SignalR Hub para comunicação em tempo real
 app.MapHub<CozinhaHub>("/hubs/cozinha");
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// 🗄️  VERIFICAR CONEXÃO COM O BANCO DE DADOS
-// ═══════════════════════════════════════════════════════════════════════════════
+// VERIFICAR CONEXÃO COM O BANCO DE DADOS
 app.Lifetime.ApplicationStarted.Register(() =>
 {
     _ = Task.Run(async () =>
@@ -181,9 +174,8 @@ app.Lifetime.ApplicationStarted.Register(() =>
     });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// 🎯 INICIAR A APLICAÇÃO
+// INICIAR A APLICAÇÃO
 // ═══════════════════════════════════════════════════════════════
 
-Console.WriteLine("Systemic API - PIM IV iniciada em http://localhost:5050 (Swagger: /swagger)");
+Console.WriteLine($"Systemic API - PIM IV iniciada em {ApiMetadata.BaseUrl} (Swagger: /swagger)");
 await app.RunAsync();

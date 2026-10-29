@@ -10,7 +10,7 @@ namespace PIM3.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = "admin,owner")]
 public class LogController : ControllerBase
 {
     private readonly AppDbContext _context;
