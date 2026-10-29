@@ -26,6 +26,7 @@ public class ForwardedHeadersTests
             Options.Create(options));
         var trustedContext = new DefaultHttpContext();
         trustedContext.Connection.RemoteIpAddress = IPAddress.Loopback;
+        trustedContext.Request.Scheme = "http";
         trustedContext.Request.Headers["X-Forwarded-Proto"] = "https";
 
         await middleware.Invoke(trustedContext);
@@ -34,6 +35,7 @@ public class ForwardedHeadersTests
 
         var untrustedContext = new DefaultHttpContext();
         untrustedContext.Connection.RemoteIpAddress = IPAddress.Parse("192.0.2.10");
+        untrustedContext.Request.Scheme = "http";
         untrustedContext.Request.Headers["X-Forwarded-Proto"] = "https";
 
         await middleware.Invoke(untrustedContext);
