@@ -40,7 +40,7 @@ export default function OrdersPage() {
   const [filter, setFilter] = useState<"all" | OrderStatus>("all");
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // ✅ Mesas com comandas abertas
+  // Mesas com comandas abertas
   const availableTables = useMemo(() => {
     const openTables = tabs
       .filter((tab) => tab.status === "open")
@@ -139,7 +139,7 @@ export default function OrdersPage() {
   };
 
   const submitOrder = () => {
-    // ✅ Validações robustas
+    // Validações robustas
     if (!selectedTable) {
       alert("Selecione uma mesa com comanda aberta");
       return;
@@ -164,7 +164,7 @@ export default function OrdersPage() {
       return;
     }
 
-    // ✅ Calcular total com precisão
+    // Calcular total com precisão
     const total = cart.reduce(
       (sum, item) => sum + item.price * item.quantity,
       0,
@@ -183,7 +183,7 @@ export default function OrdersPage() {
         items: cart,
         status: "preparing",
         createdBy: user?.name || "Sistema",
-        total, // ✅ Garantir que total é sempre passado
+        total, // Garantir que total é sempre passado
       });
     }
 
@@ -205,7 +205,10 @@ export default function OrdersPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl font-bold">Pedidos</h1>
         <div className="flex gap-2 flex-wrap">
-          <Select value={filter} onValueChange={(v: any) => setFilter(v)}>
+          <Select
+            value={filter}
+            onValueChange={(value) => setFilter(value as "all" | OrderStatus)}
+          >
             <SelectTrigger className="w-40">
               <SelectValue />
             </SelectTrigger>
@@ -239,7 +242,7 @@ export default function OrdersPage() {
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
-                {/* ✅ Seletor visual de mesas com comanda aberta */}
+                {/* Seletor visual de mesas com comanda aberta */}
                 <div>
                   <label className="text-sm font-semibold mb-2 flex items-center gap-2">
                     <MapPin className="h-4 w-4" />

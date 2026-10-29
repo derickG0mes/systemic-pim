@@ -3,7 +3,9 @@ import { useAccessibility } from "@/contexts/AccessibilityContext";
 
 declare global {
   interface Window {
-    VLibras?: any;
+    VLibras?: {
+      Widget: new (url: string) => object;
+    };
   }
 }
 

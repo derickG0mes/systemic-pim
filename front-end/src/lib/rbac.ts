@@ -1,6 +1,6 @@
 import { UserRole } from "@/contexts/AuthContext";
 
-type Permission =
+export type Permission =
   | "dashboard"
   | "orders"
   | "tabs"

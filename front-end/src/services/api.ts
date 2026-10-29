@@ -142,14 +142,14 @@ export async function getFuncionarios() {
   return apiCall("/funcionario");
 }
 
-export async function createFuncionario(data: any) {
+export async function createFuncionario<T extends object>(data: T) {
   return apiCall("/funcionario", {
     method: "POST",
     body: JSON.stringify(data),
   });
 }
 
-export async function updateFuncionario(id: string, data: any) {
+export async function updateFuncionario<T extends object>(id: string, data: T) {
   return apiCall(`/funcionario/${id}`, {
     method: "PUT",
     body: JSON.stringify(data),
@@ -168,14 +168,14 @@ export async function getProdutos() {
   return apiCall("/produto");
 }
 
-export async function createProduto(data: any) {
+export async function createProduto<T extends object>(data: T) {
   return apiCall("/produto", {
     method: "POST",
     body: JSON.stringify(data),
   });
 }
 
-export async function updateProduto(id: string, data: any) {
+export async function updateProduto<T extends object>(id: string, data: T) {
   return apiCall(`/produto/${id}`, {
     method: "PUT",
     body: JSON.stringify(data),
@@ -196,17 +196,17 @@ export async function ajustarEstoque(
 // PEDIDOS
 // ============================================
 
-export async function createPedido(data: any) {
-  console.log("📡 [API] POST /pedidos - Enviando:", data);
+export async function createPedido<T extends object>(data: T) {
+  console.log("[API] POST /pedidos - Enviando:", data);
   const response = await apiCall("/pedidos", {
     method: "POST",
     body: JSON.stringify(data),
   });
-  console.log("📡 [API] POST /pedidos - Resposta:", response);
+  console.log("[API] POST /pedidos - Resposta:", response);
   return response;
 }
 
-export async function updatePedido(id: string, data: any) {
+export async function updatePedido<T extends object>(id: string, data: T) {
   return apiCall(`/pedidos/${id}`, {
     method: "PUT",
     body: JSON.stringify(data),
@@ -237,9 +237,9 @@ export async function getMesas() {
 // ============================================
 
 export async function getComandas() {
-  console.log("📡 [API] GET /comanda");
+  console.log("[API] GET /comanda");
   const response = await apiCall("/comanda");
-  console.log("📡 [API] GET /comanda - Resposta:", response);
+  console.log("[API] GET /comanda - Resposta:", response);
   return response;
 }
 
@@ -249,7 +249,7 @@ export async function getLogSistema(pagina = 1, tamanho = 100, filtro = "") {
   return apiCall(`/log/sistema?${params.toString()}`);
 }
 
-export async function createComanda(data: any) {
+export async function createComanda<T extends object>(data: T) {
   return apiCall("/comanda", {
     method: "POST",
     body: JSON.stringify(data),
@@ -284,7 +284,7 @@ export async function getReservas() {
   return apiCall("/reserva");
 }
 
-export async function createReserva(data: any) {
+export async function createReserva<T extends object>(data: T) {
   return apiCall("/reserva", {
     method: "POST",
     body: JSON.stringify(data),
@@ -385,5 +385,3 @@ export async function baixarBackup(nomeArquivo: string) {
   window.URL.revokeObjectURL(url);
   document.body.removeChild(a);
 }
-
-

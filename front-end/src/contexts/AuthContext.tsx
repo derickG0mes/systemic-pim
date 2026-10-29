@@ -118,8 +118,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           success: false,
           message: `Credenciais inválidas. ${5 - newAttempts} tentativas restantes.`,
         };
-      } catch (error: any) {
-        const msg: string = error?.message ?? "";
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : "";
 
         // Erro de rede (fetch falhou antes de receber resposta)
         if (error instanceof TypeError || msg.includes("Failed to fetch") || msg.includes("NetworkError")) {

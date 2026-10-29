@@ -19,7 +19,7 @@ import AuditPage from "@/pages/AuditPage";
 import BackupPage from "@/pages/BackupPage";
 import AccessibilityPage from "@/pages/AccessibilityPage";
 import NotFound from "@/pages/NotFound";
-import { hasPermission } from "@/lib/rbac";
+import { hasPermission, Permission } from "@/lib/rbac";
 
 const queryClient = new QueryClient();
 
@@ -28,11 +28,11 @@ function ProtectedRoute({
   permission,
 }: {
   children: React.ReactNode;
-  permission?: string;
+  permission?: Permission;
 }) {
   const { user, isAuthenticated } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (permission && user && !hasPermission(user.role, permission as any))
+  if (permission && user && !hasPermission(user.role, permission))
     return <Navigate to="/orders" replace />;
   return <AppLayout>{children}</AppLayout>;
 }
