@@ -60,9 +60,19 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     }
 });
 
-var jwtSecretKey = JwtService.ValidateSecretKey(
-    Environment.GetEnvironmentVariable("JWT_SECRET_KEY") ?? builder.Configuration["Jwt:SecretKey"],
-    builder.Environment.IsDevelopment());
+string jwtSecretKey;
+try
+{
+    jwtSecretKey = JwtService.ValidateSecretKey(
+        Environment.GetEnvironmentVariable("JWT_SECRET_KEY") ?? builder.Configuration["Jwt:SecretKey"],
+        builder.Environment.IsDevelopment());
+}
+catch (InvalidOperationException exception)
+{
+    Console.Error.WriteLine(exception.Message);
+    Environment.ExitCode = 1;
+    return;
+}
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
