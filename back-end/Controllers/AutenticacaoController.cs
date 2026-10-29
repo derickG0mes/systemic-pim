@@ -95,7 +95,10 @@ public class AutenticacaoController : ControllerBase
         }
 
         // Verificamos a senha usando hash
-        if (!PasswordHashService.VerifyPassword(loginDTO.Senha, funcionario.PasswordFuncionario))
+        if (!PasswordHashService.VerifyPassword(
+                loginDTO.Senha,
+                funcionario.PasswordFuncionario,
+                out var upgradedHash))
         {
             // Incrementar tentativas de login falhadas
             funcionario.LoginAttempts++;
@@ -119,6 +122,8 @@ public class AutenticacaoController : ControllerBase
         // Reset das tentativas de login (login bem-sucedido)
         funcionario.LoginAttempts = 0;
         funcionario.LockedUntil = null;
+        if (upgradedHash != null)
+            funcionario.PasswordFuncionario = upgradedHash;
         await _context.SaveChangesAsync();
 
         // Geramos o token JWT

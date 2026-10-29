@@ -123,8 +123,11 @@ O Compose local serve HTTP, então o cookie não recebe `Secure` nesse modo; nã
 exponha esse ambiente sem TLS. Em produção, configure HTTPS e encaminhamento
 confiável do protocolo HTTPS ao ASP.NET Core quando houver proxy TLS.
 
-As senhas são verificadas com PBKDF2, SHA-256, salt aleatório de 16 bytes,
-10.000 iterações e saída derivada de 20 bytes. Não se usa bcrypt. O JWT tem
+Novos hashes usam PBKDF2-SHA-256, salt aleatório de 16 bytes e 600.000
+iterações, armazenados no formato versionado
+`pbkdf2-sha256$v1$<iterações>$<salt-base64>$<hash-base64>`. Hashes legados
+Base64 (10.000 iterações, saída de 20 bytes) continuam válidos; após login
+bem-sucedido por email ou CPF, são substituídos pelo formato atual. O JWT tem
 validade padrão de 480 minutos, ajustável por `JWT_EXPIRATION_MINUTES` (ou
 `Jwt:ExpirationMinutes`).
 
@@ -133,9 +136,10 @@ validade padrão de 480 minutos, ajustável por `JWT_EXPIRATION_MINUTES` (ou
 - O estado adicional de tentativas do `AuthContext` existe apenas em memória
   no navegador; o bloqueio por email é controlado também pelo servidor.
 
-Não há credenciais de teste publicadas aqui: o seed SQL contém contas e hashes
-PBKDF2, mas não uma senha em texto claro cuja correspondência com esses hashes
-tenha sido confirmada.
+O seed SQL de teste contém contas com hashes PBKDF2 legados e nenhuma senha em
+texto claro. Um login válido nessas contas atualiza o hash automaticamente;
+nenhuma senha de teste é publicada porque não há uma senha em texto claro
+confirmada para esses hashes.
 
 ## Regras de acesso
 

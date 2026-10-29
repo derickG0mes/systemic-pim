@@ -55,7 +55,10 @@ public class FuncionarioController : ControllerBase
         }
 
         // Verifica a senha
-        if (!PasswordHashService.VerifyPassword(request.Senha, funcionario.PasswordFuncionario))
+        if (!PasswordHashService.VerifyPassword(
+                request.Senha,
+                funcionario.PasswordFuncionario,
+                out var upgradedHash))
         {
             funcionario.LoginAttempts++;
 
@@ -75,6 +78,8 @@ public class FuncionarioController : ControllerBase
         // Login bem-sucedido - reseta tentativas
         funcionario.LoginAttempts = 0;
         funcionario.LockedUntil = null;
+        if (upgradedHash != null)
+            funcionario.PasswordFuncionario = upgradedHash;
         _context.SaveChanges();
 
         var token = _jwtService.GenerateToken(funcionario.IdFuncionario, funcionario.NomeFuncionario, funcionario.CpfFuncionario, funcionario.Role);
