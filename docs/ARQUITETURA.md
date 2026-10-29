@@ -1,9 +1,10 @@
 # Arquitetura - Systemic - PIM IV
 
 O sistema é composto por uma API ASP.NET Core .NET 10, um cliente React 18 com
-TypeScript/Vite e SQL Server. O fluxo principal é navegador -> API REST
-autenticada por JWT -> Entity Framework Core -> SQL Server. Para atualizações
-da cozinha, a interface também se conecta ao hub SignalR.
+TypeScript/Vite, React Router 7 (`react-router`) e SQL Server. O fluxo principal
+é navegador -> API REST autenticada por JWT -> Entity Framework Core -> SQL
+Server. Para atualizações da cozinha, a interface também se conecta ao hub
+SignalR.
 
 ## Estrutura real
 
@@ -40,7 +41,7 @@ tests/                       Testes automatizados .NET
 
 ## API e persistência
 
-Há 13 controllers e 67 ações HTTP. As rotas, métodos, regras de autenticação,
+Há 13 controllers e 69 ações HTTP. As rotas, métodos, regras de autenticação,
 corpos e respostas estão listados em [CONFIGURACAO.md](CONFIGURACAO.md).
 `AppDbContext` mapeia as entidades para o SQL Server. Os nomes físicos das
 tabelas e colunas são os definidos nos scripts SQL; nomes de namespaces e
@@ -110,21 +111,37 @@ três perfis para suportar as operações de atendimento.
 
 O login por email envia `email` e `password` a
 `POST /api/autenticacao/login`; o endpoint de funcionário por CPF continua
-disponível em `POST /api/funcionario/login`. Os dois verificam hashes PBKDF2
-com SHA-256. A emissão do JWT usa validade padrão de 480 minutos. Os dois
+disponível em `POST /api/funcionario/login`. Os dois verificam hashes
+PBKDF2-SHA-256. Hashes novos usam salt aleatório de 16 bytes e 600.000
+iterações, no formato versionado `pbkdf2-sha256$v1$...`. Hashes legados
+Base64 (10.000 iterações, saída de 20 bytes) continuam válidos e são
+substituídos pelo formato atual após login bem-sucedido. A emissão do JWT usa
+validade padrão de 480 minutos. Os dois
 controllers usam a política única `LoginLockoutPolicy`: bloqueio após 5
 tentativas por 15 minutos. O `AuthContext` também mantém um bloqueio temporário
 em memória no navegador; consulte [CONFIGURACAO.md](CONFIGURACAO.md).
 
-O JWT é armazenado em cookie `HttpOnly`, `SameSite=Lax` e `Secure` em conexões
-HTTPS; o JavaScript não consegue ler o token. O navegador mantém somente
-dados não sensíveis do usuário em `localStorage`. Requisições mutáveis usam
-token antiforgery no header `X-CSRF-TOKEN`; CORS aceita credenciais somente de
-origens configuradas. SignalR também autentica pelo cookie, sem token na query
-string. O front-end e a API devem ser implantados no mesmo site para que as
-políticas SameSite funcionem como esperado. O log de auditoria do
+O JWT é armazenado em cookie `systemic_auth`, `HttpOnly` e `SameSite=Lax`.
+`Secure` é sempre definido fora de Development, mesmo quando a requisição
+chega por HTTP ao proxy; em Development depende também de HTTPS. O navegador
+mantém somente dados auxiliares não sensíveis do perfil em `localStorage`.
+Na inicialização, `AuthContext` busca `GET /api/autenticacao/validar` e usa a
+role das claims retornada pelo servidor como fonte de verdade para
+`ProtectedRoute` e RBAC. Requisições mutáveis usam token antiforgery no header
+`X-CSRF-TOKEN`; CORS aceita credenciais somente de origens configuradas.
+SignalR autentica pelo cookie. O front-end e a API devem ser implantados no
+mesmo site para que SameSite funcione como esperado. O log de auditoria do
 `RestaurantContext` é mantido em uma lista em memória, não persistida no banco
 nem em `localStorage`.
+
+`Program.cs` processa `X-Forwarded-For` e `X-Forwarded-Proto` antes do
+middleware de autenticação, com um salto de encaminhamento. Configure
+`FORWARDED_HEADERS_KNOWN_PROXIES` com os IPs confiáveis do proxy TLS.
+`front-end/nginx.conf` define CSP, `X-Content-Type-Options`,
+`Referrer-Policy`, `X-Frame-Options` e `Permissions-Policy`. A CSP permite
+conexão à API e ao WebSocket SignalR, além dos recursos do VLibras. A delegação
+de acelerômetro/giroscópio ao iframe externo do widget não foi comprovada e
+permanece uma limitação do fornecedor/iframe.
 
 ## Atualização da cozinha
 
@@ -141,6 +158,13 @@ listar os arquivos. O diretório é configurável por `BACKUP_PATH`; o padrão �
 `/app/backups` fica no volume nomeado persistente `backup_data`. A restauração recebe ZIP,
 valida entradas e limites, gera um backup de segurança e executa o script em
 transação.
+
+## Validação automatizada
+
+Na validação mais recente, `dotnet test tests/back-end.Tests.csproj` aprovou
+46 testes e `npm test -- --run` aprovou 14 testes em 2 arquivos. O front-end
+registrou 45,03% de statements e 46,75% de linhas com cobertura V8; o lint
+terminou com zero erros e 7 avisos. A cobertura front-end permanece parcial.
 
 ## Limitações conhecidas
 

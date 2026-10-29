@@ -13,6 +13,12 @@ type LoginData = {
   role: string;
 };
 
+type AuthenticatedProfile = {
+  id: number;
+  nome: string;
+  role: string;
+};
+
 type Produto = {
   idProduto: number;
   nomeProduto: string;
@@ -66,10 +72,18 @@ export async function loginPorEmail(
   email: string,
   password: string,
 ): Promise<ApiEnvelope<LoginData>> {
-  return request<ApiEnvelope<LoginData>>("/autenticacao/login", {
+  const response = await request<ApiEnvelope<LoginData>>("/autenticacao/login", {
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
+  csrfRequestToken = null;
+  return response;
+}
+
+export async function validarSessao(): Promise<
+  ApiEnvelope<AuthenticatedProfile>
+> {
+  return request<ApiEnvelope<AuthenticatedProfile>>("/autenticacao/validar");
 }
 
 export async function logout(): Promise<ApiEnvelope<null>> {

@@ -33,13 +33,13 @@ parcial.
 
 | # | Item do relatório original | Status | Evidência atual | Observação |
 |---:|---|---|---|---|
-| 1 | Seção 2: total de 136 arquivos e inventário por diretório | DESATUALIZADO | `git ls-files` conta 147 arquivos; `back-end/Controllers/` contém 13 controllers; `back-end/Models/` contém 12 modelos; `back-end/Scripts/` contém 6 scripts SQL; `front-end/src/pages/` contém 12 arquivos. | A contagem e a estrutura descritas não são o estado atual. A quantidade inclui documentos/configurações que não existiam na auditoria. |
+| 1 | Seção 2: total de 136 arquivos e inventário por diretório | DESATUALIZADO | `git ls-files` conta 155 arquivos; `back-end/Controllers/` contém 13 controllers; `back-end/Models/` contém 12 modelos; `back-end/Scripts/` contém 6 scripts SQL; `front-end/src/pages/` contém 12 arquivos. | A contagem e a estrutura descritas não são o estado atual. A quantidade inclui documentos/configurações que não existiam na auditoria. |
 | 2 | Seção 2: números de linhas dos arquivos auditados | DESATUALIZADO | `Program.cs`, `AppDbContext.cs`, controllers e páginas foram alterados desde as contagens informadas. | As linhas citadas no arquivo anexado não devem ser usadas como referência atual. |
 | 3 | Seção 2: lista de arquivos que o auditor afirma ter lido integralmente | NÃO VERIFICÁVEL | Evidência de leitura histórica não pode ser recuperada do código-fonte. | Não é possível confirmar o processo realizado pelo autor do relatório. |
 | 4 | Seções 3 e 4A: arquitetura em camadas, controllers acessam DbContext diretamente e não há repositório | CONFIRMADO | `back-end/Controllers/*.cs` injeta `AppDbContext`; `back-end/Program.cs` registra os serviços; não há camada Repository no projeto. | A observação arquitetural continua válida. |
 | 5 | Seções 3 e 4B: 15 rotas/telas e telas duplicadas de estoque/funcionários | DESATUALIZADO | `front-end/src/App.tsx` declara as rotas atuais; `front-end/src/pages/` contém `InventoryPage.tsx` e `UsersPage.tsx`, sem as antigas páginas duplicadas citadas. | Existem 10 rotas de páginas protegidas, além de login, redirecionamentos e rota de fallback. |
 | 6 | Seções 3 e 4B: matriz de permissões do front-end | CONFIRMADO | `front-end/src/lib/rbac.ts` define `employee`, `admin` e `owner`; `front-end/src/App.tsx` aplica `ProtectedRoute`. O back-end agora aplica os perfis correspondentes nos controllers. | A matriz de navegação está alinhada com os controles de autorização do servidor. |
-| 7 | Seções 3 e 4C: somente 33 endpoints e tabela de rotas como completa | INCORRETO | Os atributos HTTP nos 13 controllers definem 67 ações/rotas. | A tabela do relatório não contém todos os endpoints e contém rotas/perfis já superados. A tabela atualizada está em [CONFIGURACAO.md](./CONFIGURACAO.md). |
+| 7 | Seções 3 e 4C: somente 33 endpoints e tabela de rotas como completa | INCORRETO | Os atributos HTTP nos 13 controllers definem 69 ações/rotas; a tabela em [CONFIGURACAO.md](./CONFIGURACAO.md) tem 69 linhas de endpoints. | A tabela do relatório original não contém todos os endpoints e contém rotas/perfis já superados. |
 | 8 | Seção 4C: operações de criação/alteração de funcionário permitem qualquer perfil autenticado | DESATUALIZADO | `FuncionarioController.cs` exige `admin,owner` para listar, consultar, criar, atualizar e excluir funcionários. | O acesso às consultas também foi restringido a `admin,owner` no follow-up. Um administrador não pode criar perfil `owner`; essa ação exige que o ator também seja `owner`. |
 | 9 | Seções 3, 4C e 7: o front-end não consome SignalR | DESATUALIZADO | `RestaurantContext.tsx:312-319` usa `useSignalR`; o pacote está em `front-end/package.json`; o servidor publica os eventos em `back-end/Hubs/CozinhaHub.cs`. | O cliente ainda mantém polling de contingência a cada 60 segundos quando o hub está habilitado, mas desconectado. |
 | 10 | Seções 3 e 4D: não existe aplicativo mobile nativo, híbrido ou PWA | CONFIRMADO | Não há projeto mobile, manifest PWA ou service worker; a aplicação é React web responsiva. | O layout responsivo não equivale a um aplicativo mobile/PWA. |
@@ -47,7 +47,7 @@ parcial.
 | 12 | Seções 3 e 4E: não existem procedures nem views | INCORRETO | `02-procedures-views.sql` declara 3 procedures e 2 views. | Objetos encontrados: `sp_fechar_comanda`, `sp_relatorio_faturamento`, `sp_ajustar_estoque`, `vw_comandas_abertas` e `vw_produtos_mais_vendidos`. |
 | 13 | Seções 3, 4F e 7: não há Docker nem CI | DESATUALIZADO | `docker-compose.yml`, `back-end/Dockerfile`, `front-end/Dockerfile` e `.github/workflows/ci.yml` existem; `docker compose build front-end` passou. | O build da imagem do front-end foi executado; o Compose completo e o job remoto de CI não foram iniciados nesta sessão. |
 | 14 | Seção 4F: caminho de backup é fixo em `C:\Backups\Systemic` | DESATUALIZADO | `BackupService.cs` usa `BACKUP_PATH` ou `AppContext.BaseDirectory/backups`; o Compose configura `/app/backups` em `backup_data`. | A configuração é ajustável e o Compose persiste o diretório configurado em volume nomeado. |
-| 15 | Seção 4G: há somente 3 testes de back-end e 1 teste dummy no front-end | DESATUALIZADO | `dotnet test tests/back-end.Tests.csproj` executou 36 testes; `npm test -- --run --coverage` executou 12 testes que cobrem autenticação, RBAC, pedidos e pagamento. | A cobertura front-end total ainda é parcial: 43,04% de statements e 44,79% de linhas. |
+| 15 | Seção 4G: há somente 3 testes de back-end e 1 teste dummy no front-end | DESATUALIZADO | A execução em Docker de `dotnet test tests/back-end.Tests.csproj` aprovou 46 testes; `npm test -- --run --coverage` aprovou 14 testes em 2 arquivos. | A cobertura front-end total ainda é parcial: 45,03% de statements e 46,75% de linhas. |
 | 16 | Seção 4G/H: não há `.gitignore` e binários de `tests/bin` estão versionados | INCORRETO | `.gitignore`, `back-end/.gitignore` e `front-end/.gitignore` existem; `git ls-files tests/bin tests/obj` não retorna arquivos. | Os arquivos de build são ignorados; não encontrei binários de testes rastreados pelo Git. |
 | 17 | Seções 4H e 6: `POST /api/backup/restore` é anônimo | DESATUALIZADO | `BackupController.cs:15,105` exige `[Authorize(Roles = "admin,owner")]`. | A exigência existe no controller e no método; não foi testada contra um servidor SQL. |
 | 18 | Seções 4H e 6: restore extrai arquivos arbitrários com risco de Zip Slip | DESATUALIZADO | `BackupRestoreService.cs:45-80` lê um único `.sql` do ZIP sem extrair a árvore; `:132-167` rejeita caminhos absolutos, `..` e links simbólicos. | A alegação sobre escrita de arquivos arbitrários não corresponde ao serviço atual. O endpoint ainda executa SQL de backup, por design, sob perfil privilegiado. |
@@ -55,7 +55,7 @@ parcial.
 | 20 | Seções 4K e 7: a interface não oferece restauração | INCORRETO | `BackupPage.tsx` tem seleção de ZIP, confirmação e chama `restaurarBackup`; `api.ts` envia `Arquivo` como multipart. | A interface de restauração existe. |
 | 21 | Seções 4H e 6: usuário employee pode criar/alterar/excluir funcionários ou promover-se a admin | DESATUALIZADO | `FuncionarioController.cs` exige `admin,owner` para consultas e escritas; criação de perfil `owner` exige ator `owner`. | O risco descrito foi corrigido; nenhum dos endpoints de funcionário está disponível ao perfil `employee`. |
 | 22 | Seções 4H e 6: `POST /api/log/registrar` é anônimo | INCORRETO | `LogController.cs:13` exige `[Authorize(Roles = "admin,owner")]` para o controller. | A rota não é anônima e agora também está limitada a `admin` ou `owner`. |
-| 23 | Seções 4H e 6: `MOCK_USERS` e senhas em texto puro no `localStorage` | DESATUALIZADO | `AuthContext.tsx` autentica via API e grava somente dados não sensíveis em `restaurant_user`; não há `MOCK_USERS` nem `registered_users`. | O JWT é armazenado em cookie HttpOnly, não acessível ao JavaScript; senha não é persistida. |
+| 23 | Seções 4H e 6: `MOCK_USERS` e senhas em texto puro no `localStorage` | DESATUALIZADO | `AuthContext.tsx` autentica via API e grava dados auxiliares do perfil em `restaurant_user`; a role é validada por `GET /api/autenticacao/validar` na inicialização. | O JWT está em cookie HttpOnly, não acessível ao JavaScript; senha não é persistida nem há credenciais de demonstração na tela de login/documentação. |
 | 24 | Seções 4H e 6: fallback literal de segredo JWT no código/appsettings | DESATUALIZADO | `Program.cs:37-42` e `JwtService.cs:16-22` exigem chave de ambiente/configuração com pelo menos 32 caracteres e falham sem ela; `appsettings.json` não contém segredo. | Não há fallback literal; os `.env.example` usam placeholder explícito, rejeitado fora de `Development`, e instruem como gerar uma chave exclusiva. |
 | 25 | Seção 4E: connection string usa autenticação integrada do Windows | INCORRETO | `Program.cs:21-35` monta a connection string com `DB_SERVER`, `DB_NAME`, `DB_USER` e `DB_PASSWORD`. | O caminho executado usa credenciais SQL; o `DefaultConnection` do appsettings não é usado por essa montagem. |
 | 26 | Seção 4E e 5: `PRECO_CUSTO` e `PRECO_VENDA` existem no SQL, mas não no modelo Produto | INCORRETO | `Produto.cs:19,22` declara as duas propriedades mapeadas; `01-create-database-idempotent.sql` cria as colunas. | A divergência apontada para essas duas colunas já não existe. |
@@ -70,7 +70,7 @@ parcial.
 | 35 | Seções 4B e 4K: incremento de estoque altera somente estado local | DESATUALIZADO | `RestaurantContext.tsx` chama `updateProduto` na atualização e oferece `adjustProductStock` via `PUT /api/produto/{id}/ajustar-estoque`. | O fluxo antigo de somente memória não corresponde ao atual. A tela de incremento rápido usa atualização de produto; o fluxo de ajuste dedicado é o que envia motivo ao back-end. |
 | 36 | Seções 4B e 4K: cadastro/edição de funcionário apenas altera estado e localStorage | DESATUALIZADO | `UsersPage.tsx` chama API; `RestaurantContext.tsx:866-930` chama `createFuncionario` e `updateFuncionario`. | Dados de senha não são guardados no estado persistido de funcionário. |
 | 37 | Seção 4K: falta integração de restauração e endpoint só extrai ZIP | INCORRETO | `BackupPage.tsx`, `api.ts` e `BackupRestoreService.cs:92-107` implementam upload, confirmação e execução SQL. | A validação operacional do restore no SQL Server está pendente: [PREENCHER: resultado da validação]. |
-| 38 | Seção 5: hash de senha é bcrypt | CONFIRMADO como discrepância documental | `PasswordHashService.cs` usa PBKDF2/HMAC-SHA256 com 10.000 iterações, salt de 16 bytes e saída de 20 bytes; os docs antigos afirmavam bcrypt. | A descrição correta foi atualizada para PBKDF2. |
+| 38 | Seção 5: hash de senha é bcrypt | CONFIRMADO como discrepância documental | `PasswordHashService.cs` grava PBKDF2-SHA-256 v1 com 600.000 iterações, salt de 16 bytes e saída de 32 bytes; ainda verifica hash legado de 10.000 iterações/20 bytes. | Hashes antigos válidos são regravados no formato atual após login bem-sucedido; os docs antigos afirmavam bcrypt. |
 | 39 | Seção 5: JWT dura 1 hora e a documentação cita configuração em appsettings | CONFIRMADO como discrepância documental | `JwtService.cs:25-26` usa `JWT_EXPIRATION_MINUTES` ou configuração e padrão 480; `.env.example` informa 480. | A duração efetiva padrão é 480 minutos. |
 | 40 | Seção 5: o exemplo React usa Axios e rota inexistente | CONFIRMADO | O exemplo citado foi substituído por `docs/EXEMPLO_INTEGRACAO_REACT.ts`, que usa `fetch` e foi compilado como TypeScript. | O exemplo foi reescrito e compilado como TypeScript. |
 | 41 | Seções 5 e 6: documentação antiga ainda cita PIM III, URL/porta e credenciais de teste | DESATUALIZADO | Os documentos antigos não refletiam por completo a versão/porta atuais; o seed contém hashes, não senhas em texto claro verificáveis. | Documentos atualizados para PIM IV e portas 5050/8080. Nenhuma senha presumida foi publicada. |
@@ -138,15 +138,28 @@ Prioridade operacional/qualidade:
 
 9. **RESOLVIDO — backups dentro do Docker não tinham volume persistente.** O Compose
    agora passa `BACKUP_PATH` e monta o volume nomeado `backup_data` nesse caminho.
-10. **Cobertura front-end ampliada, ainda parcial.** Foram adicionados 12 testes
-   para login, bloqueio, RBAC/ProtectedRoute, criação de pedido e pagamento.
-   A cobertura medida é 43,04% de statements e 44,79% de linhas no projeto.
+10. **Cobertura front-end ampliada, ainda parcial.** A última execução aprovou
+   14 testes em 2 arquivos para fluxos de login, bloqueio, RBAC/ProtectedRoute,
+   criação de pedido e pagamento. A cobertura medida é 45,03% de statements e
+   46,75% de linhas no projeto.
 11. **RESOLVIDO — paridade dos bloqueios de login.** Os dois controllers usam a
     política única de 5 tentativas e 15 minutos, coberta por teste. O estado adicional
     de bloqueio do React continua volátil em memória.
 
 12. **RESOLVIDO — testes de front-end no CI.** O workflow executa `npm test -- --run`
     após o lint e antes do build.
+
+O startup da API em Production foi validado com chave JWT ausente, curta e
+placeholder: os três cenários encerram com código 1 e mensagem explícita, sem
+stack trace. A role das rotas protegidas é obtida em `/api/autenticacao/validar`;
+o role adulterado em `restaurant_user` não substitui a resposta do servidor.
+A tela de login e este relatório não publicam credenciais demonstrativas.
+
+Na validação visual do VLibras não houve violação CSP observada e o player
+carregou em uma execução. O console mostrou sensores bloqueados no iframe
+externo, que não recebe atributo `allow`; o serviço externo também apresentou
+requisições abortadas. O item permanece parcial, sem alteração adicional no
+Nginx.
 
 Continuam pendentes o registro dos resultados operacionais de SQL Server
 ([PREENCHER: resultado da validação]) e a ampliação da cobertura front-end. A
@@ -162,20 +175,20 @@ chaves, nomes SQL ou enums.
 | `dotnet restore` em `back-end/` | Concluído. |
 | `dotnet build systemic-pim.sln` | Sucesso, 0 avisos e 0 erros. |
 | `dotnet restore` em `tests/` | Concluído. |
-| `dotnet test tests/back-end.Tests.csproj` | Sucesso: 36 aprovados, 0 falhas (30 do baseline, 2 de segredo JWT e 4 de cookie/CSRF). |
+| `dotnet test tests/back-end.Tests.csproj` em container .NET 10 | Sucesso: 46 aprovados, 0 falhas. |
 | `dotnet list package --vulnerable --include-transitive` em `back-end/` | Nenhum pacote vulnerável informado pelas fontes NuGet consultadas. |
 | `dotnet list package --vulnerable --include-transitive` em `tests/` | Nenhum pacote vulnerável informado pelas fontes NuGet consultadas. |
 | `npm audit` em `front-end/` | Baseline da Fase 0: 2 vulnerabilidades moderadas em `react-router`; após React Router 7.18.5: 0 vulnerabilidades. |
-| Migração React Router | `react-router-dom` removido; dependência `react-router@7.18.5`; imports migrados para `react-router`. |
+| Migração React Router | `react-router-dom` não está instalado; dependência `react-router@7.18.5`; imports usam o pacote `react-router`. |
 | `npm run lint` em `front-end/` | Sucesso: 0 erros e 7 avisos de Fast Refresh. |
 | `npm run build` em `front-end/` | Sucesso; TypeScript e Vite concluíram. Restam avisos de anotações PURE e chunk acima de 500 kB. |
-| `npm test -- --run --coverage` em `front-end/` | Sucesso: 1 arquivo, 12 testes aprovados; 43,04% statements, 23,87% branches, 29,94% funções e 44,79% linhas. |
+| `npm test -- --run --coverage` em `front-end/` | Sucesso: 2 arquivos, 14 testes aprovados; 45,03% statements, 27,10% branches, 32,47% funções e 46,75% linhas. |
 | `docker compose build front-end` | Sucesso; imagem frontend construída, Vite 8.3.5 e zero vulnerabilidades no `npm ci` da imagem. |
 | Validação de `.github/workflows/ci.yml` | YAML parseado localmente; ordem verificada: lint, `npm test -- --run`, build. O job remoto não foi executado nesta sessão. |
 | `docker compose config --quiet` | Sucesso; configuração validada com arquivo `.env` temporário, removido após o comando. Nenhum container foi iniciado. |
 | TypeScript isolado de `docs/EXEMPLO_INTEGRACAO_REACT.ts` | Sucesso com `tsc --noEmit --target ES2020 --module ESNext --moduleResolution bundler --lib ES2020,DOM --strict --skipLibCheck`. |
 | Validação operacional SQL Server | [PREENCHER: resultado da validação]. Os pontos específicos estão listados na seção 7. |
-| Fase 7: autenticação com cookie e CSRF | Build .NET e 36 testes de integração/unitários aprovados; inclui atributos do cookie, autenticação por cookie, logout, exigência de antiforgery e restore protegido. |
+| Fase 7: autenticação com cookie e CSRF | Build .NET e 46 testes aprovados; inclui atributos do cookie, autenticação por cookie, logout, exigência de antiforgery e restore protegido. |
 
 ## 5. Ocorrências pictográficas antes da remoção
 

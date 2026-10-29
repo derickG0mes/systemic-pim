@@ -1,7 +1,8 @@
 # Systemic - PIM IV
 
 Sistema web de gerenciamento de restaurante. A aplicação contém uma API ASP.NET
-Core .NET 10, uma interface React 18 com TypeScript/Vite e um banco SQL Server.
+Core .NET 10, uma interface React 18 com TypeScript/Vite e React Router 7
+(`react-router`), e um banco SQL Server.
 
 ## Executar (forma principal)
 
@@ -41,10 +42,12 @@ O arquivo `.env.example` contém valores demonstrativos. Troque `DB_PASSWORD` e
 `JWT_SECRET_KEY` por valores próprios; a chave JWT deve ter ao menos 32
 caracteres. Não use os valores de exemplo em produção.
 
-A autenticação usa cookie JWT HttpOnly; o front-end não persiste nem envia o
-token pelo JavaScript. Requisições que alteram dados também enviam token
-antiforgery. Consulte [CONFIGURACAO.md](docs/CONFIGURACAO.md) para detalhes de
-cookie, CORS e CSRF.
+A autenticação do navegador usa cookie JWT HttpOnly; o front-end não persiste
+nem envia o JWT pelo JavaScript. Na inicialização, o perfil é validado em
+`GET /api/autenticacao/validar`; a role do servidor, não a cópia em
+`localStorage`, controla as rotas protegidas. Requisições que alteram dados
+enviam CSRF por `X-CSRF-TOKEN`. Consulte [CONFIGURACAO.md](docs/CONFIGURACAO.md)
+para detalhes de cookie, CORS, proxy e CSRF.
 
 ## Executar localmente sem Docker
 
@@ -86,7 +89,13 @@ npm run build
 
 O workflow de CI executa build e testes .NET, `npm ci`, lint, testes do
 front-end (`npm test -- --run`) e build em push e pull request. Não há deploy
-em nuvem configurado.
+em nuvem configurado. Na última validação local, `dotnet test` aprovou 46
+testes; o front-end aprovou 14 testes em 2 arquivos. `npm audit` reportou zero
+vulnerabilidades; o lint terminou sem erros e com 7 avisos.
+
+O Nginx do front-end define CSP e cabeçalhos de segurança. A política permite
+API/SignalR e recursos do VLibras; o carregamento de sensores pelo iframe
+externo do widget ainda depende de delegação de permissões pelo próprio iframe.
 
 ## Documentação
 

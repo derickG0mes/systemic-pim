@@ -89,7 +89,8 @@ ambiente Development do perfil de execução.
 ```
 
 No sucesso, a API emite o JWT no cookie `systemic_auth` (`HttpOnly` e
-`SameSite=Lax`, com `Secure` quando a requisição usa HTTPS). O envelope JSON
+`SameSite=Lax`). `Secure` é sempre definido fora de Development; em Development
+também é definido quando a requisição usa HTTPS. O envelope JSON
 contém somente dados não sensíveis do usuário, sem o token.
 
 ### Login por CPF
@@ -105,13 +106,20 @@ No sucesso, a API emite o mesmo cookie de autenticação e retorna
 
 ### Cookie e proteção CSRF
 
-O navegador envia o cookie JWT automaticamente; não armazene JWT em
-`localStorage` nem envie `Authorization: Bearer`. Antes do login, a aplicação
-obtém um request token em `GET /api/autenticacao/csrf` (o cookie antiforgery é
-HttpOnly) e envia o token no header `X-CSRF-TOKEN` em login e em toda requisição
-mutável (`POST`, `PUT`, `PATCH` ou `DELETE`). A API valida esses tokens por um
-filtro global. `POST /api/autenticacao/logout` também requer o header e apaga o
-cookie de autenticação.
+O fluxo do navegador envia o cookie JWT automaticamente; o front-end não
+persiste o JWT em `localStorage` nem constrói um header `Authorization`.
+Antes do login, a aplicação obtém um request token em
+`GET /api/autenticacao/csrf` (o cookie antiforgery é HttpOnly) e envia o token
+no header `X-CSRF-TOKEN` em login e em toda requisição mutável (`POST`, `PUT`,
+`PATCH` ou `DELETE`). A API valida esses tokens por um filtro global.
+`POST /api/autenticacao/logout` também requer o header e apaga o cookie de
+autenticação.
+
+Depois do login, a aplicação renova o token CSRF antes de novas operações
+mutáveis. Na inicialização, `GET /api/autenticacao/validar` valida a sessão e
+retorna id, nome e role das claims. `AuthContext` usa a role retornada pelo
+servidor para as rotas protegidas; a role salva em `restaurant_user` não é
+considerada fonte de autorização.
 
 O CORS com credenciais permite as origens locais conhecidas em Development. Em
 outros ambientes, configure `CORS_ALLOWED_ORIGINS` com uma lista separada por
@@ -124,7 +132,19 @@ cookie JWT como `Secure`; por isso, o acesso local direto por HTTP não pode
 autenticar cookies. Em produção, termine TLS no proxy e envie
 `X-Forwarded-Proto: https`. Configure `FORWARDED_HEADERS_KNOWN_PROXIES` com os
 IPs confiáveis separados por vírgulas; somente esses proxies podem informar o
-protocolo encaminhado. A API processa um salto de encaminhamento.
+protocolo encaminhado. A API processa um salto de `X-Forwarded-For` e
+`X-Forwarded-Proto` antes da autenticação. Em ambiente diferente de
+Development, a inicialização termina com código 1 e mensagem explícita se
+`JWT_SECRET_KEY` estiver ausente, tiver menos de 32 caracteres ou for um
+placeholder conhecido.
+
+O Nginx define CSP com conexão para a API na porta 5050 e WebSocket do
+SignalR, e permite scripts, frames e recursos do VLibras. Também envia
+`X-Content-Type-Options: nosniff`, `Referrer-Policy`,
+`X-Frame-Options: DENY` e `Permissions-Policy`. O documento permite
+acelerômetro e giroscópio para a origem do VLibras, mas o iframe externo não
+delegou essas permissões na verificação do navegador; sensores do widget
+permanecem não verificados.
 
 Novos hashes usam PBKDF2-SHA-256, salt aleatório de 16 bytes e 600.000
 iterações, armazenados no formato versionado
@@ -139,20 +159,23 @@ validade padrão de 480 minutos, ajustável por `JWT_EXPIRATION_MINUTES` (ou
 - O estado adicional de tentativas do `AuthContext` existe apenas em memória
   no navegador; o bloqueio por email é controlado também pelo servidor.
 
-O seed SQL de teste contém contas com hashes PBKDF2 legados e nenhuma senha em
-texto claro. Um login válido nessas contas atualiza o hash automaticamente;
-nenhuma senha de teste é publicada porque não há uma senha em texto claro
-confirmada para esses hashes.
+O seed SQL contém contas com hashes PBKDF2 legados e nenhuma senha em texto
+claro. Um login válido atualiza o hash para PBKDF2-SHA-256 versionado com
+600.000 iterações. Credenciais de teste não são publicadas.
 
 ## Regras de acesso
 
-`JWT` significa que o endpoint exige autenticação pelo cookie HttpOnly
-`systemic_auth` (a API também aceita Bearer para clientes não navegador). O
-perfil é indicado em cada linha: quando a linha informa somente `JWT`, a API
-valida o token sem exigir uma role específica. `Público` significa que o
-controller não exige autenticação. Todas as requisições mutáveis, inclusive
-login e logout, exigem `X-CSRF-TOKEN`. A matriz de páginas do front-end e as
-regras da API são controles independentes.
+`JWT` significa que o endpoint exige uma sessão autenticada; no navegador, ela
+é enviada pelo cookie HttpOnly `systemic_auth`. O perfil é indicado em cada
+linha: quando a linha informa somente `JWT`, a API valida o token sem exigir
+uma role específica. `Público` significa que o controller não exige
+autenticação. Todas as requisições mutáveis, inclusive login e logout, exigem
+`X-CSRF-TOKEN`. A matriz de páginas do front-end e as regras da API são
+controles independentes.
+
+O front-end usa React Router 7.18.5 pelo pacote `react-router`; `react-router-dom`
+não está instalado. `ProtectedRoute` aguarda a validação do perfil no servidor
+antes de renderizar uma rota protegida.
 
 | Perfil do front-end | Páginas permitidas |
 |---|---|
@@ -168,6 +191,8 @@ backups; as leituras de produtos, mesas e formas de pagamento também aceitam
 `owner`. A tabela abaixo registra as regras efetivas de cada endpoint.
 
 ## Tabela completa de endpoints
+
+A tabela registra as 69 ações HTTP expostas pelos 13 controllers.
 
 Os nomes JSON são camelCase. `Envelope` representa `{sucesso, mensagem,
 dados, codigoErro}`. Nem todos os endpoints usam esse envelope: as respostas
@@ -196,7 +221,7 @@ mensagens variam conforme a validação do controller.
 | `PUT /api/comanda/{id}` | JWT; `employee`, `admin` ou `owner` | `id` e JSON `Comanda` (campos usados: `idCliente`, `idMesa`) | Entidade `Comanda` |
 | `POST /api/comanda` | JWT; `employee`, `admin` ou `owner` | JSON `Comanda`; inclui `idMesa`, `idCliente` | 201; entidade criada |
 | `POST /api/comanda/{id}/itens` | JWT; `employee`, `admin` ou `owner` | JSON `ItemComanda`: `idProduto`, `qtdProduto`, `precoUnitarioPago`; o servidor define o status inicial | JSON `{message,itemId,novoTotal}` |
-| `PUT /api/comanda/{id}/pagar` | JWT; `employee`, `admin` ou `owner` | JSON `{idFormaPagamento,idFuncionario,troco}` | Envelope com comanda paga |
+| `PUT /api/comanda/{id}/pagar` | JWT; `employee`, `admin` ou `owner` | JSON `{idFormaPagamento,troco}`; o funcionário vem da claim `NameIdentifier` | Envelope com comanda paga |
 | `PUT /api/comanda/{id}/fechar` | JWT; `employee`, `admin` ou `owner` | `id` na rota; sem corpo | Envelope com comanda fechada |
 | `DELETE /api/comanda/{id}/itens/{itemId}` | JWT; `employee`, `admin` ou `owner` | IDs na rota | JSON `{message,novoTotal}` |
 | `PUT /api/comanda/{id}/inadimplente` | JWT; `employee`, `admin` ou `owner` | `id` na rota; sem corpo | Envelope com resultado |
@@ -232,7 +257,7 @@ mensagens variam conforme a validação do controller.
 | `DELETE /api/mesa/{id}` | JWT; `admin` ou `owner` | `id` na rota | JSON `{message}` |
 | `GET /api/pedidos` | JWT; `employee`, `admin` ou `owner` | — | Envelope; `dados` contém comandas e itens |
 | `GET /api/pedidos/{id}` | JWT; `employee`, `admin` ou `owner` | `id` na rota | Envelope; `dados` contém pedido |
-| `POST /api/pedidos` | JWT; `employee`, `admin` ou `owner` | JSON `{idMesa,idCliente,itens:[{idProduto,qtdProduto,precoUnitarioPago}]}` | 201; Envelope com pedido |
+| `POST /api/pedidos` | JWT; `employee`, `admin` ou `owner` | JSON `{idMesa,itens:[{idProduto,qtdProduto,precoUnitarioPago}]}` no fluxo com comanda aberta; o DTO também aceita `idCliente` para criar sem comanda | 201; Envelope com pedido |
 | `PUT /api/pedidos/{id}` | JWT; `employee`, `admin` ou `owner` | `id` e o mesmo DTO de pedido | Envelope com pedido atualizado |
 | `PUT /api/pedidos/{id}/status` | JWT; `employee`, `admin` ou `owner` | JSON `{status}` | Envelope com pedido atualizado |
 | `DELETE /api/pedidos/{id}` | JWT; `employee`, `admin` ou `owner` | `id` na rota | Envelope com resultado |
@@ -294,9 +319,11 @@ desconectado.
 Em push e pull request, `.github/workflows/ci.yml` executa build e testes .NET,
 `npm ci`, lint, `npm test -- --run` e build do front-end, nesta ordem. O YAML e
 a ordem das etapas foram validados localmente; o job remoto do GitHub Actions
-não foi executado nesta sessão. Os 12 testes Vitest passam; a execução com
-cobertura registrou 43,04% de statements e 44,79% de linhas. O `npm audit`
-final reporta zero vulnerabilidades. Para rodar os testes do front-end:
+não foi executado nesta sessão. Na validação atual, 46 testes .NET e 14 testes
+Vitest em 2 arquivos passaram. A cobertura V8 registrou 45,03% de statements,
+27,10% de branches, 32,47% de funções e 46,75% de linhas. `npm audit` reportou
+zero vulnerabilidades; o lint terminou sem erros e com 7 avisos. Para rodar os
+testes do front-end:
 
 ```sh
 cd front-end
@@ -317,6 +344,7 @@ npm test -- --run --coverage
   [PREENCHER: resultado da validação]. Consulte a lista no fim de
   [RELATORIO_VERIFICACAO.md](RELATORIO_VERIFICACAO.md).
 - O lint passa sem erros; permanecem 7 avisos de Fast Refresh. A cobertura
-  front-end ainda é parcial (43,04% de statements).
+  front-end ainda é parcial (45,03% de statements e 46,75% de linhas).
 - O JWT usa cookie `HttpOnly`; os dados não sensíveis do perfil continuam em
-  `localStorage`. O cliente obtém e envia o token CSRF nos métodos mutáveis.
+  `localStorage`, mas a role é validada pelo servidor em cada inicialização.
+  O cliente obtém e envia o token CSRF nos métodos mutáveis.
