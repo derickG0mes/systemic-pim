@@ -1,196 +1,276 @@
-# Configuração de Setup - Backend e Frontend
+# Configuração e uso - Systemic - PIM IV
 
-Este documento descreve como configurar e executar o sistema Systemic em seu ambiente local.
+Este documento descreve a execução local e em Docker, os dados de
+autenticação, a persistência e as rotas atuais dos controllers.
 
-## Começar Rápido
+## Executar com Docker Compose
 
-### Back-End (API .NET)
+Na raiz:
 
-Primeiro, inicie a API que fornece os dados para o front-end:
+```powershell
+Copy-Item .env.example .env
+```
 
-```bash
+Edite `.env`: defina uma senha SQL Server válida e substitua
+`JWT_SECRET_KEY` por uma chave exclusiva com pelo menos 32 caracteres. Gere-a
+com `openssl rand -base64 48`. O valor presente no `.env.example` é apenas um
+placeholder e a API o rejeita fora do ambiente `Development`; as chaves JWT
+antigas dos arquivos de exemplo também são bloqueadas. Não reutilize nem
+versione a chave real.
+
+```sh
+docker compose up --build
+```
+
+O Compose executa SQL Server, `db-init`, API e front-end. `db-init` aguarda o
+SQL Server e executa `01-create-database-idempotent.sql` e
+`02-procedures-views.sql` antes da API. Os volumes `sqlserver_data` e
+`backup_data` persistem o banco e os arquivos de backup, respectivamente.
+`BACKUP_PATH` usa `/app/backups` por padrão; se substituído, deve apontar para
+um caminho absoluto dentro do container.
+
+| Serviço | Endereço |
+|---|---|
+| Front-end | http://localhost:8080 |
+| API | http://localhost:5050 |
+| Swagger | http://localhost:5050/swagger, se habilitado pelo ambiente |
+| Health da API | http://localhost:5050/api/healthcheck |
+| SQL Server | `localhost:1433` |
+
+Encerre com `docker compose down`. Para apagar deliberadamente os dados do
+banco: `docker compose down --volumes`.
+
+## Execução local
+
+Requisitos: .NET SDK 10, Node.js/npm e SQL Server. Execute os scripts SQL
+idempotentes listados acima antes de iniciar a API.
+
+`Program.cs` monta a connection string com `DB_SERVER`, `DB_NAME`, `DB_USER` e
+`DB_PASSWORD`. `DB_NAME` assume `DB_RESTAURANTE` quando ausente. `EnvLoader`
+procura `.env` no diretório de trabalho atual; portanto, ao executar a API a
+partir da pasta `back-end`, configure as variáveis no processo ou use um
+`back-end/.env` local. O `.env` da raiz é lido automaticamente pelo Compose.
+Não versione arquivos `.env`.
+
+```powershell
 cd back-end
+dotnet restore
 dotnet run
 ```
 
-Se tudo funcionar corretamente, você verá no terminal mensagens informando que a API está pronta. A API estará disponível em:
+Em outro terminal:
 
-- Endereço principal: http://localhost:5050/api
-- Verificação de saúde: http://localhost:5050/api/healthcheck
-
-### Front-End (React)
-
-Em outro terminal, inicie a interface do usuário:
-
-```bash
+```powershell
 cd front-end
-npm install
+npm ci
 npm run dev
 ```
 
-Após alguns segundos, você verá uma mensagem indicando que a interface está pronta. Acesse:
+O Vite usa a porta 8080. O cliente HTTP forma a URL como
+`http://<host-do-navegador>:5050/api`; não lê `VITE_API_URL`.
 
-- URL: http://localhost:8080
+## Swagger
 
----
+O documento interno continua chamado `v1` e a URL é
+`/swagger/v1/swagger.json`. A versão exibida é `2.0`, com título
+`Systemic API - PIM IV`. A interface Swagger é configurada para o ambiente
+Development. O Compose define `ASPNETCORE_ENVIRONMENT=Production`, por isso o
+Swagger não fica disponível no container padrão; `dotnet run` local usa o
+ambiente Development do perfil de execução.
 
-## Conectar React na API
+## Autenticação, senha e bloqueio
 
-### Como o front-end se comunica com a API
+### Login por email
 
-O arquivo que faz essa comunicação já existe em `front-end/src/services/api.ts`. Este arquivo:
-
-- Define a URL base da API (http://localhost:5050/api)
-- Adiciona automaticamente o token JWT em cada requisição
-- Define headers padrão (Content-Type, Authorization)
-- Trata respostas e erros
-
-Não é necessário criar este arquivo. Ele já está no projeto.
-
-
-
----
-
-## Autenticação com JWT
-
-Todos os acessos ao sistema começam com login. Aqui está como funciona:
-
-### Fazer Login
-
-Você pode testar o login fazendo uma requisição para:
-
-```
-POST http://localhost:5050/api/autenticacao/login
-```
-
-Com o corpo (body) em JSON:
+`POST /api/autenticacao/login`, sem autenticação. Corpo JSON:
 
 ```json
-{
-  "email": "admin@restaurante.com",
-  "senha": "admin123"
-}
+{ "email": "usuario@example.com", "password": "senha" }
 ```
 
-Se funcionar, a API responde com um token JWT que você usa em todas as próximas requisições.
+O sucesso usa o envelope `{ "sucesso": true, "mensagem": "...", "dados": {
+"token": "...", "nomeUsuario": "...", "role": "..." } }`.
 
-### Como o Front-End Usa o Token
+### Login por CPF
 
-Depois do login, o token é guardado no localStorage do navegador. Cada requisição posterior inclui automaticamente o token no header:
-
-```
-Authorization: Bearer seu_token_jwt_aqui
-```
-
-Você não precisa fazer isso manualmente. O arquivo `api.ts` já faz isso por você.
-
----
-
-## Principais Endpoints da API
-
-Este é um resumo dos endpoints (rotas) mais importantes. Cada um deles exige que você esteja autenticado (com o token JWT).
-
-Autenticação:
-- POST /api/autenticacao/login - Fazer login no sistema
-- GET /api/autenticacao/validar - Verificar se token ainda é válido
-
-Pedidos e Comandas:
-- GET /api/comanda - Listar todas as comandas
-- GET /api/comanda/{id} - Pegar detalhes de uma comanda
-- POST /api/comanda - Criar nova comanda
-- PUT /api/comanda/{id} - Atualizar comanda
-- DELETE /api/comanda/{id} - Deletar comanda
-
-Produtos:
-- GET /api/produto - Listar todos os produtos
-- POST /api/produto - Criar novo produto
-- PUT /api/produto/{id} - Atualizar produto
-- DELETE /api/produto/{id} - Deletar produto
-
-Verificação de Saúde:
-- GET /api/healthcheck - Verificar se a API está funcionando
-- GET /api/healthcheck/database - Verificar se o banco de dados está conectado
-
----
-
-## Resolvendo Problemas Comuns
-
-Erro: "CORS policy" ou "cross-origin"
-- O navegador está bloqueando a requisição porque front-end e API estão em portas diferentes
-- Confirme: React em http://localhost:8080 e API em http://localhost:5050
-- A API deve permitir CORS (está configurado em Program.cs)
-
-Erro: "Connection refused" ou "não conseguiu conectar"
-- A API não está rodando ou está em porta diferente
-- Verifique: execute dotnet run na pasta back-end
-- Verifique se aparece mensagem de sucesso no terminal
-
-Erro: "401 Unauthorized"
-- Você fez uma requisição sem token ou com token inválido
-- Faça login novamente para pegar um token válido
-- Verifique se o token está sendo guardado no localStorage
-
-Erro: "Database connection failed" ou erro de conexão com banco
-- SQL Server não está rodando em sua máquina
-- Verifique a connection string em back-end/appsettings.Development.json
-- Certifique-se que SQL Server está instalado e iniciado
-
----
-
-## Como a API Responde
-
-Todas as respostas vêm neste formato padrão:
+`POST /api/funcionario/login`, sem autenticação. Corpo:
 
 ```json
-{
-  "sucesso": true,
-  "mensagem": "Texto explicando o que aconteceu",
-  "dados": {
-    "campo1": "valor1",
-    "campo2": "valor2"
-  },
-  "codigoErro": null
-}
+{ "cpfFuncionario": "12345678901", "senha": "senha" }
 ```
 
-Você sempre recebe:
-- sucesso: true ou false (indicando se funcionou)
-- mensagem: Texto em português explicando o resultado
-- dados: Informações (se houver)
-- codigoErro: Código de erro (se falhar)
+O sucesso retorna `idFuncionario`, `nomeFuncionario` e `token` no corpo JSON.
 
-Isso facilita saber exatamente o que aconteceu em cada requisição.
+As senhas são verificadas com PBKDF2, SHA-256, salt aleatório de 16 bytes,
+10.000 iterações e saída derivada de 20 bytes. Não se usa bcrypt. O JWT tem
+validade padrão de 480 minutos, ajustável por `JWT_EXPIRATION_MINUTES` (ou
+`Jwt:ExpirationMinutes`).
 
----
+- Login por email e por CPF: após 5 falhas, bloqueio por 15 minutos. Os dois
+  controllers usam `LoginLockoutPolicy` como fonte única desses limites.
+- O estado adicional de tentativas do `AuthContext` existe apenas em memória
+  no navegador; o bloqueio por email é controlado também pelo servidor.
 
-## URLs para Testar Rapidamente
+Não há credenciais de teste publicadas aqui: o seed SQL contém contas e hashes
+PBKDF2, mas não uma senha em texto claro cuja correspondência com esses hashes
+tenha sido confirmada.
 
-Aqui estão os endereços que você precisa para testar o sistema:
+## Regras de acesso
 
-| Serviço | URL |
-| --- | --- |
-| Front-end (Interface) | http://localhost:8080 |
-| API (Backend) | http://localhost:5050/api |
-| Verificar se API está viva | http://localhost:5050/api/healthcheck |
-| Banco de dados (SQL Server) | Configurado em appsettings.Development.json |
+`JWT` significa que o endpoint exige autenticação. A menos que indicado,
+nenhum perfil específico é exigido pela API. `Público` significa que o
+controller não exige autenticação. Isso é diferente da matriz de permissões de
+página, que é aplicada no front-end.
 
----
+| Perfil do front-end | Páginas permitidas |
+|---|---|
+| `employee` | `/orders`, `/tabs`, `/reservations`, `/accessibility` |
+| `admin` | Todas as páginas protegidas |
+| `owner` | Todas as páginas protegidas |
 
-## Checklist para Verificar se Tudo Está Funcionando
+Na API, criar/atualizar/inativar funcionários e operações de backup exigem
+`admin` ou `owner`. A criação ou promoção de outro `owner` exige que o ator
+também seja `owner`. As demais restrições por perfil não são aplicadas de forma
+geral nos controllers.
 
-Before you start, make sure:
-- .NET SDK 10 ou superior está instalado
-- Node.js e npm estão instalados
-- SQL Server está instalado e em execução
+## Tabela completa de endpoints
 
-Depois de iniciar:
-- Back-end: Execute dotnet run na pasta back-end
-- Verifique se http://localhost:5050/api/healthcheck responde (deve mostrar status OK)
-- Front-end: Execute npm run dev na pasta front-end
-- Acesse http://localhost:8080 no navegador
-- Tente fazer login com: admin@restaurante.com / admin123
-- Se conseguir acessar o dashboard, está tudo funcionando
+Os nomes JSON são camelCase. `Envelope` representa `{sucesso, mensagem,
+dados, codigoErro}`. Nem todos os endpoints usam esse envelope: as respostas
+brutas e variações observadas estão indicadas abaixo. Os códigos de erro e
+mensagens variam conforme a validação do controller.
 
----
+| Método e rota | Autenticação / perfil | Corpo ou parâmetros | Resposta de sucesso |
+|---|---|---|---|
+| `POST /api/autenticacao/login` | Público | JSON `{email, password}` | Envelope; `dados` contém `token`, `nomeUsuario`, `role` |
+| `GET /api/autenticacao/validar` | JWT | — | Envelope com `dados.id`, `dados.nome` e `dados.role`, lidos das claims |
+| `POST /api/backup/gerar` | JWT; `admin` ou `owner` | — | JSON `{sucesso,mensagem,dados}` com nome, caminho e tamanho do ZIP |
+| `GET /api/backup/baixar/{nomeArquivo}` | JWT; `admin` ou `owner` | `nomeArquivo` na rota | Arquivo ZIP (`application/octet-stream`) |
+| `GET /api/backup/listar` | JWT; `admin` ou `owner` | — | JSON `{sucesso,dados}` com lista de backups |
+| `POST /api/backup/restore` | JWT; `admin` ou `owner` | `multipart/form-data`, campo `Arquivo` com ZIP | Envelope de sucesso ou erro |
+| `GET /api/cliente` | JWT; `admin` ou `owner` | — | Envelope; `dados` é lista de clientes |
+| `GET /api/cliente/{id}` | JWT; `admin` ou `owner` | `id` na rota | Envelope; `dados` é cliente |
+| `POST /api/cliente` | JWT; `admin` ou `owner` | JSON `Cliente`: `{nomeCliente, telefoneCliente, feedback}` | 201; Envelope com cliente |
+| `PUT /api/cliente/{id}` | JWT; `admin` ou `owner` | `id` e JSON `Cliente` | Envelope com cliente atualizado |
+| `DELETE /api/cliente/{id}` | JWT; `admin` ou `owner` | `id` na rota | Envelope com mensagem |
+| `GET /api/comanda` | JWT; `employee`, `admin` ou `owner` | — | JSON `{sucesso,dados}` com comandas |
+| `GET /api/comanda/{id}` | JWT; `employee`, `admin` ou `owner` | `id` na rota | JSON `{sucesso,dados}` com comanda |
+| `GET /api/comanda/abertas/todas` | JWT; `employee`, `admin` ou `owner` | — | Envelope; `dados` contém comandas abertas e itens ativos |
+| `GET /api/comanda/mesa/{tableNumber}` | JWT; `employee`, `admin` ou `owner` | Número da mesa na rota | Lista JSON de comandas |
+| `PUT /api/comanda/{id}` | JWT; `employee`, `admin` ou `owner` | `id` e JSON `Comanda` (campos usados: `idCliente`, `idMesa`) | Entidade `Comanda` |
+| `POST /api/comanda` | JWT; `employee`, `admin` ou `owner` | JSON `Comanda`; inclui `idMesa`, `idCliente` | 201; entidade criada |
+| `POST /api/comanda/{id}/itens` | JWT; `employee`, `admin` ou `owner` | JSON `ItemComanda`: `idProduto`, `qtdProduto`, `precoUnitarioPago`; o servidor define o status inicial | JSON `{message,itemId,novoTotal}` |
+| `PUT /api/comanda/{id}/pagar` | JWT; `employee`, `admin` ou `owner` | JSON `{idFormaPagamento,idFuncionario,troco}` | Envelope com comanda paga |
+| `PUT /api/comanda/{id}/fechar` | JWT; `employee`, `admin` ou `owner` | `id` na rota; sem corpo | Envelope com comanda fechada |
+| `DELETE /api/comanda/{id}/itens/{itemId}` | JWT; `employee`, `admin` ou `owner` | IDs na rota | JSON `{message,novoTotal}` |
+| `PUT /api/comanda/{id}/inadimplente` | JWT; `employee`, `admin` ou `owner` | `id` na rota; sem corpo | Envelope com resultado |
+| `DELETE /api/comanda/{id}` | JWT; `employee`, `admin` ou `owner` | `id` na rota | JSON `{message}` |
+| `GET /api/faturamento` | JWT; `admin` ou `owner` | — | Envelope com resumo do dia: datas, receita, despesas e lucro |
+| `GET /api/faturamento/relatorio` | JWT; `admin` ou `owner` | Query `dataInicio`, `dataFim` | JSON `{dataInicio,dataFim,receita,despesas,lucro}` |
+| `GET /api/faturamento/produtos-mais-vendidos` | JWT; `admin` ou `owner` | — | Lista JSON `{idProduto,nomeProduto,quantidadeVendida}` |
+| `GET /api/faturamento/receita-por-forma` | JWT; `admin` ou `owner` | Query `dataInicio`, `dataFim` | Lista JSON `{formaPagemento,total}` |
+| `GET /api/faturamento/despesa-por-categoria` | JWT; `admin` ou `owner` | Query `dataInicio`, `dataFim` | Lista JSON `{categoria,total}` |
+| `POST /api/faturamento/despesa` | JWT; `admin` ou `owner` | JSON `Despesa` (descrição, valor, categoria, forma de pagamento) | 201; entidade `Despesa` |
+| `GET /api/faturamento/despesas` | JWT; `admin` ou `owner` | Query `dataInicio`, `dataFim` | Lista JSON de despesas com forma de pagamento |
+| `GET /api/formapagamento` | JWT; `employee`, `admin` ou `owner` | — | JSON `{sucesso,dados}` com formas de pagamento |
+| `GET /api/formapagamento/{id}` | JWT; `employee`, `admin` ou `owner` | `id` na rota | JSON `{sucesso,dados}` |
+| `POST /api/formapagamento` | JWT; `admin` ou `owner` | JSON `{nomeFormaPagamento}` | 201; entidade criada |
+| `PUT /api/formapagamento/{id}` | JWT; `admin` ou `owner` | `id` e JSON `FormaPagamento` | Entidade atualizada |
+| `DELETE /api/formapagamento/{id}` | JWT; `admin` ou `owner` | `id` na rota | JSON `{message}` |
+| `POST /api/funcionario/login` | Público | JSON `{cpfFuncionario, senha}` | JSON `{idFuncionario,nomeFuncionario,token}` |
+| `GET /api/funcionario` | JWT; `admin` ou `owner` | — | Envelope; `dados` é lista de funcionários sem senha |
+| `GET /api/funcionario/{id}` | JWT; `admin` ou `owner` | `id` na rota | Envelope; `dados` é funcionário sem senha |
+| `POST /api/funcionario` | JWT; `admin` ou `owner` | JSON `{nomeFuncionario,cpfFuncionario,emailFuncionario,cargoFuncionario,role,telefoneFuncionario,senha}` | 201; Envelope com funcionário sem senha |
+| `PUT /api/funcionario/{id}` | JWT; `admin` ou `owner` | `id` e JSON do DTO de funcionário; senha vazia não altera senha | Envelope com funcionário sem senha |
+| `DELETE /api/funcionario/{id}` | JWT; `admin` ou `owner` | `id` na rota | Envelope; desativa funcionário |
+| `GET /api/healthcheck` | Público | — | Envelope com status, timestamp e versão `2.0` |
+| `GET /api/healthcheck/database` | Público | — | Envelope de status; em erro retorna mensagem genérica e registra detalhes no log |
+| `GET /api/healthcheck/info` | Público | — | Envelope com nome, versão `2.0` e URL base `http://localhost:5050` |
+| `GET /api/log/sistema` | JWT; `admin` ou `owner` | Query opcional `pagina` (padrão 1), `tamanho` (50), `filtro` | JSON `{sucesso,total,pagina,dados}` |
+| `POST /api/log/registrar` | JWT; `admin` ou `owner` | JSON `{tipoLog,descricaoLog,usuarioLog,dadoAnterior,dadoNovo}` | Envelope com o ID criado |
+| `GET /api/log/comanda/{idComanda}` | JWT; `admin` ou `owner` | `idComanda` na rota | JSON `{sucesso,dados}` com logs |
+| `GET /api/mesa` | JWT; `employee`, `admin` ou `owner` | — | Envelope; `dados` é lista de mesas |
+| `GET /api/mesa/{id}` | JWT; `employee`, `admin` ou `owner` | `id` na rota | Envelope; `dados` é mesa |
+| `POST /api/mesa` | JWT; `admin` ou `owner` | JSON `Mesa`: `numeroMesa`, `capacidadeMesa`, opcional `statusMesa` | 201; Envelope com mesa |
+| `PUT /api/mesa/{id}` | JWT; `admin` ou `owner` | `id` e JSON `Mesa` | Entidade `Mesa` atualizada |
+| `DELETE /api/mesa/{id}` | JWT; `admin` ou `owner` | `id` na rota | JSON `{message}` |
+| `GET /api/pedidos` | JWT; `employee`, `admin` ou `owner` | — | Envelope; `dados` contém comandas e itens |
+| `GET /api/pedidos/{id}` | JWT; `employee`, `admin` ou `owner` | `id` na rota | Envelope; `dados` contém pedido |
+| `POST /api/pedidos` | JWT; `employee`, `admin` ou `owner` | JSON `{idMesa,idCliente,itens:[{idProduto,qtdProduto,precoUnitarioPago}]}` | 201; Envelope com pedido |
+| `PUT /api/pedidos/{id}` | JWT; `employee`, `admin` ou `owner` | `id` e o mesmo DTO de pedido | Envelope com pedido atualizado |
+| `PUT /api/pedidos/{id}/status` | JWT; `employee`, `admin` ou `owner` | JSON `{status}` | Envelope com pedido atualizado |
+| `DELETE /api/pedidos/{id}` | JWT; `employee`, `admin` ou `owner` | `id` na rota | Envelope com resultado |
+| `GET /api/produto` | JWT; `employee`, `admin` ou `owner` | — | Envelope; `dados` é lista de produtos |
+| `GET /api/produto/{id}` | JWT; `employee`, `admin` ou `owner` | `id` na rota | Envelope; `dados` é produto |
+| `POST /api/produto` | JWT; `admin` ou `owner` | JSON `ProdutoDto`: `nomeProduto`, `descricaoProduto`, `precoProduto`, `qtdEstoque`, `estoqueMinimo`, `statusProduto`, `categoria` ou `categoriaProduto` | 201; Envelope com produto |
+| `PUT /api/produto/{id}` | JWT; `admin` ou `owner` | `id` e JSON `ProdutoDto` | Envelope com produto atualizado |
+| `DELETE /api/produto/{id}` | JWT; `admin` ou `owner` | `id` na rota | Envelope com mensagem |
+| `PUT /api/produto/{id}/ajustar-estoque` | JWT; `admin` ou `owner` | JSON `{tipo:"ADICIONAR"|"REMOVER",quantidade,motivo}` | Envelope com quantidades e produto |
+| `GET /api/reserva` | JWT; `employee`, `admin` ou `owner` | — | Envelope; `dados` é lista de reservas |
+| `POST /api/reserva` | JWT; `employee`, `admin` ou `owner` | JSON `{nomeCliente,numeroMesa,dataReserva}` | Envelope com reserva |
+| `DELETE /api/reserva/{id}` | JWT; `employee`, `admin` ou `owner` | `id` na rota | Envelope com resultado |
 
-Próximo: Leia ARQUITETURA.md para entender como o código está organizado
+## Banco de dados e scripts
+
+Banco: `DB_RESTAURANTE`. O script de schema define 12 tabelas:
+`FUNCIONARIO`, `CLIENTE`, `MESA`, `FORMA_PAGAMENTO`, `PRODUTO`, `RESERVA`,
+`COMANDA`, `ITEM_COMANDA`, `DETALHE_PAGAMENTO`, `DESPESAS`, `LOG_COMANDA` e
+`LOG_SISTEMA`.
+
+`01-create-database-idempotent.sql` cria/atualiza as tabelas, quatro índices,
+três triggers e dados básicos. `02-procedures-views.sql` define três
+procedures (`sp_fechar_comanda`, `sp_relatorio_faturamento`,
+`sp_ajustar_estoque`) e duas views (`vw_comandas_abertas`,
+`vw_produtos_mais_vendidos`). `init-database.sql` é um script SQL legado
+separado; o Compose não o executa. Os quatro usuários encontrados nesse script
+e no script idempotente têm hashes no banco, não senhas verificáveis em texto
+claro. `migration-logs-sistema.sql` declara também o índice
+`IDX_LOG_SISTEMA_DATA`.
+
+No fluxo de pedidos da interface, o log de depuração registra o mesmo objeto
+enviado a `POST /api/pedidos`. O payload atual inclui `idMesa` e `itens`, sem
+`idCliente`. A tela exige uma comanda aberta antes de permitir o envio; sem uma
+comanda aberta, a API valida o cliente indicado no DTO.
+
+## Backup e restauração
+
+`BACKUP_PATH` pode ser definido como variável de ambiente ou configuração. Sem
+ela, a API grava em `backups` sob `AppContext.BaseDirectory`. A geração inclui
+SQL, JSON de logs e configuração, compactados em ZIP. A restauração aceita um
+ZIP com exatamente um script `.sql`, aplica limites de tamanho e valida nomes
+de entrada, cria primeiro um backup de segurança e executa o SQL em transação.
+No Docker Compose, `BACKUP_PATH` aponta para `/app/backups`, persistido no
+volume nomeado `backup_data`; uma substituição deve ser um caminho absoluto
+dentro do container.
+
+## SignalR
+
+O front-end consome o hub autenticado `/hubs/cozinha`; eventos de pedido e
+comanda são usados para atualizar a interface. O `RestaurantContext` mantém
+sincronização periódica de contingência quando SignalR está habilitado, mas
+desconectado.
+
+## CI e testes
+
+Em push e pull request, `.github/workflows/ci.yml` executa `dotnet build`,
+`dotnet test`, `npm ci`, `npm run lint` e `npm run build`. O workflow não
+executa `npm test`. Para rodar os testes do front-end localmente:
+
+```sh
+cd front-end
+npm test -- --run
+```
+
+## Limitações conhecidas verificadas
+
+- Não existe aplicativo mobile nem configuração de deploy em nuvem.
+- Não há senhas de teste verificadas/publicáveis para os usuários seed.
+- A interface controla a navegação por perfil, e a API aplica autorização
+  independentemente do front-end; consulte a matriz de acesso nesta tabela.
+- `/api/healthcheck/database` continua público; erros retornam mensagem
+  genérica, enquanto detalhes são registrados no log do servidor.
+- A execução real do schema e dos triggers não foi validada: o SQL Server não
+  estava acessível no ambiente de verificação.
+- O lint passa sem erros; permanecem 7 avisos de Fast Refresh. O `npm audit fix`
+  seguro reduziu os avisos de vulnerabilidade, mas 7 ainda exigem upgrades
+  incompatíveis de versão principal em Vite, React Router e Vitest.
