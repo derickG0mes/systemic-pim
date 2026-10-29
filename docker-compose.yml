@@ -31,12 +31,12 @@ services:
     command:
       - |
         set -e
-        until sqlcmd -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -Q "SELECT 1" >/dev/null 2>&1; do
+        until /opt/mssql-tools/bin/sqlcmd -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -Q "SELECT 1" >/dev/null 2>&1; do
           echo "Aguardando SQL Server..."
           sleep 2
         done
-        sqlcmd -b -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -i /scripts/01-create-database-idempotent.sql
-        sqlcmd -b -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -i /scripts/02-procedures-views.sql
+        /opt/mssql-tools/bin/sqlcmd -b -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -i /scripts/01-create-database-idempotent.sql
+        /opt/mssql-tools/bin/sqlcmd -b -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -i /scripts/02-procedures-views.sql
     restart: "no"
 
   api:
@@ -49,8 +49,11 @@ services:
       DB_SERVER: sqlserver
       DB_NAME: DB_RESTAURANTE
       ASPNETCORE_ENVIRONMENT: Production
+      BACKUP_PATH: ${BACKUP_PATH:-/app/backups}
     ports:
       - "5050:5050"
+    volumes:
+      - backup_data:${BACKUP_PATH:-/app/backups}
     depends_on:
       db-init:
         condition: service_completed_successfully
@@ -81,3 +84,4 @@ services:
 
 volumes:
   sqlserver_data:
+  backup_data:
