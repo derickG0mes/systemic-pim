@@ -260,6 +260,10 @@ public class ComandaController : ControllerBase
     [HttpPut("{id}/pagar")]
     public async Task<IActionResult> Pagar(int id, [FromBody] PagarComandaDTO dto)
     {
+        var idFuncionarioClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!int.TryParse(idFuncionarioClaim, out var idFuncionario) || idFuncionario <= 0)
+            return Unauthorized(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Identificação do funcionário inválida." });
+
         var comanda = await _context.Comandas
             .Include(c => c.Mesa)
             .Include(c => c.ItensComanda)
@@ -275,10 +279,6 @@ public class ComandaController : ControllerBase
             .Where(c => c.IdComanda == id)
             .Select(c => c.ValorTotal)
             .FirstAsync();
-
-        // Extrai o ID do funcionário autenticado diretamente do token JWT
-        var idFuncionarioClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        int idFuncionario = int.TryParse(idFuncionarioClaim, out var parsedId) ? parsedId : 1;
 
         _context.DetalhesPagamento.Add(new DetalhePagamento
         {
@@ -306,6 +306,10 @@ public class ComandaController : ControllerBase
     [HttpPut("{id}/fechar")]
     public async Task<IActionResult> Close(int id)
     {
+        var idFuncionarioClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!int.TryParse(idFuncionarioClaim, out var idFuncionario) || idFuncionario <= 0)
+            return Unauthorized(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Identificação do funcionário inválida." });
+
         var comanda = await _context.Comandas
             .Include(c => c.Mesa)
             .FirstOrDefaultAsync(c => c.IdComanda == id);
@@ -319,10 +323,6 @@ public class ComandaController : ControllerBase
             .Where(c => c.IdComanda == id)
             .Select(c => c.ValorTotal)
             .FirstAsync();
-
-        // Extrai o ID do funcionário autenticado diretamente do token JWT
-        var idFuncionarioClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        int idFuncionario = int.TryParse(idFuncionarioClaim, out var parsedId) ? parsedId : 1;
 
         _context.DetalhesPagamento.Add(new DetalhePagamento
         {
