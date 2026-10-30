@@ -61,10 +61,11 @@ O script idempotente declara três triggers:
 
 `02-procedures-views.sql` declara `sp_fechar_comanda`,
 `sp_relatorio_faturamento`, `sp_ajustar_estoque`, `vw_comandas_abertas` e
-`vw_produtos_mais_vendidos`. O script de schema cria os índices
+`vw_produtos_mais_vendidos`. O script de schema cria cinco índices:
 `IX_FUNCIONARIO_EMAIL`, `IX_ITEM_COMANDA_ID_COMANDA`,
 `IX_COMANDA_STATUS_COMANDA` e `IX_DETALHE_PAGAMENTO_DATA_PAGAMENTO`.
-`migration-logs-sistema.sql` também declara o índice `IDX_LOG_SISTEMA_DATA`.
+Também cria `IDX_LOG_SISTEMA_DATA`, cuja definição histórica consta em
+`migration-logs-sistema.sql`.
 O resultado da execução dos scripts, idempotência e verificação dos objetos no
 SQL Server está pendente de registro: [PREENCHER: resultado da validação].
 

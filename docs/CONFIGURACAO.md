@@ -278,15 +278,16 @@ Banco: `DB_RESTAURANTE`. O script de schema define 12 tabelas:
 `COMANDA`, `ITEM_COMANDA`, `DETALHE_PAGAMENTO`, `DESPESAS`, `LOG_COMANDA` e
 `LOG_SISTEMA`.
 
-`01-create-database-idempotent.sql` cria/atualiza as tabelas, quatro índices,
+`01-create-database-idempotent.sql` cria/atualiza as tabelas, cinco índices,
 três triggers e dados básicos. `02-procedures-views.sql` define três
 procedures (`sp_fechar_comanda`, `sp_relatorio_faturamento`,
 `sp_ajustar_estoque`) e duas views (`vw_comandas_abertas`,
 `vw_produtos_mais_vendidos`). `init-database.sql` é um script SQL legado
 separado; o Compose não o executa. Os quatro usuários encontrados nesse script
 e no script idempotente têm hashes no banco, não senhas verificáveis em texto
-claro. `migration-logs-sistema.sql` declara também o índice
-`IDX_LOG_SISTEMA_DATA`.
+claro. O índice `IDX_LOG_SISTEMA_DATA` também consta na migração histórica
+`migration-logs-sistema.sql`; sua criação idempotente está incluída no script
+executado pelo Compose.
 
 `CriarPedidoDTO` contém `idMesa`, `idCliente` e `itens`. No fluxo da interface,
 `RestaurantContext` envia a `POST /api/pedidos` apenas `idMesa` e `itens`, sem
