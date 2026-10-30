@@ -212,7 +212,8 @@ export default function BackupPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Selecione um arquivo ZIP de backup para restaurar o banco de dados.
+            Selecione um ZIP gerado pelo sistema. A assinatura de integridade é
+            verificada antes da restauração; arquivos ausentes ou adulterados serão rejeitados.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <Input
