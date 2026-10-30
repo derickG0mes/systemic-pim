@@ -63,11 +63,19 @@ O script idempotente declara três triggers:
 `sp_relatorio_faturamento`, `sp_ajustar_estoque`, `vw_comandas_abertas` e
 `vw_produtos_mais_vendidos`. O script de schema cria cinco índices:
 `IX_FUNCIONARIO_EMAIL`, `IX_ITEM_COMANDA_ID_COMANDA`,
-`IX_COMANDA_STATUS_COMANDA` e `IX_DETALHE_PAGAMENTO_DATA_PAGAMENTO`.
-Também cria `IDX_LOG_SISTEMA_DATA`, cuja definição histórica consta em
-`migration-logs-sistema.sql`.
-O resultado da execução dos scripts, idempotência e verificação dos objetos no
-SQL Server está pendente de registro: [PREENCHER: resultado da validação].
+`IX_COMANDA_STATUS_COMANDA`, `IX_DETALHE_PAGAMENTO_DATA_PAGAMENTO` e
+`IDX_LOG_SISTEMA_DATA`, cuja definição histórica consta em
+`migration-logs-sistema.sql`. O `db-init` executou duas vezes sem erro. O
+catálogo confirmou as 12 tabelas, três triggers, três procedures, duas views e
+cinco índices, incluindo `IDX_LOG_SISTEMA_DATA`.
+
+Os efeitos também foram exercitados em transação revertida: abrir comanda
+ocupou a mesa; inserir/alterar/remover itens recalculou o total; pagamento
+fechou a comanda e liberou a mesa. `sp_ajustar_estoque` alterou a quantidade de
+10 para 13, `sp_relatorio_faturamento` refletiu a receita da comanda e as views
+mostraram a comanda aberta e os produtos vendidos conforme o estado antes e
+depois do fechamento. A transação foi revertida e não deixou registros de
+teste.
 
 ### Criação de pedidos
 
@@ -170,6 +178,12 @@ terminou com zero erros e 7 avisos. A cobertura front-end permanece parcial.
 ## Limitações conhecidas
 
 - Não há aplicativo mobile nem infraestrutura/deploy em nuvem configurados.
+- O carregamento completo do player VLibras não foi confirmado: o painel abriu,
+  mas o engine externo apresentou `ERR_CONNECTION_CLOSED` ao buscar o recurso
+  Unity/CDN. Não foi observada violação CSP; sensores no iframe continuam
+  sujeitos à delegação do fornecedor.
+- O workflow de CI foi inspecionado e os testes locais passaram; a execução
+  remota no GitHub Actions não foi observada.
 - As credenciais dos usuários seed não são conhecidas: o SQL contém hashes,
   não senhas em texto claro verificáveis.
 - A navegação também é controlada no front-end, mas a API aplica autorização
@@ -182,8 +196,5 @@ terminou com zero erros e 7 avisos. A cobertura front-end permanece parcial.
   `idCliente` continua omitido pela interface; as diferenças entre o DTO e o
   fluxo sem comanda aberta estão descritas acima, sem alteração das regras de
   negócio.
-- A validação operacional no SQL Server está pendente de registro:
-  [PREENCHER: resultado da validação]. Os pontos a preencher estão no fim de
-  [RELATORIO_VERIFICACAO.md](RELATORIO_VERIFICACAO.md).
 - O cookie de autenticação é `HttpOnly`, mas uma implantação em sites distintos
   exige reavaliar `SameSite`, CORS e proteção CSRF antes de ser habilitada.

@@ -319,8 +319,8 @@ desconectado.
 
 Em push e pull request, `.github/workflows/ci.yml` executa build e testes .NET,
 `npm ci`, lint, `npm test -- --run` e build do front-end, nesta ordem. O YAML e
-a ordem das etapas foram validados localmente; o job remoto do GitHub Actions
-não foi executado nesta sessão. Na validação atual, 46 testes .NET e 14 testes
+a ordem das etapas foram validados localmente; a execução remota no GitHub
+Actions não foi observada. Na validação atual, 46 testes .NET e 14 testes
 Vitest em 2 arquivos passaram. A cobertura V8 registrou 45,03% de statements,
 27,10% de branches, 32,47% de funções e 46,75% de linhas. `npm audit` reportou
 zero vulnerabilidades; o lint terminou sem erros e com 7 avisos. Para rodar os
@@ -340,10 +340,24 @@ npm test -- --run --coverage
   independentemente do front-end; consulte a matriz de acesso nesta tabela.
 - `/api/healthcheck/database` continua público; erros retornam mensagem
   genérica, enquanto detalhes são registrados no log do servidor.
-- A validação operacional de scripts, idempotência, triggers, procedures,
-  views, backup e restauração no SQL Server está pendente de registro:
-  [PREENCHER: resultado da validação]. Consulte a lista no fim de
-  [RELATORIO_VERIFICACAO.md](RELATORIO_VERIFICACAO.md).
+- O `db-init` foi executado duas vezes sem erro. O catálogo SQL Server confirmou
+  12 tabelas, 3 triggers, 3 procedures, 2 views e 5 índices, incluindo
+  `IDX_LOG_SISTEMA_DATA`. Os testes em transação confirmaram que abrir comanda
+  ocupa a mesa, mudanças nos itens recalculam o total, pagamento fecha a
+  comanda e libera a mesa, `sp_ajustar_estoque` altera o estoque, e
+  `sp_relatorio_faturamento`/as duas views refletem os dados de exemplo.
+- Um backup real foi gerado via API, um registro foi removido e restaurado com
+  HTTP 200; a consulta confirmou o retorno do registro. O backup de segurança
+  persistiu em `/app/backups` após reiniciar a API. Um ZIP com entrada `../` foi
+  rejeitado com HTTP 400. Employee recebeu 403 nas operações de funcionário;
+  admin não conseguiu criar ou promover owner, enquanto owner conseguiu.
+- Cinco falhas reais bloquearam tanto login por email quanto por CPF por
+  15 minutos; login válido resetou as tentativas. Com SQL Server parado,
+  `/api/healthcheck/database` respondeu HTTP 503 com mensagem genérica e sem
+  detalhes internos.
+- O player VLibras depende de CDN externo: o painel abriu, mas o engine falhou
+  com `ERR_CONNECTION_CLOSED`; não houve violação CSP observada. O carregamento
+  completo permanece não confirmado.
 - O lint passa sem erros; permanecem 7 avisos de Fast Refresh. A cobertura
   front-end ainda é parcial (45,03% de statements e 46,75% de linhas).
 - O JWT usa cookie `HttpOnly`; os dados não sensíveis do perfil continuam em

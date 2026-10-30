@@ -12,10 +12,10 @@ Foram avaliados 49 grupos de afirmações das seções 2 a 7:
 
 | Classificação | Quantidade |
 |---|---:|
-| CONFIRMADO | 10 |
+| CONFIRMADO | 11 |
 | DESATUALIZADO | 24 |
 | INCORRETO | 11 |
-| NÃO VERIFICÁVEL | 4 |
+| NÃO VERIFICÁVEL | 3 |
 
 O relatório anexado contém vários achados que já não correspondem ao código atual,
 inclusive a restauração anônima, as operações de funcionários, o fallback de login
@@ -25,9 +25,10 @@ health, metadados da API, divergência do log de pedidos, bloqueio de login,
 persistência de backup e erros do lint. React Router v7 eliminou as vulnerabilidades
 reportadas pelo `npm audit`; os testes de fluxo do front-end e a etapa de testes no CI
 também foram adicionados. Na Fase 7, o JWT passou a ser emitido em cookie HttpOnly,
-com proteção antiforgery e CORS com credenciais. A validação operacional de SQL
-Server continua pendente de registro e a cobertura total do front-end permanece
-parcial.
+com proteção antiforgery e CORS com credenciais. Os scripts e objetos SQL foram
+executados e validados em Docker/SQL Server; o `db-init` passou em duas
+execuções e os objetos foram exercitados em transação revertida. A cobertura
+total do front-end permanece parcial.
 
 ## 2. Verificação item a item
 
@@ -43,15 +44,15 @@ parcial.
 | 8 | Seção 4C: operações de criação/alteração de funcionário permitem qualquer perfil autenticado | DESATUALIZADO | `FuncionarioController.cs` exige `admin,owner` para listar, consultar, criar, atualizar e excluir funcionários. | O acesso às consultas também foi restringido a `admin,owner` no follow-up. Um administrador não pode criar perfil `owner`; essa ação exige que o ator também seja `owner`. |
 | 9 | Seções 3, 4C e 7: o front-end não consome SignalR | DESATUALIZADO | `RestaurantContext.tsx:312-319` usa `useSignalR`; o pacote está em `front-end/package.json`; o servidor publica os eventos em `back-end/Hubs/CozinhaHub.cs`. | O cliente ainda mantém polling de contingência a cada 60 segundos quando o hub está habilitado, mas desconectado. |
 | 10 | Seções 3 e 4D: não existe aplicativo mobile nativo, híbrido ou PWA | CONFIRMADO | Não há projeto mobile, manifest PWA ou service worker; a aplicação é React web responsiva. | O layout responsivo não equivale a um aplicativo mobile/PWA. |
-| 11 | Seções 3 e 4E: o banco tem 12 tabelas e 3 triggers | CONFIRMADO | `AppDbContext.cs:12-23` declara 12 DbSets; `01-create-database-idempotent.sql` e `init-database.sql` definem `trg_abrir_comanda`, `trg_atualizar_valor_total` e `trg_fechar_comanda`. | A definição foi conferida estaticamente; a validação real e a idempotência estão pendentes: [PREENCHER: resultado da validação]. |
+| 11 | Seções 3 e 4E: o banco tem 12 tabelas e 3 triggers | CONFIRMADO | `AppDbContext.cs:12-23` declara 12 DbSets; scripts e catálogo SQL Server confirmaram as 12 tabelas e 3 triggers. | `docker compose run --rm db-init` passou duas vezes. As três triggers foram exercitadas em transação revertida: abriu/ocupou mesa, recalculou total de itens e fechou comanda/liberou mesa após pagamento. |
 | 12 | Seções 3 e 4E: não existem procedures nem views | INCORRETO | `02-procedures-views.sql` declara 3 procedures e 2 views. | Objetos encontrados: `sp_fechar_comanda`, `sp_relatorio_faturamento`, `sp_ajustar_estoque`, `vw_comandas_abertas` e `vw_produtos_mais_vendidos`. |
-| 13 | Seções 3, 4F e 7: não há Docker nem CI | DESATUALIZADO | `docker-compose.yml`, `back-end/Dockerfile`, `front-end/Dockerfile` e `.github/workflows/ci.yml` existem; `docker compose build front-end` passou. | O build da imagem do front-end foi executado; o Compose completo e o job remoto de CI não foram iniciados nesta sessão. |
+| 13 | Seções 3, 4F e 7: não há Docker nem CI | DESATUALIZADO | `docker-compose.yml`, `back-end/Dockerfile`, `front-end/Dockerfile` e `.github/workflows/ci.yml` existem; serviços Docker foram usados e `db-init` executou duas vezes sem erro. | CI está configurado. A execução remota no GitHub Actions não foi observada nesta auditoria. |
 | 14 | Seção 4F: caminho de backup é fixo em `C:\Backups\Systemic` | DESATUALIZADO | `BackupService.cs` usa `BACKUP_PATH` ou `AppContext.BaseDirectory/backups`; o Compose configura `/app/backups` em `backup_data`. | A configuração é ajustável e o Compose persiste o diretório configurado em volume nomeado. |
 | 15 | Seção 4G: há somente 3 testes de back-end e 1 teste dummy no front-end | DESATUALIZADO | A execução em Docker de `dotnet test tests/back-end.Tests.csproj` aprovou 46 testes; `npm test -- --run --coverage` aprovou 14 testes em 2 arquivos. | A cobertura front-end total ainda é parcial: 45,03% de statements e 46,75% de linhas. |
 | 16 | Seção 4G/H: não há `.gitignore` e binários de `tests/bin` estão versionados | INCORRETO | `.gitignore`, `back-end/.gitignore` e `front-end/.gitignore` existem; `git ls-files tests/bin tests/obj` não retorna arquivos. | Os arquivos de build são ignorados; não encontrei binários de testes rastreados pelo Git. |
-| 17 | Seções 4H e 6: `POST /api/backup/restore` é anônimo | DESATUALIZADO | `BackupController.cs:15,105` exige `[Authorize(Roles = "admin,owner")]`. | A exigência existe no controller e no método; não foi testada contra um servidor SQL. |
+| 17 | Seções 4H e 6: `POST /api/backup/restore` é anônimo | DESATUALIZADO | `BackupController.cs:15,105` exige `[Authorize(Roles = "admin,owner")]`; chamadas reais confirmaram autorização e restore por owner. | Restore real respondeu HTTP 200; sem autenticação o teste de integração verifica 401 e employee recebe 403. |
 | 18 | Seções 4H e 6: restore extrai arquivos arbitrários com risco de Zip Slip | DESATUALIZADO | `BackupRestoreService.cs:45-80` lê um único `.sql` do ZIP sem extrair a árvore; `:132-167` rejeita caminhos absolutos, `..` e links simbólicos. | A alegação sobre escrita de arquivos arbitrários não corresponde ao serviço atual. O endpoint ainda executa SQL de backup, por design, sob perfil privilegiado. |
-| 19 | Seções 4H, 4K e 7: o restore não executa SQL | DESATUALIZADO | `BackupRestoreService.cs:92-107` cria backup de segurança e executa o script com `ExecuteSqlRawAsync`, dentro de transação. | O fluxo foi confirmado por inspeção do código; o resultado operacional no SQL Server é [PREENCHER: resultado da validação]. |
+| 19 | Seções 4H, 4K e 7: o restore não executa SQL | DESATUALIZADO | `BackupRestoreService.cs:92-107` cria backup de segurança e executa o script com `ExecuteSqlRawAsync`, dentro de transação. | Backup real foi restaurado com HTTP 200; registro removido voltou ao banco, backup de segurança persistiu em `/app/backups` após restart da API e ZIP com `../` recebeu HTTP 400. |
 | 20 | Seções 4K e 7: a interface não oferece restauração | INCORRETO | `BackupPage.tsx` tem seleção de ZIP, confirmação e chama `restaurarBackup`; `api.ts` envia `Arquivo` como multipart. | A interface de restauração existe. |
 | 21 | Seções 4H e 6: usuário employee pode criar/alterar/excluir funcionários ou promover-se a admin | DESATUALIZADO | `FuncionarioController.cs` exige `admin,owner` para consultas e escritas; criação de perfil `owner` exige ator `owner`. | O risco descrito foi corrigido; nenhum dos endpoints de funcionário está disponível ao perfil `employee`. |
 | 22 | Seções 4H e 6: `POST /api/log/registrar` é anônimo | INCORRETO | `LogController.cs:13` exige `[Authorize(Roles = "admin,owner")]` para o controller. | A rota não é anônima e agora também está limitada a `admin` ou `owner`. |
@@ -69,7 +70,7 @@ parcial.
 | 34 | Seções 4B e 4K: cancelar reserva só altera estado local | DESATUALIZADO | `RestaurantContext.tsx:847-864` chama a exclusão de reserva e sincroniza. | O controller expõe `DELETE /api/reserva/{id}`. |
 | 35 | Seções 4B e 4K: incremento de estoque altera somente estado local | DESATUALIZADO | `RestaurantContext.tsx` chama `updateProduto` na atualização e oferece `adjustProductStock` via `PUT /api/produto/{id}/ajustar-estoque`. | O fluxo antigo de somente memória não corresponde ao atual. A tela de incremento rápido usa atualização de produto; o fluxo de ajuste dedicado é o que envia motivo ao back-end. |
 | 36 | Seções 4B e 4K: cadastro/edição de funcionário apenas altera estado e localStorage | DESATUALIZADO | `UsersPage.tsx` chama API; `RestaurantContext.tsx:866-930` chama `createFuncionario` e `updateFuncionario`. | Dados de senha não são guardados no estado persistido de funcionário. |
-| 37 | Seção 4K: falta integração de restauração e endpoint só extrai ZIP | INCORRETO | `BackupPage.tsx`, `api.ts` e `BackupRestoreService.cs:92-107` implementam upload, confirmação e execução SQL. | A validação operacional do restore no SQL Server está pendente: [PREENCHER: resultado da validação]. |
+| 37 | Seção 4K: falta integração de restauração e endpoint só extrai ZIP | INCORRETO | `BackupPage.tsx`, `api.ts` e `BackupRestoreService.cs:92-107` implementam upload, confirmação e execução SQL. | O fluxo real de backup/remoção/restore foi executado e o registro retornou ao banco; ZIP com caminho `../` foi rejeitado com HTTP 400. |
 | 38 | Seção 5: hash de senha é bcrypt | CONFIRMADO como discrepância documental | `PasswordHashService.cs` grava PBKDF2-SHA-256 v1 com 600.000 iterações, salt de 16 bytes e saída de 32 bytes; ainda verifica hash legado de 10.000 iterações/20 bytes. | Hashes antigos válidos são regravados no formato atual após login bem-sucedido; os docs antigos afirmavam bcrypt. |
 | 39 | Seção 5: JWT dura 1 hora e a documentação cita configuração em appsettings | CONFIRMADO como discrepância documental | `JwtService.cs:25-26` usa `JWT_EXPIRATION_MINUTES` ou configuração e padrão 480; `.env.example` informa 480. | A duração efetiva padrão é 480 minutos. |
 | 40 | Seção 5: o exemplo React usa Axios e rota inexistente | CONFIRMADO | O exemplo citado foi substituído por `docs/EXEMPLO_INTEGRACAO_REACT.ts`, que usa `fetch` e foi compilado como TypeScript. | O exemplo foi reescrito e compilado como TypeScript. |
@@ -80,8 +81,8 @@ parcial.
 | 45 | Seção 7: falta integrar SignalR | DESATUALIZADO | `RestaurantContext.tsx:312-319` registra handlers dos eventos do hub. | Existe polling de contingência; SignalR não é o único mecanismo de atualização. |
 | 46 | Seção 7: falta eliminar IDs de cliente/funcionário fixos | DESATUALIZADO | O log e o corpo enviado a `POST /api/pedidos` agora usam o mesmo payload (`idMesa` e `itens`, sem `idCliente`; ver item 31 e item 8 da seção 3). O pagamento não envia `idFuncionario`; a API lê essa claim do JWT. | Não há IDs fixos nos requests atuais. A ausência de `idCliente` no payload da interface é intencional quando a tela exige comanda aberta; sem comanda, a API valida o cliente exigido pelo DTO. |
 | 47 | Seção 4 e 7: contagem de histórico Git e autoria informada | NÃO VERIFICÁVEL | A cópia atual do histórico contém commits posteriores a maio de 2026; o relatório não define se usa branch ou snapshot específico. | A contagem e a autoria não são propriedades estáveis do código e não podem ser comparadas sem o commit-base da auditoria. |
-| 48 | Seções 4 e 7: triggers estão operacionalmente ativas e script init executa corretamente | NÃO VERIFICÁVEL | Os scripts definem os objetos e o Compose configura a inicialização; esta sessão não tem evidência registrada de execução no SQL Server: [PREENCHER: resultado da validação]. | Não se afirma que triggers estejam ativas nem que o init tenha sido executado corretamente sem o resultado operacional. |
-| 49 | Credenciais de teste em documenta??o | PARCIAL | Os scripts de seed armazenam hashes nas colunas de senha; este relat?rio omite nomes de conta e valores de senha. | A exist?ncia e validade de credenciais de seed n?o ? inferida a partir dos hashes. |
+| 48 | Seções 4 e 7: triggers estão operacionalmente ativas e script init executa corretamente | CONFIRMADO | `db-init` foi executado duas vezes sem erro; catálogo SQL Server mostrou 12 tabelas, 3 triggers, 3 procedures, 2 views e 5 índices, inclusive `IDX_LOG_SISTEMA_DATA`. | Efeitos das três triggers, três procedures e duas views foram conferidos com dados de exemplo em transação revertida. |
+| 49 | Credenciais de teste em documentação | PARCIAL | Os scripts de seed armazenam hashes nas colunas de senha; este relatório omite nomes de conta e valores de senha. | A existência e validade de credenciais de seed não é inferida a partir dos hashes. |
 
 ### Fluxos e diferenças de comportamento que permanecem
 
@@ -161,12 +162,12 @@ externo, que não recebe atributo `allow`; o serviço externo também apresentou
 requisições abortadas. O item permanece parcial, sem alteração adicional no
 Nginx.
 
-Continuam pendentes o registro dos resultados operacionais de SQL Server
-([PREENCHER: resultado da validação]) e a ampliação da cobertura front-end. A
-decisão da Fase 7 foi implementada: JWT em cookie HttpOnly, com antiforgery, CORS
-com credenciais e SignalR por cookie. O `npm audit` final está limpo. A remoção
-de pictogramas abaixo não altera valores usados como status, identificadores,
-chaves, nomes SQL ou enums.
+As validações operacionais de SQL Server estão registradas na seção 7. A
+cobertura front-end permanece parcial. A decisão da Fase 7 foi implementada:
+JWT em cookie HttpOnly, com antiforgery, CORS com credenciais e SignalR por
+cookie. O `npm audit` final está limpo. A execução remota do CI não foi
+observada. A remoção de pictogramas abaixo não altera valores usados como
+status, identificadores, chaves, nomes SQL ou enums.
 
 ## 4. Comandos e resultados
 
@@ -184,10 +185,11 @@ chaves, nomes SQL ou enums.
 | `npm run build` em `front-end/` | Sucesso; TypeScript e Vite concluíram. Restam avisos de anotações PURE e chunk acima de 500 kB. |
 | `npm test -- --run --coverage` em `front-end/` | Sucesso: 2 arquivos, 14 testes aprovados; 45,03% statements, 27,10% branches, 32,47% funções e 46,75% linhas. |
 | `docker compose build front-end` | Sucesso; imagem frontend construída, Vite 8.3.5 e zero vulnerabilidades no `npm ci` da imagem. |
-| Validação de `.github/workflows/ci.yml` | YAML parseado localmente; ordem verificada: lint, `npm test -- --run`, build. O job remoto não foi executado nesta sessão. |
-| `docker compose config --quiet` | Sucesso; configuração validada com arquivo `.env` temporário, removido após o comando. Nenhum container foi iniciado. |
+| Validação de `.github/workflows/ci.yml` | Etapas conferidas localmente; incluem build/test .NET, `npm ci`, lint, `npm test -- --run` e build. A execução remota no GitHub Actions não foi observada nesta auditoria. |
+| `docker compose config --quiet` | Sucesso com o `.env` local existente; o comando não imprime os valores e não inicia containers. |
 | TypeScript isolado de `docs/EXEMPLO_INTEGRACAO_REACT.ts` | Sucesso com `tsc --noEmit --target ES2020 --module ESNext --moduleResolution bundler --lib ES2020,DOM --strict --skipLibCheck`. |
-| Validação operacional SQL Server | [PREENCHER: resultado da validação]. Os pontos específicos estão listados na seção 7. |
+| `docker compose run --rm db-init` (duas execuções) | Ambas terminaram sem erro; o catálogo confirmou 12 tabelas, 3 triggers, 3 procedures, 2 views e 5 índices, inclusive `IDX_LOG_SISTEMA_DATA`. |
+| Fluxo operacional SQL/API | Backup restaurado via owner com HTTP 200; registro reapareceu no banco; backup de segurança persistiu após restart da API; ZIP com `../` recebeu HTTP 400. Lockout email/CPF e health 503 com banco parado também foram confirmados. |
 | Fase 7: autenticação com cookie e CSRF | Build .NET e 46 testes aprovados; inclui atributos do cookie, autenticação por cookie, logout, exigência de antiforgery e restore protegido. |
 
 ## 5. Ocorrências pictográficas antes da remoção
@@ -231,21 +233,73 @@ incluindo `.vs` e `front-end/dist`, ignorando somente `.git`, `node_modules`,
 - [Exemplo TypeScript usando fetch](./EXEMPLO_INTEGRACAO_REACT.ts)
 - [README do back-end](../back-end/README.md)
 
-## 7. Pontos de validação SQL Server para preencher
+## 7. Resultados operacionais SQL Server e API
 
-Esta sessão não tem resultados operacionais de SQL Server para afirmar. Preencha
-cada ponto com o comando executado, o resultado observado e o ambiente utilizado:
+Os comandos foram executados com Docker Compose e SQL Server ativos. O
+`db-init` executou `01-create-database-idempotent.sql` e
+`02-procedures-views.sql` duas vezes, ambas sem erro. O catálogo confirmou
+**12 tabelas, 3 triggers, 3 procedures, 2 views e 5 índices**. Após incluir
+`IDX_LOG_SISTEMA_DATA` no script do `db-init`, nova execução duas vezes passou
+e `sys.indexes` retornou exatamente um índice com esse nome na tabela
+`LOG_SISTEMA`. `init-database.sql` é legado e não é executado pelo Compose.
 
-- Scripts de criação e inicialização (`01-create-database-idempotent.sql`,
-  `02-procedures-views.sql` e `init-database.sql`, distinguindo o script legado):
-  [PREENCHER: resultado da validação].
-- Idempotência ao executar novamente os scripts aplicáveis:
-  [PREENCHER: resultado da validação].
-- Criação/estado e comportamento das três triggers:
-  [PREENCHER: resultado da validação].
-- Criação e execução das procedures e views:
-  [PREENCHER: resultado da validação].
-- Geração, persistência e leitura de backup:
-  [PREENCHER: resultado da validação].
-- Restore de backup, validações, backup de segurança e execução transacional do
-  SQL: [PREENCHER: resultado da validação].
+Os efeitos foram testados com dados de exemplo dentro de transação revertida:
+
+| Objeto | Antes | Depois |
+|---|---|---|
+| `trg_abrir_comanda` | Mesa disponível | Mesa ocupada após inserir comanda aberta |
+| `trg_atualizar_valor_total` | Comanda sem os itens de teste | Total recalculado para 20,00 após inserir os itens |
+| `trg_fechar_comanda` | Comanda aberta e mesa ocupada | Pagamento inserido, comanda fechada e mesa disponível |
+| `sp_ajustar_estoque` | Estoque 10 | Estoque 13 após adicionar 3 |
+| `sp_fechar_comanda` | Comanda aberta com itens, sem pagamento | Pagamento gravado; comanda fechada pela trigger |
+| `sp_relatorio_faturamento` | Receita de exemplo 66,60 | Receita de exemplo 86,60 após contabilizar a comanda |
+| `vw_comandas_abertas` | Comanda de exemplo aberta visível | Comanda deixa de aparecer após fechamento |
+| `vw_produtos_mais_vendidos` | Sem venda de teste encerrada | Itens aparecem após fechamento da comanda |
+
+O rollback da transação confirmou que não restaram os dados usados nesses
+ensaios. A inicialização repetida foi executada por:
+
+```sh
+docker compose run --rm db-init
+docker compose run --rm db-init
+```
+
+### Fluxo de backup e restore
+
+Owner autenticado gerou backup real via `POST /api/backup/gerar`. Um registro
+temporário foi apagado e restaurado via `POST /api/backup/restore` com o cookie
+`systemic_auth` e `X-CSRF-TOKEN`; a resposta foi HTTP 200 e a consulta SQL
+confirmou o registro restaurado. O backup de segurança foi criado e seus
+arquivos continuaram em `/app/backups` após `docker compose restart api`.
+
+Um ZIP contendo uma entrada `../` foi rejeitado com HTTP 400. Corpo retornado:
+
+```json
+{"sucesso":false,"mensagem":"O ZIP contém um caminho de arquivo inválido.","dados":null,"codigoErro":null}
+```
+
+Os registros temporários foram removidos ao final.
+
+### Lockout e health check
+
+Com contas temporárias distintas, cinco falhas no login por email e cinco no
+login por CPF acionaram o bloqueio de 15 minutos. Login válido resetou as
+tentativas; após as falhas, a consulta SQL mostrou 5 tentativas e cerca de 899
+segundos restantes. As contas de teste foram removidas.
+
+Com SQL Server parado temporariamente,
+`GET /api/healthcheck/database` respondeu HTTP 503 com mensagem genérica, sem
+exceção, connection string ou stack trace. O SQL Server foi reiniciado e
+`SELECT 1` confirmou recuperação.
+
+### CI e VLibras
+
+`.github/workflows/ci.yml` foi inspecionado e contém build/test .NET, `npm ci`,
+lint, testes front-end e build. **A execução remota no GitHub Actions não foi
+observada.**
+
+No navegador, aplicação e login funcionaram e o widget VLibras abriu o painel.
+Não houve violação CSP observada, mas o engine Unity/CDN externo retornou
+`ERR_CONNECTION_CLOSED`; sensores também não foram delegados pelo iframe. O
+carregamento completo do player permanece não confirmado e depende do serviço/
+iframe externo.
