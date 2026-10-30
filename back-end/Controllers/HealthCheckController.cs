@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
 using PIM3.API.DTOs;
-using PIM3.API;
 
 namespace PIM3.API.Controllers;
 
@@ -37,9 +36,7 @@ public class HealthCheckController : ControllerBase
             Mensagem = "API está funcionando perfeitamente!",
             Dados = new
             {
-                status = "SAUDÁVEL",
-                timestamp = DateTime.UtcNow,
-                versao = ApiMetadata.Version
+                status = "SAUDÁVEL"
             }
         });
     }
@@ -82,7 +79,7 @@ public class HealthCheckController : ControllerBase
     }
 
     /// <summary>
-    /// Retorna informações sobre a API
+    /// Retorna um status genérico da API
     /// GET: api/healthcheck/info
     /// </summary>
     [HttpGet("info")]
@@ -91,16 +88,8 @@ public class HealthCheckController : ControllerBase
         return Ok(new RespostaPadraoDTO
         {
             Sucesso = true,
-            Mensagem = "Informações da API",
-            Dados = new
-            {
-                nome = "Systemic API - PIM IV",
-                descricao = "API para gerenciamento de restaurante/bar",
-                versao = ApiMetadata.Version,
-                ambiente = "Desenvolvimento",
-                desenvolvedor = "Turma de Estudantes",
-                urlBase = ApiMetadata.BaseUrl
-            }
+            Mensagem = "Status da API",
+            Dados = new { status = "ok" }
         });
     }
 }
