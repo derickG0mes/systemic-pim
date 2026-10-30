@@ -1,8 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
 using PIM3.API.DTOs;
 using PIM3.API.Models;
+using PIM3.API.Services;
 
 namespace PIM3.API.Controllers;
 
@@ -114,25 +117,40 @@ public class ProdutoController : ControllerBase
         if (produto == null)
             return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Produto não encontrado" });
 
-        int quantidadeAnterior = produto.QtdEstoque;
-        int quantidadeNova = ajuste.Tipo == "ADICIONAR"
-            ? quantidadeAnterior + ajuste.Quantidade
-            : quantidadeAnterior - ajuste.Quantidade;
+        List<AjusteEstoqueSqlResultDto> resultados;
+        try
+        {
+            resultados = await DatabaseRoutineQueries.AjustarEstoqueAsync(
+                _context,
+                id,
+                ajuste.Tipo == "ADICIONAR" ? "ADICIONAR" : "REMOVER",
+                ajuste.Quantidade,
+                ajuste.Motivo,
+                User.Identity?.Name ?? string.Empty);
+        }
+        catch (SqlException exception) when (exception.Number == 50025)
+        {
+            return BadRequest(new RespostaPadraoDTO
+            {
+                Sucesso = false,
+                Mensagem = $"Estoque insuficiente. Disponível: {produto.QtdEstoque}"
+            });
+        }
 
-        if (quantidadeNova < 0)
-            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = $"Estoque insuficiente. Disponível: {quantidadeAnterior}" });
-
-        produto.QtdEstoque = quantidadeNova;
-        _context.Produtos.Update(produto);
-        await _context.SaveChangesAsync();
-        LogSistemaHelper.Registrar(_context, "ESTOQUE", $"Ajuste {produto.NomeProduto}: {quantidadeAnterior} → {quantidadeNova} ({ajuste.Motivo})");
-        await _context.SaveChangesAsync();
+        var resultado = resultados.Single();
+        produto.QtdEstoque = resultado.QuantidadeNova;
 
         return Ok(new RespostaPadraoDTO
         {
             Sucesso = true,
             Mensagem = "Estoque ajustado com sucesso",
-            Dados = new { quantidadeAnterior, quantidadeNova, motivo = ajuste.Motivo, produto = CategoriaProdutoHelper.Mapear(produto) }
+            Dados = new
+            {
+                quantidadeAnterior = resultado.QuantidadeAnterior,
+                quantidadeNova = resultado.QuantidadeNova,
+                motivo = ajuste.Motivo,
+                produto = CategoriaProdutoHelper.Mapear(produto)
+            }
         });
     }
 }

@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { useRestaurant } from "@/contexts/RestaurantContext";
+import { useRestaurant } from "@/contexts/useRestaurant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { DollarSign, TrendingUp, AlertTriangle, ShoppingCart } from "lucide-react";
-import { getFaturamento, getReceitaPorForma } from "@/services/api";
+import {
+  getFaturamento,
+  getProdutosMaisVendidos,
+  getReceitaPorForma,
+} from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 
 const COLORS = ["hsl(25,95%,53%)", "hsl(142,71%,45%)", "hsl(217,91%,60%)", "hsl(280,65%,60%)"];
@@ -15,11 +19,18 @@ interface PaymentRevenue {
   total: number;
 }
 
+interface TopProduct {
+  idProduto?: number;
+  nomeProduto?: string;
+  quantidadeVendida?: number;
+}
+
 export default function DashboardPage() {
   const { orders } = useRestaurant();
   const { toast } = useToast();
   const [finance, setFinance] = useState({ receita: 0, despesas: 0, lucro: 0 });
   const [paymentData, setPaymentData] = useState<{ name: string; value: number }[]>([]);
+  const [topProducts, setTopProducts] = useState<{ name: string; qty: number }[]>([]);
 
   useEffect(() => {
     const loadFinance = async () => {
@@ -27,12 +38,14 @@ export default function DashboardPage() {
       const start = `${date}T00:00:00`;
       const end = `${date}T23:59:59.999`;
       try {
-        const [summaryResponse, paymentsResponse] = await Promise.all([
+        const [summaryResponse, paymentsResponse, productsResponse] = await Promise.all([
           getFaturamento(),
           getReceitaPorForma(start, end),
+          getProdutosMaisVendidos(),
         ]);
         const summary = summaryResponse?.dados ?? summaryResponse?.Dados ?? summaryResponse;
         const payments = paymentsResponse?.dados ?? paymentsResponse?.Dados ?? paymentsResponse;
+        const products = productsResponse?.dados ?? productsResponse?.Dados ?? productsResponse;
         setFinance({
           receita: Number(summary?.receita ?? 0),
           despesas: Number(summary?.despesas ?? 0),
@@ -42,6 +55,13 @@ export default function DashboardPage() {
           name: payment.formaPagemento ?? payment.formaPagamento ?? "Outros",
           value: Number(payment.total ?? 0),
         })) : []);
+        setTopProducts(Array.isArray(products) ? products
+          .map((product: TopProduct) => ({
+            name: product.nomeProduto ?? "Produto",
+            qty: Number(product.quantidadeVendida ?? 0),
+          }))
+          .sort((a, b) => b.qty - a.qty)
+          .slice(0, 5) : []);
       } catch (error) {
         toast({ title: "Erro", description: error instanceof Error ? error.message : "Falha ao carregar o faturamento.", variant: "destructive" });
       }
@@ -56,12 +76,6 @@ export default function DashboardPage() {
   const expenses = finance.despesas;
   const profit = finance.lucro;
   const expensePercent = revenue > 0 ? (expenses / revenue) * 100 : 0;
-
-  const productSales: Record<string, number> = {};
-  completedOrders.forEach(o => o.items.forEach(i => {
-    productSales[i.productName] = (productSales[i.productName] || 0) + i.quantity;
-  }));
-  const topProducts = Object.entries(productSales).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, qty]) => ({ name, qty }));
 
   return (
     <div className="space-y-6 animate-fade-in">

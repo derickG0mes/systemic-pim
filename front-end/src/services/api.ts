@@ -359,6 +359,10 @@ export async function getReceitaPorForma(dataInicio: string, dataFim: string) {
   return apiCall(`/faturamento/receita-por-forma?${params.toString()}`);
 }
 
+export async function getProdutosMaisVendidos() {
+  return apiCall("/faturamento/produtos-mais-vendidos");
+}
+
 // ============================================
 // FORMAS DE PAGAMENTO
 // ============================================
