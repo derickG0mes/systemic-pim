@@ -2,6 +2,7 @@
 
 - [Configuração, execução, autenticação e tabela completa de endpoints](CONFIGURACAO.md)
 - [Arquitetura, pastas, páginas, permissões e banco de dados](ARQUITETURA.md)
+- [Plano de implantação em nuvem](PLANO_NUVEM.md)
 - [Exemplo TypeScript de integração com fetch](EXEMPLO_INTEGRACAO_REACT.ts)
 
 A documentação descreve o estado verificado do código; não substitui a
