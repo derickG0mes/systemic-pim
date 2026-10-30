@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 *.env
+**/.env
 
 # .NET Build artifacts
 [Bb]in/
