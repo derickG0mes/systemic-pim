@@ -134,7 +134,7 @@ export default function UsersPage() {
       </div>
       <Card>
         <CardContent className="p-0">
-          <Table>
+          <Table aria-label="Funcionários">
             <TableHeader>
               <TableRow>
                 <TableHead>Nome</TableHead>

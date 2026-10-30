@@ -1,11 +1,12 @@
 import React from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import { useLocation } from "react-router";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
-  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar,
+  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { useSidebar } from "@/components/ui/useSidebar";
 import { hasPermission } from "@/lib/rbac";
 import {
   LayoutDashboard, ShoppingCart, Receipt, Package, CalendarClock,
@@ -51,9 +52,13 @@ function AppSidebarContent() {
             <SidebarMenu>
               {filteredItems.map(item => (
                 <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton asChild isActive={location.pathname === item.url}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location.pathname === item.url}
+                    aria-label={item.title}
+                  >
                     <NavLink to={item.url} end className="hover:bg-sidebar-accent/50" activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
-                      <item.icon className="mr-2 h-4 w-4" />
+                      <item.icon className="mr-2 h-4 w-4" aria-hidden="true" />
                       {!collapsed && <span>{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
@@ -69,8 +74,14 @@ function AppSidebarContent() {
               <p className="text-xs text-sidebar-foreground capitalize">{user.role === "employee" ? user.position : user.role}</p>
             </div>
           )}
-          <Button variant="ghost" size="sm" onClick={logout} className="w-full justify-start text-sidebar-foreground hover:text-destructive hover:bg-destructive/10">
-            <LogOut className="h-4 w-4 mr-2" />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={logout}
+            aria-label="Sair"
+            className="w-full justify-start text-sidebar-foreground hover:text-destructive hover:bg-destructive/10"
+          >
+            <LogOut className="h-4 w-4 mr-2" aria-hidden="true" />
             {!collapsed && "Sair"}
           </Button>
         </div>
@@ -83,14 +94,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
+        <a
+          href="#main-content"
+          className="sr-only z-[200] rounded-md bg-background px-4 py-2 font-medium text-foreground shadow focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          Pular para o conteúdo
+        </a>
         <AppSidebarContent />
         <div className="flex-1 flex flex-col min-w-0">
           <header className="h-14 flex items-center border-b bg-card px-4 shrink-0">
             <SidebarTrigger>
-              <Menu className="h-5 w-5" />
+              <Menu className="h-5 w-5" aria-hidden="true" />
             </SidebarTrigger>
           </header>
-          <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
+          <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto p-4 md:p-6">
+            {children}
+          </main>
         </div>
       </div>
     </SidebarProvider>

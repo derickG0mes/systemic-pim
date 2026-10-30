@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Navigate } from "react-router";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import AppLayout from "@/components/AppLayout";
 import { hasPermission, Permission } from "@/lib/rbac";
 

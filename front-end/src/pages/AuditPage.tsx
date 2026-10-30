@@ -63,7 +63,7 @@ export default function AuditPage() {
       </div>
       <Card>
         <CardContent className="p-0">
-          <Table>
+          <Table aria-label="Registros de auditoria">
             <TableHeader>
               <TableRow>
                 <TableHead>Data/Hora</TableHead>
