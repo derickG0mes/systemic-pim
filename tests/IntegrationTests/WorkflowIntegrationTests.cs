@@ -17,6 +17,12 @@ using PIM3.API.Services;
 
 namespace Systemic.IntegrationTests;
 
+[CollectionDefinition("Process-wide environment", DisableParallelization = true)]
+public sealed class ProcessWideEnvironmentCollection
+{
+}
+
+[Collection("Process-wide environment")]
 public sealed class WorkflowIntegrationTests
 {
     [IsolatedSqlServerFact]
@@ -79,7 +85,6 @@ public sealed class WorkflowIntegrationTests
         Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
         using var created = JsonDocument.Parse(await createResponse.Content.ReadAsStringAsync());
         var comandaId = created.RootElement
-            .GetProperty("dados")
             .GetProperty("dados")
             .GetProperty("idComanda")
             .GetInt32();
@@ -262,6 +267,14 @@ public sealed class WorkflowIntegrationTests
 
             using var response = await Client.SendAsync(request);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Contains(
+                response.Headers.GetValues("Set-Cookie"),
+                value => value.StartsWith(
+                    $"{JwtService.AuthCookieName}=",
+                    StringComparison.Ordinal));
+
+            using var validationResponse = await Client.GetAsync("/api/autenticacao/validar");
+            Assert.Equal(HttpStatusCode.OK, validationResponse.StatusCode);
         }
 
         internal async Task<HttpResponseMessage> SendUnsafeAsync(

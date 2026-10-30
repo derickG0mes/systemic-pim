@@ -11,6 +11,7 @@ using Xunit;
 
 namespace Systemic.IntegrationTests
 {
+    [Collection("Process-wide environment")]
     public class BackupIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
     {
         private readonly WebApplicationFactory<Program> _factory;

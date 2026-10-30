@@ -17,6 +17,7 @@ using PIM3.API.Services;
 
 namespace Systemic.IntegrationTests;
 
+[Collection("Process-wide environment")]
 public sealed class BackupIntegrityIntegrationTests
 {
     private const string HmacKey = "integration-test-backup-hmac-key-0123456789";
