@@ -1,11 +1,11 @@
 import React, {
-  createContext,
-  useContext,
   useState,
   useCallback,
   ReactNode,
   useEffect,
+  useRef,
 } from "react";
+import { RestaurantContext } from "@/contexts/restaurant-context";
 import { addAuditLog, AuditLog } from "@/lib/audit";
 import {
   createPedido,
@@ -168,19 +168,20 @@ interface ApiFuncionario {
   statusFuncionario?: string;
 }
 
-interface RestaurantContextType {
+export interface RestaurantContextValue {
   products: Product[];
   orders: Order[];
   tabs: Tab[];
+  realtimeConnected: boolean;
   reservations: Reservation[];
   employees: Employee[];
   auditLogs: AuditLog[];
   addProduct: (p: Omit<Product, "id">) => void;
   updateProduct: (id: string, p: Partial<Product>) => Promise<void>;
   adjustProductStock: (id: string, adjustment: { tipo: "ADICIONAR" | "REMOVER"; quantidade: number; motivo: string }) => Promise<StockAdjustmentResult>;
-  addOrder: (o: Omit<Order, "id" | "createdAt" | "updatedAt">) => void;
-  editOrder: (id: string, items: OrderItem[]) => void;
-  updateOrderStatus: (id: string, status: OrderStatus) => void;
+  addOrder: (o: Omit<Order, "id" | "createdAt" | "updatedAt">) => Promise<void>;
+  editOrder: (id: string, items: OrderItem[]) => Promise<void>;
+  updateOrderStatus: (id: string, status: OrderStatus) => Promise<void>;
   openTab: (tableNumber: number) => Promise<void>;
   closeTab: (id: string, paymentMethod: PaymentMethod) => Promise<void>;
   markTabUnpaid: (id: string) => Promise<void>;
@@ -202,7 +203,15 @@ interface RestaurantContextType {
   faturamento: { receita: number; despesas: number; lucro: number };
 }
 
-const RestaurantContext = createContext<RestaurantContextType | null>(null);
+let optimisticOrderId = 0;
+
+function showErrorToast(message: string) {
+  window.dispatchEvent(
+    new CustomEvent("restaurant:toast", {
+      detail: { type: "error", message },
+    }),
+  );
+}
 
 export function RestaurantProvider({ children }: { children: ReactNode }) {
   const [products, setProducts] = useState<Product[]>([]);
@@ -297,10 +306,11 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
           id: String(comanda.idComanda),
           tableNumber: Number(comanda.mesa?.numeroMesa ?? comanda.numeroMesa ?? comanda.idMesa),
           orders: mappedOrders.map((o) => o.id),
-          status:
-            comanda.statusComanda?.toLowerCase() === "aberta"
-              ? "open"
-              : "closed",
+          status: comanda.statusComanda?.toLowerCase() === "aberta"
+            ? "open"
+            : paymentMethod
+              ? "closed"
+              : "unpaid",
           paymentMethod,
           total: Number(comanda.valorTotal || 0),
           openedAt: new Date(comanda.dataAberta),
@@ -326,6 +336,48 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
       throw error;
     }
   }, []);
+
+  const syncProducts = useCallback(async () => {
+    if (!hasAuthSession()) return;
+    const produtosResp = await getProdutos();
+    const listaProdutos = produtosResp?.dados
+      ? produtosResp.dados
+      : produtosResp?.Dados
+        ? produtosResp.Dados
+        : produtosResp;
+    const produtosArray: ApiProduto[] = Array.isArray(listaProdutos)
+      ? listaProdutos
+      : [];
+    if (produtosArray.length === 0) return;
+
+    setProducts(
+      produtosArray.map((p) => ({
+        id: p.idProduto ? `p${p.idProduto}` : String(p.id),
+        name: p.nomeProduto || p.name || "",
+        category: p.categoria || p.descricaoProduto || p.category || "Geral",
+        price: Number(p.precoProduto || p.price || 0),
+        stock: Number(p.qtdEstoque ?? p.stock ?? 0),
+        minStock: Number(p.estoqueMinimo ?? p.minStock ?? 0),
+      })),
+    );
+  }, []);
+
+  const reconcileOrderMutation = useCallback(
+    async (includeProducts: boolean) => {
+      try {
+        await Promise.all([
+          syncComandas(),
+          ...(includeProducts ? [syncProducts()] : []),
+        ]);
+      } catch (error) {
+        console.error("Erro ao reconciliar dados após alteração:", error);
+        showErrorToast(
+          "A operação foi concluída, mas não foi possível atualizar os dados do servidor.",
+        );
+      }
+    },
+    [syncComandas, syncProducts],
+  );
 
   // Sincronizar Logs do Backend
   const syncLogs = useCallback(async () => {
@@ -388,11 +440,14 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
       ComandaAtualizada: () => { void syncComandas(); },
     },
   );
+  const hubStateRef = useRef({ connected: hubConnected, enabled: hubEnabled });
+  hubStateRef.current = { connected: hubConnected, enabled: hubEnabled };
 
   useEffect(() => {
     if (!hubEnabled || hubConnected) return;
     const poll = setInterval(() => {
-      if (hasAuthSession()) void syncComandas();
+      const { connected, enabled } = hubStateRef.current;
+      if (!connected && enabled && hasAuthSession()) void syncComandas();
     }, 60000);
     return () => clearInterval(poll);
   }, [hubConnected, hubEnabled, syncComandas]);
@@ -654,6 +709,48 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
           precoUnitarioPago: item.price,
         })),
       };
+      const createdAt = new Date();
+      const pendingOrder: Order = {
+        ...o,
+        id: `pending-${++optimisticOrderId}`,
+        total: orderTotal,
+        createdAt,
+        updatedAt: createdAt,
+      };
+      const matchingTab = tabs.find((tab) => tab.tableNumber === o.tableNumber);
+      const affectedProductIds = new Set(
+        o.items.map((item) => item.productId),
+      );
+      const productsBefore = new Map(
+        products
+          .filter((product) => affectedProductIds.has(product.id))
+          .map((product) => [product.id, product.stock]),
+      );
+
+      setOrders((prev) => [...prev, pendingOrder]);
+      if (matchingTab) {
+        setTabs((prev) =>
+          prev.map((tab) =>
+            tab.id === matchingTab.id
+              ? {
+                  ...tab,
+                  orders: [...tab.orders, pendingOrder.id],
+                  total: tab.total + orderTotal,
+                }
+              : tab,
+          ),
+        );
+      }
+      setProducts((prev) =>
+        prev.map((product) => {
+          const quantity = o.items
+            .filter((item) => item.productId === product.id)
+            .reduce((sum, item) => sum + item.quantity, 0);
+          return quantity
+            ? { ...product, stock: Math.max(0, product.stock - quantity) }
+            : product;
+        }),
+      );
 
       console.log(
         "[ADDORDER] Iniciando criação de pedido para mesa",
@@ -668,28 +765,33 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
           "[ADDORDER] Pedido criado com sucesso no backend:",
           pedidoResponse,
         );
-
-        // Se sucesso, sincroniza as comandas do banco
-        console.log(
-          "[ADDORDER] Sincronizando comandas após criar pedido...",
-        );
-        await syncComandas();
-        console.log("[ADDORDER] Comandas sincronizadas com sucesso");
-
-        log(
-          "CREATE_ORDER",
-          `Pedido criado para mesa ${o.tableNumber} - Total: R$ ${orderTotal.toFixed(2)}`,
-        );
       } catch (error: unknown) {
         console.error("Erro: [ADDORDER] Erro ao criar pedido na API:", error);
-        window.dispatchEvent(
-          new CustomEvent("restaurant:toast", {
-            detail: { type: "error", message: "Falha ao criar pedido no servidor." },
+        setOrders((prev) => prev.filter((order) => order.id !== pendingOrder.id));
+        if (matchingTab) {
+          setTabs((prev) =>
+            prev.map((tab) => (tab.id === matchingTab.id ? matchingTab : tab)),
+          );
+        }
+        setProducts((prev) =>
+          prev.map((product) => {
+            const previousStock = productsBefore.get(product.id);
+            return previousStock === undefined
+              ? product
+              : { ...product, stock: previousStock };
           }),
         );
+        showErrorToast("Falha ao criar pedido no servidor.");
+        return;
       }
+
+      log(
+        "CREATE_ORDER",
+        `Pedido criado para mesa ${o.tableNumber} - Total: R$ ${orderTotal.toFixed(2)}`,
+      );
+      await reconcileOrderMutation(true);
     },
-    [log, syncComandas],
+    [log, products, reconcileOrderMutation, tabs],
   );
 
   const editOrder = useCallback(
@@ -701,6 +803,32 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
       const newTotal = items.reduce(
         (sum, item) => sum + item.price * item.quantity,
         0,
+      );
+      const matchingTabs = tabs.filter(
+        (tab) => tab.tableNumber === order.tableNumber,
+      );
+      const tabsBefore = new Map(matchingTabs.map((tab) => [tab.id, tab]));
+      const affectedProductIds = new Set([
+        ...order.items.map((item) => item.productId),
+        ...items.map((item) => item.productId),
+      ]);
+      const productsBefore = new Map(
+        products
+          .filter((product) => affectedProductIds.has(product.id))
+          .map((product) => [product.id, product.stock]),
+      );
+      const stockDeltas = new Map<string, number>();
+      order.items.forEach((item) =>
+        stockDeltas.set(
+          item.productId,
+          (stockDeltas.get(item.productId) || 0) + item.quantity,
+        ),
+      );
+      items.forEach((item) =>
+        stockDeltas.set(
+          item.productId,
+          (stockDeltas.get(item.productId) || 0) - item.quantity,
+        ),
       );
 
       setOrders((prev) =>
@@ -718,6 +846,14 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
             : tab,
         ),
       );
+      setProducts((prev) =>
+        prev.map((product) => {
+          const delta = stockDeltas.get(product.id);
+          return delta
+            ? { ...product, stock: Math.max(0, product.stock + delta) }
+            : product;
+        }),
+      );
 
       try {
         await updatePedido(id, {
@@ -727,44 +863,43 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
             precoUnitarioPago: item.price,
           })),
         });
-        await syncComandas();
       } catch (error) {
         console.error("Erro ao editar pedido na API:", error);
+        setOrders((prev) =>
+          prev.map((current) => (current.id === id ? order : current)),
+        );
+        setTabs((prev) =>
+          prev.map((tab) => tabsBefore.get(tab.id) ?? tab),
+        );
+        setProducts((prev) =>
+          prev.map((product) => {
+            const previousStock = productsBefore.get(product.id);
+            return previousStock === undefined
+              ? product
+              : { ...product, stock: previousStock };
+          }),
+        );
+        showErrorToast("Falha ao editar pedido no servidor.");
+        return;
       }
 
       log(
         "EDIT_ORDER",
         `Pedido ${id} editado - Total atualizado para R$ ${newTotal.toFixed(2)}`,
       );
+      await reconcileOrderMutation(true);
     },
-    [log, orders, syncComandas],
+    [log, orders, products, reconcileOrderMutation, tabs],
   );
 
   const updateOrderStatus = useCallback(
-    (id: string, status: OrderStatus) => {
-      updatePedidoStatus(id, status)
-        .then(() => syncComandas())
-        .catch((error) => {
-          console.error("Erro ao atualizar status na API:", error);
-        });
+    async (id: string, status: OrderStatus) => {
+      const order = orders.find((current) => current.id === id);
+      const orderIndex = orders.findIndex((current) => current.id === id);
 
-      // REMOVER da fila visual se status for "completed"
       if (status === "completed") {
-        setOrders((prev) => prev.filter((o) => o.id !== id)); // ← REMOVE IMEDIATAMENTE
-
-        const order = orders.find((o) => o.id === id);
-        if (order) {
-          setProducts((prev) =>
-            prev.map((p) => {
-              const item = order.items.find((i) => i.productId === p.id);
-              return item
-                ? { ...p, stock: Math.max(0, p.stock - item.quantity) }
-                : p;
-            }),
-          );
-        }
+        setOrders((prev) => prev.filter((current) => current.id !== id));
       } else {
-        // Para outros status, apenas atualiza
         setOrders((prev) =>
           prev.map((o) => {
             if (o.id !== id) return o;
@@ -772,9 +907,30 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
           }),
         );
       }
+      try {
+        await updatePedidoStatus(id, status);
+      } catch (error) {
+        console.error("Erro ao atualizar status na API:", error);
+        if (order) {
+          setOrders((prev) => {
+            const updated = prev.filter((current) => current.id !== id);
+            if (status === "completed") {
+              updated.splice(Math.min(orderIndex, updated.length), 0, order);
+              return updated;
+            }
+            return updated.map((current) =>
+              current.id === id ? order : current,
+            );
+          });
+        }
+        showErrorToast("Falha ao atualizar status do pedido no servidor.");
+        return;
+      }
+
       log("UPDATE_ORDER_STATUS", `Pedido ${id} → ${status}`);
+      await reconcileOrderMutation(false);
     },
-    [orders, log, syncComandas],
+    [orders, log, reconcileOrderMutation],
   );
 
   const openTab = useCallback(
@@ -804,43 +960,62 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         debit: 3,
         cash: 4,
       };
+      const tabBefore = tabs.find((tab) => tab.id === id);
+      const closedAt = new Date();
+      setTabs((prev) =>
+        prev.map((tab) =>
+          tab.id === id
+            ? { ...tab, status: "closed", paymentMethod, closedAt }
+            : tab,
+        ),
+      );
       try {
         // O backend lê o idFuncionario diretamente do token JWT — não é mais passado pelo frontend
         await pagarComanda(id, {
           idFormaPagamento: formaMap[paymentMethod],
           troco: 0,
         });
-        await syncComandas();
-        log("CLOSE_TAB", `Comanda ${id} fechada (${paymentMethod})`);
       } catch (error: unknown) {
         console.error("Erro ao fechar comanda na API:", error);
-        window.dispatchEvent(
-          new CustomEvent("restaurant:toast", {
-            detail: { type: "error", message: "Falha ao registrar pagamento no servidor." },
-          }),
-        );
+        if (tabBefore) {
+          setTabs((prev) =>
+            prev.map((tab) => (tab.id === id ? tabBefore : tab)),
+          );
+        }
+        showErrorToast("Falha ao registrar pagamento no servidor.");
+        return;
       }
+      log("CLOSE_TAB", `Comanda ${id} fechada (${paymentMethod})`);
+      await reconcileOrderMutation(false);
     },
-    [log, syncComandas],
+    [log, reconcileOrderMutation, tabs],
   );
 
   const markTabUnpaid = useCallback(
     async (id: string) => {
+      const tabBefore = tabs.find((tab) => tab.id === id);
+      setTabs((prev) =>
+        prev.map((tab) =>
+          tab.id === id ? { ...tab, status: "unpaid", closedAt: new Date() } : tab,
+        ),
+      );
       try {
         // Fecha a comanda no banco sem DETALHE_PAGAMENTO; registra NAO_PAGO no LOG_SISTEMA
         await markComandaInadimplente(id);
-        await syncComandas();
-        log("MARK_UNPAID", `Comanda ${id} marcada como não paga`);
       } catch (error: unknown) {
         console.error("Erro ao marcar comanda como inadimplente:", error);
-        window.dispatchEvent(
-          new CustomEvent("restaurant:toast", {
-            detail: { type: "error", message: "Falha ao registrar inadimplência no servidor." },
-          }),
-        );
+        if (tabBefore) {
+          setTabs((prev) =>
+            prev.map((tab) => (tab.id === id ? tabBefore : tab)),
+          );
+        }
+        showErrorToast("Falha ao registrar inadimplência no servidor.");
+        return;
       }
+      log("MARK_UNPAID", `Comanda ${id} marcada como não paga`);
+      await reconcileOrderMutation(false);
     },
-    [log, syncComandas],
+    [log, reconcileOrderMutation, tabs],
   );
 
   const addOrderToTab = useCallback(
@@ -1039,6 +1214,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         products,
         orders,
         tabs,
+        realtimeConnected: hubEnabled && hubConnected,
         reservations,
         employees,
         auditLogs,
@@ -1064,10 +1240,3 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     </RestaurantContext.Provider>
   );
 }
-
-export const useRestaurant = () => {
-  const ctx = useContext(RestaurantContext);
-  if (!ctx)
-    throw new Error("useRestaurant must be used within RestaurantProvider");
-  return ctx;
-};

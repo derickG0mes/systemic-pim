@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router";
-import { useRestaurant, OrderStatus } from "@/contexts/RestaurantContext";
-import { useAuth } from "@/contexts/AuthContext";
+import { useRestaurant } from "@/contexts/useRestaurant";
+import type { OrderStatus } from "@/contexts/RestaurantContext";
+import { useAuth } from "@/contexts/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,8 +23,15 @@ import { Input } from "@/components/ui/input";
 import { Clock, AlertTriangle, Plus, ChefHat, MapPin, Minus, Trash2 } from "lucide-react";
 
 export default function OrdersPage() {
-  const { orders, products, addOrder, editOrder, updateOrderStatus, tabs } =
-    useRestaurant();
+  const {
+    orders,
+    products,
+    addOrder,
+    editOrder,
+    updateOrderStatus,
+    tabs,
+    realtimeConnected,
+  } = useRestaurant();
   const { user } = useAuth();
   const [, setTick] = useState(0);
   const [newOrderOpen, setNewOrderOpen] = useState(false);
@@ -203,7 +211,23 @@ export default function OrdersPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-2xl font-bold">Pedidos</h1>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold">Pedidos</h1>
+          <span
+            role="status"
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
+          >
+            <span
+              aria-hidden="true"
+              className={`h-2 w-2 rounded-full ${
+                realtimeConnected ? "bg-green-500" : "bg-muted-foreground/50"
+              }`}
+            />
+            {realtimeConnected
+              ? "Tempo real ativo"
+              : "Modo atualização periódica"}
+          </span>
+        </div>
         <div className="flex gap-2 flex-wrap">
           <Select
             value={filter}
@@ -244,10 +268,10 @@ export default function OrdersPage() {
               <div className="space-y-4">
                 {/* Seletor visual de mesas com comanda aberta */}
                 <div>
-                  <label className="text-sm font-semibold mb-2 flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
+                  <p className="text-sm font-semibold mb-2 flex items-center gap-2">
+                    <MapPin className="h-4 w-4" aria-hidden="true" />
                     Selecione uma Mesa com Comanda Aberta
-                  </label>
+                  </p>
                   {availableTables.length > 0 ? (
                     <div className="grid grid-cols-4 gap-2">
                       {availableTables.map((tableNum) => (
@@ -259,6 +283,7 @@ export default function OrdersPage() {
                               : "outline"
                           }
                           className="h-auto py-3 flex flex-col items-center"
+                          aria-pressed={selectedTable === String(tableNum)}
                           onClick={() => setSelectedTable(String(tableNum))}
                         >
                           <span className="text-lg font-bold">{tableNum}</span>
@@ -277,9 +302,9 @@ export default function OrdersPage() {
                 {/* Produtos para adicionar */}
                 {selectedTable && (
                   <div>
-                    <label className="text-sm font-semibold mb-2 block">
+                    <p className="text-sm font-semibold mb-2 block">
                       Produtos Disponíveis
-                    </label>
+                    </p>
                     <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2">
                       {products
                         .filter((p) => p.stock > 0)
@@ -297,11 +322,12 @@ export default function OrdersPage() {
                             <Button
                               size="sm"
                               variant="outline"
+                              aria-label={`Adicionar ${p.name} ao pedido`}
                               onClick={() => addToCart(p.id)}
                             >
                               {cart.find((i) => i.productId === p.id)
                                 ?.quantity || 0}{" "}
-                              <Plus className="h-3 w-3 ml-1" />
+                              <Plus className="h-3 w-3 ml-1" aria-hidden="true" />
                             </Button>
                           </div>
                         ))}
@@ -312,9 +338,9 @@ export default function OrdersPage() {
                 {/* Carrinho */}
                 {cart.length > 0 && (
                   <div className="border-t pt-3">
-                    <label className="text-sm font-semibold mb-2 block">
+                    <p className="text-sm font-semibold mb-2 block">
                       Itens no Carrinho
-                    </label>
+                    </p>
                     <div className="space-y-2 max-h-40 overflow-y-auto mb-3">
                       {cart.map((item, idx) => (
                         <div
@@ -333,9 +359,10 @@ export default function OrdersPage() {
                             <button
                               type="button"
                               className="text-destructive"
+                              aria-label={`Remover ${item.productName} do pedido`}
                               onClick={() => removeFromCart(item.productId)}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-4 w-4" aria-hidden="true" />
                             </button>
                           </div>
                           <div className="flex items-center justify-between gap-3">
@@ -343,17 +370,19 @@ export default function OrdersPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
+                                aria-label={`Diminuir quantidade de ${item.productName}`}
                                 onClick={() => decrementCartItem(item.productId)}
                               >
-                                <Minus className="h-4 w-4" />
+                                <Minus className="h-4 w-4" aria-hidden="true" />
                               </Button>
                               <span className="font-semibold">{item.quantity}</span>
                               <Button
                                 size="sm"
                                 variant="outline"
+                                aria-label={`Aumentar quantidade de ${item.productName}`}
                                 onClick={() => addToCart(item.productId)}
                               >
-                                <Plus className="h-4 w-4" />
+                                <Plus className="h-4 w-4" aria-hidden="true" />
                               </Button>
                             </div>
                             <p className="font-semibold">
