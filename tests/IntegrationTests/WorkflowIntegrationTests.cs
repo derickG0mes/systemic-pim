@@ -89,6 +89,19 @@ public sealed class WorkflowIntegrationTests
             .GetProperty("idComanda")
             .GetInt32();
 
+        using var statusResponse = await environment.SendUnsafeAsync(
+            HttpMethod.Put,
+            $"/api/pedidos/{comandaId}/status",
+            new { status = "in_progress" });
+        Assert.True(
+            statusResponse.StatusCode == HttpStatusCode.OK,
+            $"Expected status update to return OK, got {(int)statusResponse.StatusCode}: " +
+            await statusResponse.Content.ReadAsStringAsync());
+
+        Assert.Equal("PREPARANDO", await environment.ReadOrderItemStatusAsync(
+            comandaId,
+            orderData.Produto.IdProduto));
+        Assert.Equal(8, await environment.ReadProductStockAsync(orderData.Produto.IdProduto));
         Assert.Equal(35m, await environment.ReadComandaTotalAsync(comandaId));
         Assert.Equal("OCUPADA", await environment.ReadMesaStatusAsync(orderData.Mesa.IdMesa));
 
@@ -100,8 +113,12 @@ public sealed class WorkflowIntegrationTests
                 idFormaPagamento = orderData.FormaPagamento.IdFormaPagamento,
                 troco = 0m,
             });
-        Assert.Equal(HttpStatusCode.OK, paymentResponse.StatusCode);
+        Assert.True(
+            paymentResponse.StatusCode == HttpStatusCode.OK,
+            $"Expected payment to return OK, got {(int)paymentResponse.StatusCode}: " +
+            await paymentResponse.Content.ReadAsStringAsync());
 
+        Assert.Equal(35m, await environment.ReadComandaTotalAsync(comandaId));
         Assert.Equal("FECHADA", await environment.ReadComandaStatusAsync(comandaId));
         Assert.Equal("DISPONIVEL", await environment.ReadMesaStatusAsync(orderData.Mesa.IdMesa));
     }
@@ -345,6 +362,24 @@ public sealed class WorkflowIntegrationTests
             return await context.Comandas
                 .Where(comanda => comanda.IdComanda == comandaId)
                 .Select(comanda => comanda.StatusComanda)
+                .SingleAsync();
+        }
+
+        internal async Task<string> ReadOrderItemStatusAsync(int comandaId, int productId)
+        {
+            await using var context = CreateContext();
+            return await context.ItensComanda
+                .Where(item => item.IdComanda == comandaId && item.IdProduto == productId)
+                .Select(item => item.StatusItem)
+                .SingleAsync();
+        }
+
+        internal async Task<int> ReadProductStockAsync(int productId)
+        {
+            await using var context = CreateContext();
+            return await context.Produtos
+                .Where(produto => produto.IdProduto == productId)
+                .Select(produto => produto.QtdEstoque)
                 .SingleAsync();
         }
 
