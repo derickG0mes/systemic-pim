@@ -15,3 +15,8 @@
 - **Sem Scrum, Kanban, backlog ou sprints:** o trabalho é conduzido por fases de
   conformidade e critérios de entrega, sem adotar um processo de equipe que não
   faz parte do escopo do projeto.
+- **npm audit:** 4 vulnerabilidades low (`deepmerge` via `vite-plugin-pwa`/
+  `workbox-build`), só em dependências de desenvolvimento, sem correção
+  compatível. `npm audit fix --force` foi descartado por exigir downgrade
+  breaking do `vite-plugin-pwa`. Produção: 0 vulnerabilidades
+  (`npm audit --omit=dev`). Reavaliar quando o `workbox-build` publicar correção.
