@@ -233,7 +233,7 @@ export default function OrdersPage() {
             value={filter}
             onValueChange={(value) => setFilter(value as "all" | OrderStatus)}
           >
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="w-40" aria-label="Filtrar pedidos por status">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

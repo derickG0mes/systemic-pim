@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import { UtensilsCrossed, Lock, Mail } from "lucide-react";
 
 export default function LoginPage() {
@@ -43,14 +44,16 @@ export default function LoginPage() {
             <div className="space-y-2">
               <div className="relative">
                 <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="E-mail" type="email" value={email} onChange={e => setEmail(e.target.value)} className="pl-10" required disabled={!!isLocked} />
+                <Label htmlFor="login-email" className="sr-only">E-mail</Label>
+                <Input id="login-email" placeholder="E-mail" type="email" value={email} onChange={e => setEmail(e.target.value)} className="pl-10" required disabled={!!isLocked} aria-invalid={Boolean(error)} aria-describedby={error ? "login-error" : undefined} />
               </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Senha" type="password" value={password} onChange={e => setPassword(e.target.value)} className="pl-10" required disabled={!!isLocked} />
+                <Label htmlFor="login-password" className="sr-only">Senha</Label>
+                <Input id="login-password" placeholder="Senha" type="password" value={password} onChange={e => setPassword(e.target.value)} className="pl-10" required disabled={!!isLocked} aria-invalid={Boolean(error)} aria-describedby={error ? "login-error" : undefined} />
               </div>
             </div>
-            {error && <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">{error}</p>}
+            {error && <p id="login-error" role="alert" className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">{error}</p>}
             <Button type="submit" className="w-full" disabled={loading || !!isLocked}>
               {loading ? "Entrando..." : "Entrar"}
             </Button>

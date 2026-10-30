@@ -41,7 +41,7 @@ export default function TabsPage() {
         {TABLES.map(table => {
           const tab = getTabForTable(table);
           return (
-            <Card key={table} className={`cursor-pointer transition-all hover:shadow-md ${tab ? "border-primary/50 bg-accent/30" : "opacity-70"}`}>
+            <Card key={table} className={`transition-all hover:shadow-md ${tab ? "border-primary/50 bg-accent/30" : "bg-muted/30"}`}>
               <CardContent className="p-4 text-center space-y-2">
                 <p className="text-2xl font-bold">{table}</p>
                 <p className="text-xs text-muted-foreground">Mesa</p>
@@ -110,7 +110,7 @@ export default function TabsPage() {
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">Selecione o método de pagamento:</p>
             <Select value={payMethod} onValueChange={(v: PaymentMethod) => setPayMethod(v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label="Forma de pagamento"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {(Object.keys(paymentLabels) as PaymentMethod[]).map(m => (
                   <SelectItem key={m} value={m}>{paymentLabels[m]}</SelectItem>

@@ -103,7 +103,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <AppSidebarContent />
         <div className="flex-1 flex flex-col min-w-0">
           <header className="h-14 flex items-center border-b bg-card px-4 shrink-0">
-            <SidebarTrigger>
+            <SidebarTrigger aria-label="Abrir ou fechar menu lateral">
               <Menu className="h-5 w-5" aria-hidden="true" />
             </SidebarTrigger>
           </header>
