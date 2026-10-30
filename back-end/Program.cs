@@ -104,6 +104,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddScoped<JwtService>();
 builder.Services.AddScoped<BackupService>();
 builder.Services.AddScoped<PIM3.API.Services.Backup.BackupRestoreService>();
+builder.Services.AddScoped<IComandaService, ComandaService>();
+builder.Services.AddScoped<IPedidoService, PedidoService>();
+builder.Services.AddScoped<IFaturamentoService, FaturamentoService>();
 
 builder.Services.AddSignalR();
 
