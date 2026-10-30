@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Análise de conformidade v2 — Systemic (PIM IV)</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7fa;
+      --surface: #fff;
+      --surface-soft: #edf1f5;
+      --text: #17212b;
+      --muted: #526170;
+      --border: #cbd4de;
+      --link: #075a9c;
+      --attende: #17653a;
+      --partial: #815000;
+      --no: #9e2525;
+      --unknown: #4b5563;
+      --out: #4a3b85;
+      --focus: #005fcc;
+      font: 16px/1.55 system-ui, "Segoe UI", sans-serif;
+    }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #111820;
+      --surface: #1b2631;
+      --surface-soft: #253342;
+      --text: #edf3f8;
+      --muted: #bbc8d4;
+      --border: #435364;
+      --link: #8bc8ff;
+      --attende: #8ee0aa;
+      --partial: #ffd27b;
+      --no: #ff9a9a;
+      --unknown: #d3dae2;
+      --out: #c4b5fd;
+      --focus: #8bc8ff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        color-scheme: dark;
+        --bg: #111820;
+        --surface: #1b2631;
+        --surface-soft: #253342;
+        --text: #edf3f8;
+        --muted: #bbc8d4;
+        --border: #435364;
+        --link: #8bc8ff;
+        --attende: #8ee0aa;
+        --partial: #ffd27b;
+        --no: #ff9a9a;
+        --unknown: #d3dae2;
+        --out: #c4b5fd;
+        --focus: #8bc8ff;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); }
+    a { color: var(--link); }
+    button, select { font: inherit; }
+    button, select, summary { cursor: pointer; }
+    :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+    .page { width: min(1380px, 100%); margin: 0 auto; padding: 1.25rem; }
+    header { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
+    h1 { margin: 0 0 .4rem; font-size: clamp(1.7rem, 4vw, 2.5rem); line-height: 1.15; }
+    h2 { margin: 2rem 0 .7rem; font-size: 1.35rem; }
+    h3 { margin: 1rem 0 .4rem; font-size: 1.05rem; }
+    p { margin: .55rem 0; }
+    .muted, .meta { color: var(--muted); }
+    .meta { font-size: .92rem; }
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: .8rem; padding: 1rem; margin-top: 1rem; }
+    .verdict { border-left: .4rem solid var(--partial); }
+    .theme-button, .filter select {
+      color: var(--text); background: var(--surface); border: 1px solid var(--border);
+      border-radius: .5rem; padding: .55rem .7rem;
+    }
+    .score-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .75rem; }
+    .score { border: 1px solid var(--border); border-radius: .65rem; padding: .75rem; }
+    .score-head { display: flex; justify-content: space-between; gap: .5rem; align-items: baseline; }
+    .score strong { font-size: 1.3rem; }
+    .score-compare { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; margin-top: .5rem; }
+    .score-compare span { display: block; }
+    .meter { height: .65rem; background: var(--surface-soft); border-radius: 2rem; overflow: hidden; margin-top: .55rem; }
+    .meter span { display: block; height: 100%; }
+    .bar-attende { background: var(--attende); }
+    .bar-partial { background: var(--partial); }
+    .bar-no { background: var(--no); }
+    .bar-unknown { background: var(--unknown); }
+    .bar-out { background: var(--out); }
+    .filters { display: flex; gap: .75rem; flex-wrap: wrap; align-items: end; }
+    .filter { display: grid; gap: .25rem; min-width: 190px; }
+    .filter label { font-weight: 650; }
+    .filter select { width: 100%; }
+    .table-wrap { overflow-x: auto; margin-top: .75rem; border: 1px solid var(--border); border-radius: .65rem; }
+    table { border-collapse: collapse; width: 100%; min-width: 980px; background: var(--surface); }
+    th, td { padding: .7rem; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); }
+    th { background: var(--surface-soft); position: sticky; top: 0; z-index: 1; }
+    tr:last-child td { border-bottom: 0; }
+    .item-title { min-width: 210px; font-weight: 650; }
+    .badge { display: inline-block; border: 1px solid currentColor; border-radius: 2rem; padding: .15rem .55rem; font-size: .88rem; font-weight: 700; white-space: nowrap; }
+    .status-attende { color: var(--attende); }
+    .status-partial { color: var(--partial); }
+    .status-no { color: var(--no); }
+    .status-unknown { color: var(--unknown); }
+    .status-out { color: var(--out); }
+    .priority { white-space: nowrap; font-weight: 650; }
+    details { margin: .1rem 0; }
+    summary { color: var(--link); font-weight: 600; }
+    details p { margin: .45rem 0 0; }
+    code, pre { font-family: ui-monospace, Consolas, monospace; }
+    code { overflow-wrap: anywhere; }
+    pre { overflow-x: auto; padding: .8rem; border-radius: .5rem; background: var(--surface-soft); }
+    .evidence { min-width: 220px; }
+    .gap { min-width: 190px; }
+    .callout { border-left: .35rem solid var(--no); }
+    .risk-list li, .steps li { margin: .5rem 0; }
+    .result-count { margin-left: auto; color: var(--muted); }
+    .empty { padding: 1.25rem; text-align: center; color: var(--muted); }
+    footer { margin: 2rem 0 1rem; color: var(--muted); font-size: .9rem; }
+    @media (max-width: 700px) {
+      .page { padding: .75rem; }
+      header { flex-direction: column-reverse; }
+      .theme-button { align-self: flex-end; }
+      .filter { flex: 1 1 100%; }
+      .result-count { margin-left: 0; width: 100%; }
+      .table-wrap { overflow: visible; border: 0; }
+      table { min-width: 0; display: block; background: transparent; }
+      thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+      tbody { display: grid; gap: .75rem; }
+      tr { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface); border: 1px solid var(--border); border-radius: .65rem; overflow: hidden; }
+      td { display: block; min-width: 0 !important; padding: .55rem; }
+      td::before { content: attr(data-label); display: block; margin-bottom: .2rem; color: var(--muted); font-size: .78rem; font-weight: 700; text-transform: uppercase; }
+      td:first-child, td:nth-child(4), td:nth-child(5) { grid-column: 1 / -1; }
+      td:last-child { border-bottom: 0; }
+      .item-title { font-size: 1rem; }
+    }
+    @media print {
+      :root { --bg: #fff; --surface: #fff; --surface-soft: #eee; --text: #111; --muted: #444; }
+      .theme-button, .filters { display: none; }
+      .page { width: 100%; padding: 0; }
+      details > * { display: block; }
+      .table-wrap { overflow: visible; }
+      table { min-width: 0; font-size: 9pt; }
+      th { position: static; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div>
+        <h1>Análise de conformidade — Systemic (PIM IV) · v2</h1>
+        <p class="meta">Reavaliação dos 76 itens do relatório de 29/10/2026 · ambiente e código verificados em 30/10/2026</p>
+      </div>
+      <button class="theme-button" id="themeToggle" type="button" aria-pressed="false">Ativar tema escuro</button>
+    </header>
+
+    <section class="panel verdict" aria-labelledby="verdict-title">
+      <h2 id="verdict-title">Veredito: atende parcialmente</h2>
+      <p>As correções posteriores fecharam lacunas importantes de pedidos/comandas, assinatura e teste do restore, rotas de serviços, acessibilidade básica, CI, lint e divisão do bundle. A conformidade ainda não é completa: não há TLS ativo no Compose, backups não são criptografados, mobile/PWA e CD/cloud não existem, e certas verificações dependem de sessão administrativa, VLibras remoto ou avaliação visual/manual.</p>
+      <p class="meta">A classificação avalia cada afirmação da matriz anterior com evidência atual, não trata ausência de prova como aprovação. O item Scrum/Kanban/backlog/sprints foi retirado do escopo por decisão do grupo.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="score-title">
+      <h2 id="score-title">Placar comparativo — 29/10 × 30/10</h2>
+      <p id="strictScore"></p>
+      <div class="score-grid" id="scoreGrid" aria-label="Quantidade e percentual por classificação antes e depois"></div>
+      <p class="meta">Percentuais de itens em escopo usam o denominador de cada execução. Agora: 75 itens em escopo + 1 FORA DE ESCOPO; esse item não entra no denominador nem na conformidade estrita. Antes: 76 itens no denominador. PARCIAL e NÃO VERIFICÁVEL não contam como conformes.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="changes-title">
+      <h2 id="changes-title">O que mudou desde 29/10/2026</h2>
+      <div class="table-wrap">
+        <table style="min-width:720px">
+          <thead><tr><th>Item</th><th>Status anterior → status atual</th><th>Motivo</th></tr></thead>
+          <tbody id="changesBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="matrix-title">
+      <h2 id="matrix-title">Matriz de conformidade — 76 itens reavaliados</h2>
+      <div class="filters">
+        <div class="filter">
+          <label for="statusFilter">Classificação</label>
+          <select id="statusFilter">
+            <option value="">Todas</option>
+            <option>ATENDE</option>
+            <option>PARCIAL</option>
+            <option>NÃO ATENDE</option>
+            <option>NÃO VERIFICÁVEL</option>
+            <option>FORA DE ESCOPO</option>
+          </select>
+        </div>
+        <div class="filter">
+          <label for="priorityFilter">Prioridade</label>
+          <select id="priorityFilter">
+            <option value="">Todas</option>
+            <option>Crítica</option>
+            <option>Alta</option>
+            <option>Média</option>
+            <option>Baixa</option>
+          </select>
+        </div>
+        <p id="resultCount" class="result-count" aria-live="polite"></p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th># / item</th><th>Classificação</th><th>Prioridade</th><th>Evidência atual</th><th>Lacuna restante</th></tr></thead>
+          <tbody id="matrixBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel callout" aria-labelledby="risks-title">
+      <h2 id="risks-title">Cinco riscos prioritários</h2>
+      <ol class="risk-list">
+        <li><strong>Transporte sem TLS (Crítica):</strong> Compose publica API e front-end por HTTP. O cookie JWT é Secure em Production, então o login de navegador no HTTP local não foi validado e a sessão não deve ser transmitida sem TLS.</li>
+        <li><strong>Backup sem confidencialidade (Alta):</strong> HMAC-SHA256 bloqueia adulteração e os dois testes de integração passaram, mas o SQL no ZIP continua sem criptografia AES; acesso à pasta/volume pode revelar dados.</li>
+        <li><strong>Fluxos privilegiados não exercitados na sessão real (Alta):</strong> criação de pedidos, pagamento, estoque e relatórios têm testes front-end com API mockada; não foi usada sessão admin real no navegador nem transação operacional na base persistente.</li>
+        <li><strong>CSP externa parcialmente ampla (Alta):</strong> `connect-src` está explícito e sem curingas, mas outros directives ainda aceitam `https://*.vlibras.gov.br`; o widget remoto e sua compatibilidade real não foram verificados.</li>
+        <li><strong>Capacidades de entrega/plataforma ausentes (Alta):</strong> inventário não encontrou app mobile/PWA nem workflow de deploy cloud/CD; interface responsiva não substitui esses entregáveis caso sejam exigidos.</li>
+      </ol>
+    </section>
+
+    <section class="panel" aria-labelledby="evidence-title">
+      <h2 id="evidence-title">Evidências e reprodução</h2>
+      <details open>
+        <summary>Execução realizada nesta reavaliação</summary>
+        <ul>
+          <li><code>docker compose down</code>, sem <code>--volumes</code>, seguido de <code>docker compose up -d --build --wait</code> e <code>docker compose ps</code>: SQL Server, API e front-end ficaram saudáveis; <code>db-init</code> concluiu.</li>
+          <li><code>dotnet test tests/back-end.Tests.csproj</code> com <code>RUN_INTEGRATION_TESTS=1</code> e <code>BACKUP_TEST_CONNECTION_STRING</code> apontando para <code>master</code>: 49 aprovados, 0 falhas, 0 ignorados. Os testes de backup criam/removem bancos descartáveis e não usam <code>DB_RESTAURANTE</code>.</li>
+          <li>Em <code>front-end/</code>, <code>npm test -- --coverage</code>: 33 testes em 9 arquivos; statements 66,29%, branches 46,97%, funções 55,55%, linhas 67,83%.</li>
+          <li><code>npm run lint</code>: passou sem avisos/erros. <code>npm run build</code>: type-check e build passaram; maior chunk 398,53 kB. <code>npm audit</code>: 0 vulnerabilidades.</li>
+          <li>Endpoints com curl: <code>/api/healthcheck</code> 200; <code>/api/healthcheck/database</code> 200; <code>/api/healthcheck/info</code> 200 com <code>dados: { "status": "ok" }</code>; <code>POST /api/backup/restore</code> sem autenticação 401.</li>
+          <li>Catálogo de <code>DB_RESTAURANTE</code> lido por <code>sys.tables</code>, <code>sys.triggers</code>, <code>sys.procedures</code>, <code>sys.views</code>, <code>sys.objects</code> e <code>sys.indexes</code>: 12 tabelas, 3 triggers habilitadas, 3 procedures, 2 views, 0 funções SQL de usuário e 19 índices.</li>
+        </ul>
+      </details>
+      <details>
+        <summary>Objetos SQL e uso encontrado no código</summary>
+        <p>O catálogo e <code>02-procedures-views.sql</code> contêm <code>sp_fechar_comanda</code>, <code>sp_relatorio_faturamento</code>, <code>sp_ajustar_estoque</code>, <code>vw_comandas_abertas</code> e <code>vw_produtos_mais_vendidos</code>. A busca de código encontrou uso SQL direto apenas de <code>vw_produtos_mais_vendidos</code> em <code>FaturamentoService.GetProdutosMaisVendidos</code>, exposto por <code>GET /api/faturamento/produtos-mais-vendidos</code>. As outras quatro existem no banco, mas não são invocadas por service; endpoints equivalentes de comanda, relatório/ajuste operam pela lógica EF/service, não pelas procedures/views. A função SQL segue opcional e não foi criada.</p>
+      </details>
+      <details>
+        <summary>Limites e verificações não realizadas</summary>
+        <p>Não foi usada sessão administrativa real no browser para acionar a página de backup ou operações de negócio; para o restore, a integração autenticou com token de teste contra banco descartável. VLibras depende de script externo e não teve disponibilidade funcional confirmada nesta execução. Não houve auditoria visual manual de teclado em todas as telas, medição WCAG de contraste, validação cloud, nem confirmação do relatório final/artefatos externos do PIM. Esses itens foram marcados NÃO VERIFICÁVEL quando a prova era necessária.</p>
+        <p>O teste npm registrou apenas um aviso informativo do Vite sobre alternar o plugin SWC; o lint passou sem avisos.</p>
+      </details>
+      <details>
+        <summary>Comandos de reprodução (PowerShell)</summary>
+        <pre><code>docker compose down
+docker compose up -d --build --wait
+docker compose ps
+
+$env:RUN_INTEGRATION_TESTS = "1"
+$env:BACKUP_TEST_CONNECTION_STRING = "Server=localhost,1433;Database=master;User Id=sa;Password=$env:DB_PASSWORD;TrustServerCertificate=True"
+dotnet test tests/back-end.Tests.csproj
+
+Set-Location front-end
+npm test -- --coverage
+npm run lint
+npm run build
+npm audit
+
+curl.exe -i http://localhost:5050/api/healthcheck
+curl.exe -i http://localhost:5050/api/healthcheck/database
+curl.exe -i http://localhost:5050/api/healthcheck/info
+curl.exe -sS -o NUL -w "%{http_code}" -X POST http://localhost:5050/api/backup/restore
+curl.exe -sSI http://localhost:8080/</code></pre>
+        <p class="meta">A senha SQL é obtida do ambiente local e não faz parte deste relatório. Repetir <code>docker compose down</code> não remove o volume; não execute <code>down --volumes</code>.</p>
+      </details>
+    </section>
+
+    <section class="panel" aria-labelledby="steps-title">
+      <h2 id="steps-title">Próximos passos</h2>
+      <ol class="steps">
+        <li>Disponibilizar TLS no proxy de implantação e validar login/cookie e HSTS em HTTPS.</li>
+        <li>Definir proteção de confidencialidade/retention para ZIPs de backup e gestão/rotação de <code>BACKUP_HMAC_KEY</code>.</li>
+        <li>Executar fluxos de pedido, estoque e pagamento no navegador autenticado contra ambiente de teste isolado; cobrir falhas transacionais reais.</li>
+        <li>Restringir CSP de VLibras ao conjunto mínimo observado e verificar execução/indisponibilidade no navegador.</li>
+        <li>Decidir, conforme critérios acadêmicos, se mobile/PWA e cloud/CD são entregáveis; não criar Scrum/Kanban/backlog/sprints, que estão fora do escopo decidido pelo grupo.</li>
+        <li>Completar auditoria manual de acessibilidade e medir contraste WCAG; considerar controle de tamanho de fonte.</li>
+        <li>Decidir se as quatro procedures/uma view restantes devem ser chamadas pelos services ou permanecer no catálogo como objetos não usados.</li>
+      </ol>
+    </section>
+    <footer>Relatório gerado em 30/10/2026 a partir do código, do ambiente local reiniciado e das verificações listadas. Não substitui validação de produção nem critérios oficiais externos.</footer>
+  </main>
+  <script>
+    const items = [
+      [1, 'Arquitetura em camadas e injeção de dependência (A)', 'ATENDE', 'ATENDE', 'back-end/Program.cs:27-34,107-109; controllers, modelos, DTOs e services estão registrados por DI.', 'Sem lacuna funcional observada neste critério; a camada de serviço foi criada somente para os três controllers solicitados.', 'Baixa'],
+      [2, 'Abstrações de serviço/repositório (A)', 'PARCIAL', 'PARCIAL', 'back-end/Program.cs:107-109 registra IComandaService, IPedidoService e IFaturamentoService.', 'A abstração existe nos três domínios solicitados; não há repository genérico nem interface para todos os controllers, por decisão de escopo.', 'Baixa'],
+      [3, 'Controllers acessam DbContext diretamente (A)', 'ATENDE', 'PARCIAL', 'ComandaController.cs, PedidosController.cs e FaturamentoController.cs delegam para IComandaService, IPedidoService e IFaturamentoService; serviços implementam o acesso a dados.', 'A mudança cobre somente os três controllers solicitados; outros controllers continuam podendo acessar AppDbContext.', 'Média'],
+      [4, 'Rotas web protegidas por permissões e papéis (B)', 'ATENDE', 'ATENDE', 'front-end/src/App.tsx:15-27, rotas usam ProtectedRoute e permissões; suíte front-end: 33 testes aprovados.', 'Não substitui a autorização independente da API; uma sessão de usuário final não foi usada no browser.', 'Baixa'],
+      [5, 'Remover telas duplicadas de estoque e funcionários (B, §7)', 'ATENDE', 'ATENDE', 'front-end/src/App.tsx define uma rota /inventory e uma rota /users; rg --files front-end/src/pages.', 'Nenhuma duplicação de rota/página encontrada no inventário atual.', 'Baixa'],
+      [6, 'Integração geral das telas com API, sem persistência falsa (B/C)', 'PARCIAL', 'PARCIAL', 'front-end/src/services/api.ts e RestaurantContext.tsx; restaurant-api-flows.test.tsx exercita fluxos com API mockada.', 'Os testes de fluxo não chamam a API real nem provam todos os fluxos de negócio contra SQL Server.', 'Média'],
+      [7, 'Remover login offline com senhas em texto puro/localStorage (H.3, §7)', 'ATENDE', 'ATENDE', 'front-end/src/contexts/AuthContext.tsx; busca de MOCK_USERS e armazenamento de senha; login é validado pela API.', 'O perfil pode persistir no navegador; isso não é credencial e não deve ser tratado como autorização.', 'Alta'],
+      [8, 'Fluxo de criação/edição de pedidos (K.2)', 'ATENDE', 'PARCIAL', 'RestaurantContext.tsx; restaurant-context-rollback.test.tsx testa create/edit; restaurant-api-flows.test.tsx testa criação e exibição.', 'Fluxos têm API mockada; não houve criação/edição operacional com sessão real em SQL persistente.', 'Alta'],
+      [9, 'Atualização de status e estoque do pedido (K.2)', 'ATENDE', 'PARCIAL', 'RestaurantContext.tsx faz rollback/reconciliação; testes cobrem falha e restaurant-api-flows.test.tsx cobre status/estoque.', 'Consistência SQL real e concorrência entre clientes não foram validadas.', 'Alta'],
+      [10, 'Comandas, pagamento e “não pago” (K.3)', 'ATENDE', 'PARCIAL', 'RestaurantContext.tsx implementa rollback; testes cobrem pagamento e não pago com API rejeitada; fluxo de mock confirma liberação da mesa.', 'O fluxo de pagamento com dados reais permanece sem sessão de usuário e sem transação operacional persistente.', 'Alta'],
+      [11, 'Criar e cancelar reservas (K.4)', 'PARCIAL', 'ATENDE', 'RestaurantContext.tsx chama createReserva/deleteReserva; npm test -- --coverage executou a suíte de contexto/páginas.', 'Não há teste de integração de reserva contra API e SQL Server nesta execução.', 'Média'],
+      [12, 'Estoque e ajuste rastreável (K.5)', 'ATENDE', 'ATENDE', 'RestaurantContext.tsx e front-end/src/services/api.ts; ajuste encaminhado a endpoint da API; pedidos atualizam estoque no teste de fluxo.', 'Não houve ajuste manual por usuário real na base persistente.', 'Média'],
+      [13, 'Cadastro/edição de funcionários (K.6, §7)', 'ATENDE', 'ATENDE', 'front-end/src/pages/UsersPage.tsx e endpoints protegidos; controller aplica papel administrativo.', 'Sessão admin real não foi usada; comportamento de UI foi avaliado por código/testes, não por operação assistida.', 'Média'],
+      [14, 'Relatórios e dashboard (B/K)', 'ATENDE', 'PARCIAL', 'financial-pages.test.tsx verifica valores financeiros; DashboardPage e ReportsPage consultam endpoints mockados, incluindo produtos mais vendidos.', 'As respostas foram simuladas; valores do banco persistente não foram confrontados com a tela em uma sessão real.', 'Média'],
+      [15, 'Logs de auditoria (K.7/H.4)', 'PARCIAL', 'ATENDE', 'AuditPage consulta getLogSistema; LogController exige perfil privilegiado; busca no código e testes RBAC.', 'Não foi criada nem conferida uma trilha de auditoria de operação real nesta execução.', 'Média'],
+      [16, 'Interface de gerar/listar/baixar/restaurar backup (K.7)', 'NÃO VERIFICÁVEL', 'PARCIAL', 'BackupPage.tsx e front-end/src/services/api.ts implementam a interface/cliente; requisição anônima ao restore retornou 401.', 'Não houve sessão admin real no browser para validar os fluxos privilegiados da página.', 'Alta'],
+      [17, 'Restauração SQL efetiva (F/H.1, §7)', 'ATENDE', 'PARCIAL', 'dotnet test tests/back-end.Tests.csproj com RUN_INTEGRATION_TESTS=1: backup válido restaurou stock 7 após alteração; teste adulterado recebeu 400 e preservou stock 1.', 'A integração usa bancos descartáveis no SQL Compose; não foi feita restauração administrativa do volume de produção.', 'Alta'],
+      [18, 'SignalR na cozinha sem depender de polling (C, §7)', 'PARCIAL', 'PARCIAL', 'RestaurantContext.tsx pausa polling ao conectar; OrdersPage exibe modo; useSignalR usa reconexão automática; restaurant-context-signalr.test.tsx simula conectar/desconectar.', 'O hub real e a rede do navegador não foram observados nesta execução.', 'Média'],
+      [19, 'Inventário de controllers e ações HTTP (B/C)', 'ATENDE', 'ATENDE', 'PowerShell contou 13 arquivos *Controller.cs e 69 atributos HttpGet/HttpPost/HttpPut/HttpDelete/HttpPatch.', 'Contagem deve ser recalculada quando endpoints forem adicionados.', 'Baixa'],
+      [20, 'Aplicação mobile nativa/híbrida (D)', 'NÃO ATENDE', 'NÃO ATENDE', 'Inventário rg --files front-end não encontrou projeto Android/iOS, Capacitor ou Cordova.', 'Não existe aplicação mobile separada.', 'Alta'],
+      [21, 'PWA, manifest e service worker (D)', 'NÃO ATENDE', 'NÃO ATENDE', 'rg --files front-end não encontrou manifest, service-worker ou registro de service worker.', 'Não há instalação/offline PWA.', 'Alta'],
+      [22, 'Interface web responsiva (D/I)', 'ATENDE', 'ATENDE', 'front-end/src/hooks/use-mobile.tsx e classes responsivas em componentes/páginas; AppLayout usa breakpoints.', 'Responsividade não substitui app mobile nem avaliação visual completa em vários dispositivos.', 'Média'],
+      [23, 'Tabelas do banco em execução (E)', 'ATENDE', 'ATENDE', 'Consulta somente leitura em sys.tables no SQL Server Compose retornou 12 tabelas não sistêmicas.', 'Nenhuma lacuna de contagem observada.', 'Baixa'],
+      [24, 'Triggers do banco (E)', 'ATENDE', 'ATENDE', 'Consulta sys.triggers retornou trg_abrir_comanda, trg_atualizar_valor_total e trg_fechar_comanda, todas habilitadas.', 'Catálogo comprova existência/estado, não garante comportamento em produção sob concorrência.', 'Média'],
+      [25, 'Stored procedures presentes (E)', 'ATENDE', 'ATENDE', 'sys.procedures e back-end/Scripts/02-procedures-views.sql confirmam 3 procedures.', 'Duas/ três não têm chamada encontrada no código da aplicação.', 'Média'],
+      [26, 'Views presentes (E)', 'ATENDE', 'ATENDE', 'sys.views e 02-procedures-views.sql confirmam vw_comandas_abertas e vw_produtos_mais_vendidos.', 'A view de comandas abertas não tem uso encontrado na aplicação.', 'Baixa'],
+      [27, 'Funções SQL (E)', 'PARCIAL', 'PARCIAL', 'Consulta sys.objects com tipos FN, IF, TF, FS e FT retornou 0 funções de usuário.', 'Função SQL não foi requisito confirmado; foi deixada opcional e nenhuma foi criada.', 'Baixa'],
+      [28, 'Índices existentes de fato (E)', 'ATENDE', 'ATENDE', 'Consulta sys.indexes para tabelas de usuário retornou 19 índices.', 'Não foi feita análise de seletividade nem benchmark.', 'Baixa'],
+      [29, 'Scripts idempotentes (E/F)', 'ATENDE', 'PARCIAL', 'Compose executou db-init com 01-create-database-idempotent.sql e 02-procedures-views.sql; init-database.sql legado foi removido.', 'Validação foi em um banco local; operação concorrente de init não foi testada.', 'Média'],
+      [30, 'Mapeamento C# ↔ SQL (E, §5.5)', 'ATENDE', 'ATENDE', 'AppDbContext.cs, entidades Models e catálogo SQL atuais; scripts 01-create-database-idempotent.sql definem tabelas/colunas.', 'Nenhuma divergência concreta observada nesta comparação estática.', 'Baixa'],
+      [31, 'Procedures/views integradas ao código (E)', 'PARCIAL', 'PARCIAL', 'rg confirma uso de vw_produtos_mais_vendidos em FaturamentoService.cs:78 e endpoint GET /api/faturamento/produtos-mais-vendidos; não encontrou chamadas das demais.', 'sp_fechar_comanda, sp_relatorio_faturamento, sp_ajustar_estoque e vw_comandas_abertas existem, mas não são invocados por service.', 'Média'],
+      [32, 'Migrations automáticas EF Core (E)', 'ATENDE', 'PARCIAL', 'README e back-end/README.md declaram esquema evoluído exclusivamente por scripts SQL versionados; Compose os executa em db-init.', 'Migrations EF Core foram explicitamente descartadas pelo escopo decidido; scripts SQL seguem exigindo disciplina de versionamento.', 'Baixa'],
+      [33, 'Docker/Compose e inicialização saudável (F, §7)', 'ATENDE', 'ATENDE', 'Executados docker compose down, docker compose up -d --build --wait e docker compose ps; SQL, API e front-end saudáveis.', 'Ambiente local não prova disponibilidade ou configuração de produção.', 'Baixa'],
+      [34, 'Caminho de backup portátil/configurável (F/H.6, §7)', 'ATENDE', 'ATENDE', 'back-end/Services/BackupService.cs usa BACKUP_PATH; docker-compose.yml monta backup_data no caminho de backup.', 'Permissões e política de retenção do volume precisam ser definidas em implantação.', 'Baixa'],
+      [35, 'Deploy/infraestrutura de nuvem (F)', 'NÃO ATENDE', 'NÃO ATENDE', 'Get-ChildItem .github/workflows encontrou somente ci.yml; inventário não encontrou manifests de deploy/cloud.', 'Nenhum deploy cloud ou infraestrutura automatizada está versionado.', 'Alta'],
+      [36, 'Integração contínua (F, §7)', 'ATENDE', 'ATENDE', '.github/workflows/ci.yml executa build/testes .NET, npm ci, lint, testes e build front-end.', 'Workflow verificado no repositório, não foi consultada execução remota de GitHub Actions.', 'Baixa'],
+      [37, 'Entrega contínua/deploy (F, §7)', 'NÃO ATENDE', 'NÃO ATENDE', 'Leitura de .github/workflows/ci.yml: não contém etapa release, publish ou deploy.', 'Falta CD e validação pós-deploy.', 'Alta'],
+      [38, 'RBAC no back-end em todos os controllers/ações (H.2)', 'ATENDE', 'ATENDE', 'Controllers aplicam [Authorize] e papéis; dotnet test aprovou os casos de integração RBAC.', 'Rotas públicas e futuras ações ainda exigem revisão periódica.', 'Alta'],
+      [39, 'Restore exige papel privilegiado (H.1, §7)', 'ATENDE', 'ATENDE', 'BackupController.cs usa Authorize(Roles = admin,owner); POST sem login retornou HTTP 401; testes RBAC também cobrem employee.', 'A interface foi verificada apenas por código, não com sessão administrativa real.', 'Crítica'],
+      [40, 'Validação de ZIP e prevenção de traversal no restore (H.1)', 'ATENDE', 'ATENDE', 'BackupRestoreService.cs valida extensão, tamanho, caminhos/links e assinatura; teste adulterado retorna 400 sem alterar os dados.', 'Não houve fuzzing ou teste de todas as variantes maliciosas de ZIP.', 'Alta'],
+      [41, 'Cookie HttpOnly + antiforgery/CSRF (H)', 'PARCIAL', 'ATENDE', 'JwtService e Program.cs configuram cookie HttpOnly/CSRF; frontend api.ts envia token; Compose usa Production e Secure cookie.', 'HTTP local não oferece TLS; a sessão de navegador em localhost:8080/5050 não foi validada e não deve ser considerada segura.', 'Alta'],
+      [42, 'JWT valida assinatura, issuer, audience, expiração e chave fraca (H)', 'ATENDE', 'ATENDE', 'back-end/Program.cs configura parâmetros de validação; testes .NET passaram; configuração recusa segredo fraco fora de Development.', 'Segredo operacional forte e rotacionado permanece responsabilidade do ambiente.', 'Alta'],
+      [43, 'Hash de senha seguro (H)', 'ATENDE', 'ATENDE', 'PasswordHashService.cs usa PBKDF2-SHA256, salt de 16 bytes e 600.000 iterações para hashes novos; back-end/README.md documenta compatibilidade legada.', 'Hashes legados continuam com 10.000 iterações até migrarem após login.', 'Alta'],
+      [44, 'Bloqueio de login (H)', 'ATENDE', 'ATENDE', 'LoginLockoutPolicy e controllers de autenticação/funcionário aplicam bloqueio; suite dotnet test aprovada.', 'Não houve teste de carga nem ataque de força bruta em ambiente isolado.', 'Média'],
+      [45, 'Health check sem vazamento relevante (H)', 'PARCIAL', 'PARCIAL', '/api/healthcheck/info retornou apenas status; GET /api/healthcheck ainda retorna campo versao=2.0.', 'A versão continua divulgada no healthcheck principal; avaliar removê-la se o requisito for ausência total de metadados.', 'Baixa'],
+      [46, 'CSP e cabeçalhos de segurança (H/I)', 'PARCIAL', 'PARCIAL', 'curl -sSI confirmou CSP, nosniff, Referrer-Policy, X-Frame-Options e Permissions-Policy; connect-src não contém curingas; nginx tem HSTS somente em exemplo comentado HTTPS.', 'Servidor ativo só escuta HTTP; outros directives CSP ainda contêm https://*.vlibras.gov.br; HSTS não está ativo até haver HTTPS.', 'Alta'],
+      [47, 'Ausência de segredos versionados, incluindo histórico (H)', 'NÃO VERIFICÁVEL', 'ATENDE', 'git ls-files .env .env.example retornou somente .env.example; varredura desta execução não publicou nem expôs valores secretos.', 'Não é possível garantir ausência de segredo em todos os blobs/histórico e integrações externas só por esta verificação restrita.', 'Crítica'],
+      [48, 'Confidencialidade/integridade do backup (H/F)', 'PARCIAL', 'PARCIAL', 'BackupIntegrity.cs assina conteúdo do ZIP com HMAC-SHA256 e BACKUP_HMAC_KEY; 2 testes de integração passaram, incluindo adulteração rejeitada em 400.', 'AES não foi implementado por decisão explícita; backup em repouso não tem confidencialidade criptográfica.', 'Alta'],
+      [49, 'Escrita anônima de logs/auditoria (H.4)', 'ATENDE', 'ATENDE', 'LogController exige admin/owner; testes RBAC validam proteção de endpoints mutáveis.', 'A trilha de uma ação de negócio não foi verificada com usuário real nesta sessão.', 'Média'],
+      [50, 'Testes .NET solicitados (G)', 'ATENDE', 'ATENDE', 'dotnet test tests/back-end.Tests.csproj: 49 aprovados, 0 falhas, 0 ignorados com RUN_INTEGRATION_TESTS=1.', 'Os testes dependem de SQL Server para integrações de backup e só rodam opt-in fora do Compose.', 'Média'],
+      [51, 'Testes front-end e cobertura (G)', 'ATENDE', 'PARCIAL', 'npm test -- --coverage: 33 testes/9 arquivos; branches 46,97%, linhas 67,83%, statements 66,29%.', 'Cobertura não garante interação real com API/SQL; branches ainda não testados permanecem.', 'Média'],
+      [52, 'Auditoria de dependências (G)', 'ATENDE', 'ATENDE', 'npm audit: found 0 vulnerabilities.', 'Resultado é uma fotografia do lockfile verificado.', 'Baixa'],
+      [53, 'Lint (G)', 'ATENDE', 'PARCIAL', 'npm run lint terminou com código 0 e sem avisos.', 'Manter o lint em CI para evitar regressões.', 'Baixa'],
+      [54, 'Build/type-check e tamanho do bundle (G)', 'ATENDE', 'PARCIAL', 'npm run build executou tsc -b e Vite; maior chunk 398,53 kB, abaixo do limite de 500 kB.', 'O build emite aviso informativo recomendando @vitejs/plugin-react, mas não falha.', 'Média'],
+      [55, 'Higiene Git e binários compilados (H.7, §7)', 'ATENDE', 'ATENDE', 'git ls-files tests/bin/** tests/obj/** não retornou artefatos; .gitignore presente.', 'Não foi feita revisão integral de todo blob histórico nesta tarefa.', 'Baixa'],
+      [56, 'Documentação conta controllers e ações HTTP reais (G/J)', 'ATENDE', 'ATENDE', 'Contagem atual por PowerShell: 13 controllers e 69 atributos HTTP; documentação de arquitetura/configuração lista as rotas.', 'Recalcular a documentação se a superfície HTTP mudar.', 'Baixa'],
+      [57, 'Documentação do hash de senha (J, §5.4)', 'ATENDE', 'PARCIAL', 'back-end/README.md documenta PBKDF2-SHA256, 600.000 iterações para novos hashes e 10.000 somente para legados.', 'Nenhuma lacuna textual observada.', 'Média'],
+      [58, 'Nome do banco na documentação (J, §5.1)', 'ATENDE', 'ATENDE', 'back-end/README.md e docs/CONFIGURACAO.md documentam DB_RESTAURANTE; Compose e catálogo confirmaram esse nome.', 'Nenhuma divergência observada.', 'Baixa'],
+      [59, 'Porta da API na documentação (J, §5.2)', 'ATENDE', 'ATENDE', 'docs/CONFIGURACAO.md e docker-compose.yml expõem API na porta 5050; endpoint respondeu 200.', 'A configuração de porta em ambientes externos depende do proxy.', 'Baixa'],
+      [60, 'Campo de senha do login por e-mail (J, §5.3)', 'ATENDE', 'ATENDE', 'docs/CONFIGURACAO.md, LoginDTO e front-end/src/services/api.ts usam campo password.', 'Contrato pode mudar junto com versão da API.', 'Baixa'],
+      [61, 'Expiração JWT documentada (J, §5.7)', 'ATENDE', 'ATENDE', 'JwtService e docs/ARQUITETURA.md/docs/CONFIGURACAO.md documentam validade padrão de 480 minutos.', 'Manter os documentos sincronizados com configuração futura.', 'Baixa'],
+      [62, 'Configuração de conexão documentada (J, §5.8)', 'ATENDE', 'ATENDE', 'back-end/Program.cs lê DB_SERVER/DB_NAME/DB_USER/DB_PASSWORD; docs/CONFIGURACAO.md explica EnvLoader.', 'A senha real deve permanecer apenas em variável/arquivo local não versionado.', 'Baixa'],
+      [63, 'Identidade do trabalho como PIM IV (J, §5.9)', 'ATENDE', 'ATENDE', 'README.md, docs/README.md, docs/ARQUITETURA.md e docs/CONFIGURACAO.md identificam PIM IV.', 'Nenhuma inconsistência encontrada no conjunto consultado.', 'Baixa'],
+      [64, 'Referências e atualidade da documentação (J)', 'ATENDE', 'PARCIAL', 'docs/README.md referencia somente CONFIGURACAO.md, ARQUITETURA.md e exemplo existente; docs/README.md registra que DB não estava disponível na última verificação.', 'A nota é temporal/histórica e não descreve a execução atual; o HTML v2 registra o ambiente revalidado.', 'Média'],
+      [65, 'Histórico Git e rastreabilidade (J)', 'ATENDE', 'ATENDE', 'git rev-list --all --count retornou 147 commits alcançáveis; git shortlog identificou 3 autores.', 'Histórico Git não prova divisão de trabalho, aceite ou qualidade das contribuições.', 'Baixa'],
+      [66, 'Artefatos Scrum/Kanban/backlog/sprints (J, §7)', 'FORA DE ESCOPO', 'NÃO ATENDE', 'Decisão explícita do grupo registrada no escopo desta reavaliação: não implementar processo Scrum/Kanban/backlog/sprints.', 'Não entra no denominador do placar; não há ação pendente neste projeto.', 'Baixa'],
+      [67, 'Plano de nuvem/deploy no relatório final (F/J)', 'NÃO VERIFICÁVEL', 'NÃO VERIFICÁVEL', 'O repositório contém apenas o workflow CI; não foi fornecido relatório final independente nesta execução.', 'Não é possível concluir se existe plano entregue externamente ao repositório.', 'Média'],
+      [68, 'Inclusão social, responsabilidades e artefatos finais do PIM', 'NÃO VERIFICÁVEL', 'NÃO VERIFICÁVEL', 'Não foi recebido enunciado oficial completo nem relatório final validável junto desta solicitação.', 'Requer artefatos oficiais/finais e evidência externa à aplicação.', 'Média'],
+      [69, 'VLibras (I)', 'NÃO VERIFICÁVEL', 'PARCIAL', 'VLibrasWidget.tsx carrega script uma vez, trata erro e informa indisponibilidade; a suíte contém teste de erro.', 'O serviço/script externo vlibras.gov.br não teve disponibilidade e tradução real confirmadas nesta execução.', 'Média'],
+      [70, 'Idioma declarado para leitor de tela (I)', 'ATENDE', 'ATENDE', 'front-end/index.html declara lang="pt-BR".', 'Nenhuma lacuna observada.', 'Baixa'],
+      [71, 'ARIA, formulários e avisos dinâmicos (I, §7)', 'PARCIAL', 'PARCIAL', 'ToastViewport usa aria-live=polite; toasts destrutivos usam role=alert; jsx-a11y está no lint.', 'Não foi realizada auditoria integral de mensagens de validação e nomes acessíveis em todas as telas.', 'Média'],
+      [72, 'Controle para redimensionar fonte (I, §7)', 'NÃO ATENDE', 'NÃO ATENDE', 'AccessibilityPage.tsx e AccessibilityContext.tsx oferecem somente toggle do VLibras; rg não encontrou controle de tamanho da fonte.', 'Não há ajuste de fonte dedicado.', 'Média'],
+      [73, 'Tema escuro/alto contraste (I, §7)', 'NÃO ATENDE', 'NÃO ATENDE', 'Busca em AccessibilityContext.tsx, index.css e páginas não encontrou controle de tema ou modo de alto contraste para a aplicação.', 'Não há seletor funcional de alto contraste/tema acessível para usuários.', 'Média'],
+      [74, 'Teclado, foco e skip link (I, §7)', 'PARCIAL', 'PARCIAL', 'AppLayout.tsx adiciona skip link/main-content; dialog usa primitivas Radix; keyboard-accessibility.test.tsx valida foco e Escape.', 'Teste automatizado cobre skip link e diálogo, mas não auditoria completa de ordem do Tab em menu/tabelas/todas as telas.', 'Média'],
+      [75, 'Texto alternativo/nome acessível de ícones (I)', 'PARCIAL', 'PARCIAL', 'Botões e ícones têm aria-label/aria-hidden em áreas revistas; eslint-plugin-jsx-a11y está habilitado e npm run lint passou.', 'Lint não prova nomes acessíveis corretos em todos os controles nem substitui revisão manual.', 'Média'],
+      [76, 'Contraste WCAG medido (I)', 'NÃO VERIFICÁVEL', 'NÃO VERIFICÁVEL', 'Não foi executada ferramenta de contraste nem medição manual durante esta verificação.', 'Conformidade WCAG AA não pode ser declarada sem medir combinações de cores reais.', 'Média']
+    ];
+
+    const changes = [
+      [3, 'PARCIAL', 'ATENDE', 'Os três controllers solicitados agora delegam para interfaces/services; os serviços fazem o acesso ao DbContext.'],
+      [8, 'PARCIAL', 'ATENDE', 'Testes de criação/edição e rollback cobrem respostas de falha; fluxo de pedido aparece na lista nos testes de API mockada.'],
+      [9, 'PARCIAL', 'ATENDE', 'Rollback e atualização de estoque/status estão cobertos por testes de contexto/fluxo.'],
+      [10, 'PARCIAL', 'ATENDE', 'Pagamento/não pago agora fazem rollback em falha; teste de fluxo mostra mesa liberada após pagamento.'],
+      [14, 'PARCIAL', 'ATENDE', 'Dashboard e Reports usam endpoints financeiros; produtos vendidos usam o endpoint dedicado e testes validam valores mockados.'],
+      [16, 'PARCIAL', 'NÃO VERIFICÁVEL', 'A interface existe, mas não houve sessão admin real no browser; teste anônimo só prova 401.'],
+      [17, 'PARCIAL', 'ATENDE', 'Testes de integração com SQL descartável provaram restore válido e rejeição de HMAC inválido com HTTP 400.'],
+      [29, 'PARCIAL', 'ATENDE', 'init-database.sql foi removido após verificar Compose/docs; os scripts em uso têm guardas/CREATE OR ALTER.'],
+      [32, 'PARCIAL', 'ATENDE', 'README registra evolução do schema por scripts SQL versionados, sem migrations EF conforme decisão explícita.'],
+      [41, 'ATENDE', 'PARCIAL', 'Reavaliação considerou a sessão de navegador: Compose usa HTTP enquanto cookie Secure é aplicado em Production.'],
+      [47, 'ATENDE', 'NÃO VERIFICÁVEL', 'A verificação limitada confirma que .env não é arquivo rastreado, mas não é prova de ausência de segredo em todo histórico/integrações.'],
+      [51, 'PARCIAL', 'ATENDE', 'Cobertura de branches passou de 27,1% para 46,97%, com 33 testes em 9 arquivos.'],
+      [53, 'PARCIAL', 'ATENDE', 'npm run lint agora termina sem avisos/erros.'],
+      [54, 'PARCIAL', 'ATENDE', 'Lazy loading/build reduziu o maior chunk de 895,55 kB para 398,53 kB; type-check passou.'],
+      [57, 'PARCIAL', 'ATENDE', 'README do back-end passou a descrever 600.000 iterações novas e 10.000 apenas para hashes legados.'],
+      [64, 'PARCIAL', 'ATENDE', 'Link para relatório ausente foi removido do índice de documentação; nota do DB é explicitamente referente à última verificação.'],
+      [66, 'NÃO ATENDE', 'FORA DE ESCOPO', 'Grupo decidiu não implementar Scrum/Kanban/backlog/sprints; retirado do denominador atual.'],
+      [69, 'PARCIAL', 'NÃO VERIFICÁVEL', 'Script tem carregamento único e tratamento de erro testado, mas disponibilidade e tradução do serviço externo não foram verificadas.']
+    ];
+
+    const statusOrder = ['ATENDE', 'PARCIAL', 'NÃO ATENDE', 'NÃO VERIFICÁVEL', 'FORA DE ESCOPO'];
+    const statusClass = {
+      'ATENDE': ['status-attende', 'bar-attende'],
+      'PARCIAL': ['status-partial', 'bar-partial'],
+      'NÃO ATENDE': ['status-no', 'bar-no'],
+      'NÃO VERIFICÁVEL': ['status-unknown', 'bar-unknown'],
+      'FORA DE ESCOPO': ['status-out', 'bar-out']
+    };
+    const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[char]);
+    const percentage = (count, total) => total ? (100 * count / total).toFixed(2) : '0.00';
+
+    function renderScore() {
+      const currentInScope = items.filter((item) => item[2] !== 'FORA DE ESCOPO');
+      const previousInScope = items.filter((item) => item[3] !== 'FORA DE ESCOPO');
+      const currentCounts = Object.fromEntries(statusOrder.map((status) => [
+        status, items.filter((item) => item[2] === status).length
+      ]));
+      const previousCounts = Object.fromEntries(statusOrder.map((status) => [
+        status, items.filter((item) => item[3] === status).length
+      ]));
+      document.getElementById('strictScore').textContent =
+        `Conformidade estrita: ${previousCounts.ATENDE}/${previousInScope.length} (${percentage(previousCounts.ATENDE, previousInScope.length)}%) → ${currentCounts.ATENDE}/${currentInScope.length} (${percentage(currentCounts.ATENDE, currentInScope.length)}%). Fora de escopo: ${currentCounts['FORA DE ESCOPO']} de ${items.length}, excluído do denominador.`;
+      document.getElementById('scoreGrid').innerHTML = statusOrder.map((status) => {
+        const [badgeClass, barClass] = statusClass[status];
+        const currentCount = currentCounts[status];
+        const previousCount = previousCounts[status];
+        const currentDenominator = status === 'FORA DE ESCOPO' ? items.length : currentInScope.length;
+        const previousDenominator = status === 'FORA DE ESCOPO' ? items.length : previousInScope.length;
+        const currentPercent = percentage(currentCount, currentDenominator);
+        const previousPercent = percentage(previousCount, previousDenominator);
+        const excludedNote = status === 'FORA DE ESCOPO' ? 'contagem fora do denominador' : 'percentual do denominador em escopo';
+        return `<div class="score">
+          <div class="score-head"><span class="badge ${badgeClass}">${escapeHtml(status)}</span><strong>${previousCount} → ${currentCount}</strong></div>
+          <div class="score-compare">
+            <span>29/10: ${previousPercent}% (${previousCount}/${previousDenominator})</span>
+            <span>30/10: ${currentPercent}% (${currentCount}/${currentDenominator})</span>
+          </div>
+          <div class="meta">${excludedNote}</div>
+          <div class="meter" role="img" aria-label="${escapeHtml(status)}; 29/10 ${previousCount}, ${previousPercent}%; 30/10 ${currentCount}, ${currentPercent}%">
+            <span class="${barClass}" style="width:${currentPercent}%"></span>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function renderChanges() {
+      document.getElementById('changesBody').innerHTML = changes.map(([id, before, after, reason]) =>
+        `<tr><td>${id}. ${escapeHtml(items[id - 1][1])}</td><td><span class="badge ${statusClass[before][0]}">${escapeHtml(before)}</span> → <span class="badge ${statusClass[after][0]}">${escapeHtml(after)}</span></td><td>${escapeHtml(reason)}</td></tr>`
+      ).join('');
+    }
+
+    function renderMatrix() {
+      const selectedStatus = document.getElementById('statusFilter').value;
+      const selectedPriority = document.getElementById('priorityFilter').value;
+      const visible = items.filter((item) =>
+        (!selectedStatus || item[2] === selectedStatus) &&
+        (!selectedPriority || item[6] === selectedPriority)
+      );
+      const body = document.getElementById('matrixBody');
+      document.getElementById('resultCount').textContent = `${visible.length} de ${items.length} itens`;
+      if (!visible.length) {
+        body.innerHTML = '<tr><td class="empty" colspan="5">Nenhum item corresponde aos filtros.</td></tr>';
+        return;
+      }
+      body.innerHTML = visible.map(([id, title, status, previousStatus, evidence, gap, priority]) => {
+        const [badgeClass] = statusClass[status];
+        return `<tr>
+          <td class="item-title" data-label="Item">${id}. ${escapeHtml(title)}</td>
+          <td data-label="Classificação"><span class="badge ${badgeClass}">${escapeHtml(status)}</span></td>
+          <td class="priority" data-label="Prioridade">${escapeHtml(priority)}</td>
+          <td class="evidence" data-label="Evidência"><details><summary>Ver evidência atual</summary><p>${escapeHtml(evidence)}</p><p class="meta">Status anterior: ${escapeHtml(previousStatus)}</p></details></td>
+          <td class="gap" data-label="Lacuna"><details><summary>Ver lacuna</summary><p>${escapeHtml(gap)}</p></details></td>
+        </tr>`;
+      }).join('');
+    }
+
+    document.getElementById('statusFilter').addEventListener('change', renderMatrix);
+    document.getElementById('priorityFilter').addEventListener('change', renderMatrix);
+    const themeButton = document.getElementById('themeToggle');
+    let dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    function setTheme(isDark) {
+      dark = isDark;
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      themeButton.textContent = dark ? 'Ativar tema claro' : 'Ativar tema escuro';
+      themeButton.setAttribute('aria-pressed', String(dark));
+    }
+    themeButton.addEventListener('click', () => setTheme(!dark));
+    setTheme(dark);
+    renderScore();
+    renderChanges();
+    renderMatrix();
+  </script>
+</body>
+</html>
