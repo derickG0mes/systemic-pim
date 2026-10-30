@@ -27,9 +27,24 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 build_output.txt
+coverage/
+**/coverage/
 
 # OS / Editor
 .DS_Store
 Thumbs.db
 
 .vscode
+
+# Local backups and temporary reports
+backups/
+**/backups/
+*.zip
+*.bak
+TestResults/
+**/TestResults/
+*.trx
+*.coverage
+*.coveragexml
+*.tmp
+*.temp
