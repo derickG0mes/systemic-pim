@@ -25,3 +25,22 @@ quando a rota do script é bloqueada.
 Os testes ficam marcados como ignorados quando as duas variáveis de credenciais
 não estão configuradas. A geração do backup mantém o arquivo no volume de
 backups do Compose, como qualquer backup gerado pela aplicação.
+
+## PWA
+
+O teste `pwa.spec.ts` valida o manifesto instalável, o fallback offline e que
+nenhuma URL da API entra no Cache Storage:
+
+```powershell
+npm.cmd run test:e2e -- --grep "instala o PWA"
+```
+
+O service worker pré-armazena somente os arquivos estáticos gerados pelo build;
+requisições `/api` não são armazenadas. Sem rede, navegações recebem
+`/offline.html`.
+
+Para validar instalabilidade com Lighthouse, mantenha o Compose no ar e execute:
+
+```powershell
+npx.cmd --yes lighthouse@11.7.1 http://localhost:8080 --only-categories=pwa
+```
