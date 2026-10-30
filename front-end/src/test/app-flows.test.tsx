@@ -5,11 +5,13 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import { AuthProvider, useAuth, UserRole } from "@/contexts/AuthContext";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
+import type { UserRole } from "@/contexts/AuthContext";
 import {
   RestaurantProvider,
-  useRestaurant,
 } from "@/contexts/RestaurantContext";
+import { useRestaurant } from "@/contexts/useRestaurant";
 import { getPermissions, hasPermission, Permission } from "@/lib/rbac";
 
 vi.mock("@/hooks/useSignalR", () => ({
