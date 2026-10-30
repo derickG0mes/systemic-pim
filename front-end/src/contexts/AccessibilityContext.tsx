@@ -1,11 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
-
-type AccessibilityContextType = {
-  vlibrasEnabled: boolean;
-  setVlibrasEnabled: (enabled: boolean) => void;
-};
-
-const AccessibilityContext = createContext<AccessibilityContextType | undefined>(undefined);
+import React, { useEffect, useState } from "react";
+import { AccessibilityContext } from "@/contexts/accessibility-context";
 
 const STORAGE_KEY = "systemic:accessibility:vlibras";
 
@@ -30,10 +24,4 @@ export function AccessibilityProvider({ children }: { children: React.ReactNode 
       {children}
     </AccessibilityContext.Provider>
   );
-}
-
-export function useAccessibility() {
-  const ctx = useContext(AccessibilityContext);
-  if (!ctx) throw new Error("useAccessibility must be used within AccessibilityProvider");
-  return ctx;
 }

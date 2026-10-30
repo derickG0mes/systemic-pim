@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useRestaurant } from "@/contexts/RestaurantContext";
+import { useRestaurant } from "@/contexts/useRestaurant";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,7 +52,7 @@ export default function ReservationsPage() {
 
       <Card>
         <CardContent className="p-0">
-          <Table>
+          <Table aria-label="Reservas">
             <TableHeader>
               <TableRow>
                 <TableHead>Cliente</TableHead>

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useRestaurant } from "@/contexts/RestaurantContext";
+import { useRestaurant } from "@/contexts/useRestaurant";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,8 +89,8 @@ export default function InventoryPage() {
 
       <Card>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
+          <div>
+            <Table aria-label="Produtos do estoque">
               <TableHeader>
                 <TableRow>
                   <TableHead>Produto</TableHead>

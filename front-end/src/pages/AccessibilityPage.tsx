@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Accessibility, Hand } from "lucide-react";
-import { useAccessibility } from "@/contexts/AccessibilityContext";
+import { useAccessibility } from "@/contexts/useAccessibility";
 
 export default function AccessibilityPage() {
   const { vlibrasEnabled, setVlibrasEnabled } = useAccessibility();
