@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { randomBytes, randomInt } from "node:crypto";
+import { readFile } from "node:fs/promises";
 
 const email = process.env.E2E_ADMIN_EMAIL;
 const password = process.env.E2E_ADMIN_PASSWORD;
@@ -102,44 +103,135 @@ async function expectFullyInViewport(locator: Locator, page: Page) {
   expect(bounds.bottom).toBeLessThanOrEqual(bounds.height);
 }
 
-test("admin gera, lista, baixa backup e abre a confirmação de restore", async ({ page }) => {
+test("admin restaura backup e recupera os dados do marcador", async ({ page }) => {
+  // Gerar e restaurar um backup completo pode exceder o timeout padrão do teste.
+  test.setTimeout(180_000);
   await loginAsAdmin(page);
-  await page.goto("/backup");
-  await expect(page.getByRole("heading", { name: "Backup do Sistema" })).toBeVisible();
+  const api = await createApiClient(page);
+  const suffix = `${Date.now()}-${randomBytes(4).toString("hex")}`;
+  const markerName = `Marcador backup E2E ${suffix}`;
+  const markerEmail = `e2e-backup-${suffix}@teste.local`;
+  const markerCpf = Array.from({ length: 11 }, () => randomInt(10)).join("");
+  const markerPassword = randomBytes(32).toString("base64");
+  let markerId: number | undefined;
 
-  const generatedResponse = page.waitForResponse((response) =>
-    response.request().method() === "POST" &&
-    response.url().endsWith("/api/backup/gerar"),
-  );
-  await page.getByRole("button", { name: "Gerar Backup Agora" }).click();
-  const generatedBody = await expectSuccessful(await generatedResponse);
-  const generatedData = asRecord(generatedBody.dados);
-  const backupName = generatedData?.nomeArquivo;
-  expect(typeof backupName).toBe("string");
-  if (typeof backupName !== "string") {
-    throw new Error("The backup endpoint did not return a filename.");
+  try {
+    await page.goto("/users");
+    await expect(page.getByRole("heading", { name: "Gestão de Usuários" })).toBeVisible();
+    await page.getByRole("button", { name: "Novo Usuário" }).click();
+
+    const createDialog = page.getByRole("dialog");
+    await createDialog.getByLabel("Nome").fill(markerName);
+    await createDialog.getByLabel("CPF (11 dígitos)").fill(markerCpf);
+    await createDialog.getByLabel("E-mail").fill(markerEmail);
+    await createDialog.getByLabel("Cargo").fill("Marcador E2E");
+    await createDialog.getByLabel("Senha (mínimo 6 caracteres)").fill(markerPassword);
+
+    const createResponse = page.waitForResponse((response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === "/api/funcionario",
+    ).then(async (response) => ({ response, body: await response.text() }));
+    await createDialog.getByRole("button", { name: "Cadastrar" }).click();
+    const created = await createResponse;
+    expect(created.response.status(), created.body).toBe(201);
+    const createdBody = created.body
+      ? JSON.parse(created.body) as Record<string, unknown>
+      : {};
+    markerId = getEntityId(createdBody, "idFuncionario");
+
+    const markerRow = page.getByRole("row").filter({ hasText: markerEmail });
+    await expect(markerRow.getByText(markerName, { exact: true })).toBeVisible();
+
+    await page.goto("/backup");
+    await expect(page.getByRole("heading", { name: "Backup do Sistema" })).toBeVisible();
+
+    const generatedResponse = page.waitForResponse((response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith("/api/backup/gerar"),
+    );
+    await page.getByRole("button", { name: "Gerar Backup Agora" }).click();
+    const generatedBody = await expectSuccessful(await generatedResponse);
+    const generatedData = asRecord(generatedBody.dados);
+    const backupName = generatedData?.nomeArquivo;
+    expect(typeof backupName).toBe("string");
+    if (typeof backupName !== "string") {
+      throw new Error("The backup endpoint did not return a filename.");
+    }
+    expect(backupName).toMatch(/\.zip$/i);
+
+    await expect(page.getByRole("heading", { name: "Backups Existentes" })).toBeVisible();
+    const backupNameText = page.getByText(backupName, { exact: true });
+    await expect(backupNameText).toBeVisible();
+    const backupRow = backupNameText.locator("xpath=../..");
+
+    const downloadEvent = page.waitForEvent("download");
+    await backupRow.getByRole("button", { name: "Baixar" }).click();
+    const download = await downloadEvent;
+    expect(download.suggestedFilename()).toBe(backupName);
+    expect(await download.failure()).toBeNull();
+    const downloadPath = await download.path();
+    if (!downloadPath) {
+      throw new Error("The generated backup download has no local file.");
+    }
+    const backupBuffer = await readFile(downloadPath);
+
+    await page.goto("/users");
+    const currentMarkerRow = page.getByRole("row").filter({ hasText: markerEmail });
+    await expect(currentMarkerRow).toBeVisible();
+    page.once("dialog", (dialog) => dialog.accept());
+    const deactivateResponse = page.waitForResponse((response) =>
+      response.request().method() === "DELETE" &&
+      new URL(response.url()).pathname === `/api/funcionario/${markerId}`,
+    );
+    await currentMarkerRow.getByRole("button", { name: "Desativar" }).click();
+    expect((await deactivateResponse).status()).toBe(200);
+    await expect(currentMarkerRow.getByText("Inativo", { exact: true })).toBeVisible();
+
+    await page.goto("/backup");
+    await page.getByLabel("Arquivo ZIP para restaurar").setInputFiles({
+      name: backupName,
+      mimeType: "application/zip",
+      buffer: backupBuffer,
+    });
+    await page.getByRole("button", { name: "Restaurar", exact: true }).click();
+    const confirmDialog = page.getByRole("dialog");
+    await expect(confirmDialog.getByRole("heading", { name: "Confirmar restauração" })).toBeVisible();
+
+    // O restore reescreve todas as tabelas em uma transação e pode exceder o timeout padrão.
+    const restoreResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/backup/restore",
+      { timeout: 120_000 },
+    ).then(async (response) => ({
+      response,
+      body: await response.text(),
+    }));
+    await confirmDialog.getByRole("button", { name: "Confirmar restauração" }).click();
+    const restored = await restoreResponse;
+    expect(restored.response.status(), restored.body).toBe(200);
+    const restoreBody = restored.body
+      ? JSON.parse(restored.body) as Record<string, unknown>
+      : {};
+    expect(restoreBody.sucesso).toBe(true);
+
+    const sessionResponse = await page.request.get(`${apiUrl}/autenticacao/validar`);
+    if (sessionResponse.status() === 401) {
+      await page.evaluate(() => localStorage.removeItem("restaurant_user"));
+      await loginAsAdmin(page);
+    } else {
+      expect(sessionResponse.status()).toBe(200);
+    }
+
+    await page.goto("/users");
+    const restoredMarkerRow = page.getByRole("row").filter({ hasText: markerEmail });
+    await expect(restoredMarkerRow.getByText(markerName, { exact: true })).toBeVisible();
+    await expect(restoredMarkerRow.getByText("Ativo", { exact: true })).toBeVisible();
+  } finally {
+    if (markerId) {
+      await api.send("DELETE", `/funcionario/${markerId}`);
+    }
   }
-  expect(backupName).toMatch(/\.zip$/i);
-
-  await expect(page.getByRole("heading", { name: "Backups Existentes" })).toBeVisible();
-  const backupNameText = page.getByText(backupName, { exact: true });
-  await expect(backupNameText).toBeVisible();
-  const backupRow = backupNameText.locator("xpath=../..");
-
-  const downloadEvent = page.waitForEvent("download");
-  await backupRow.getByRole("button", { name: "Baixar" }).click();
-  const download = await downloadEvent;
-  expect(download.suggestedFilename()).toBe(backupName);
-  expect(await download.failure()).toBeNull();
-
-  await page.locator('input[type="file"]').setInputFiles({
-    name: "backup-de-teste.zip",
-    mimeType: "application/zip",
-    buffer: Buffer.from("restore confirmation only"),
-  });
-  await page.getByRole("button", { name: "Restaurar", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Confirmar restauração" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Confirmar restauração" })).toBeVisible();
 });
 
 test("pedido novo aparece na cozinha via SignalR sem recarregar", async ({ page }) => {
