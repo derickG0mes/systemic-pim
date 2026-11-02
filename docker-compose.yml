@@ -25,6 +25,9 @@ services:
     environment:
       DB_USER: ${DB_USER:-sa}
       DB_PASSWORD: ${DB_PASSWORD:?Configure DB_PASSWORD no arquivo .env}
+      E2E_SEED: ${E2E_SEED:-0}
+      E2E_ADMIN_EMAIL: ${E2E_ADMIN_EMAIL:-}
+      E2E_ADMIN_PASSWORD_HASH: ${E2E_ADMIN_PASSWORD_HASH:-}
     volumes:
       - ./back-end/Scripts:/scripts:ro
     entrypoint: ["/bin/bash", "-c"]
@@ -37,6 +40,23 @@ services:
         done
         /opt/mssql-tools/bin/sqlcmd -b -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -i /scripts/01-create-database-idempotent.sql
         /opt/mssql-tools/bin/sqlcmd -b -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -i /scripts/02-procedures-views.sql
+        if [ "$${E2E_SEED}" = "1" ]; then
+          if [[ ! "$${E2E_ADMIN_EMAIL}" =~ ^[A-Za-z0-9._+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
+            echo "E2E_ADMIN_EMAIL inválido."
+            exit 1
+          fi
+          if [[ ! "$${E2E_ADMIN_PASSWORD_HASH}" =~ ^pbkdf2-sha256\$v1\$600000\$[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+$ ]]; then
+            echo "E2E_ADMIN_PASSWORD_HASH ausente ou inválido."
+            exit 1
+          fi
+          /opt/mssql-tools/bin/sqlcmd -b -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C \
+            -v E2E_SEED="$${E2E_SEED}" E2E_ADMIN_EMAIL="$${E2E_ADMIN_EMAIL}" \
+              E2E_ADMIN_PASSWORD_HASH="$${E2E_ADMIN_PASSWORD_HASH}" \
+            -i /scripts/seed-admin-e2e.sql
+        elif [ "$${E2E_SEED}" != "0" ]; then
+          echo "E2E_SEED deve ser 0 ou 1."
+          exit 1
+        fi
     restart: "no"
 
   api:
