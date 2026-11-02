@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
@@ -158,6 +159,7 @@ public sealed class WorkflowIntegrationTests
         private readonly string _adminEmail;
         private readonly string _adminPassword;
         private readonly string? _previousJwtSecret;
+        private string? _adminToken;
         private readonly SqlConnectionStringBuilder _serverConnectionString;
         private readonly string _databaseConnectionString;
         private readonly WebApplicationFactory<Program> _factory;
@@ -284,11 +286,14 @@ public sealed class WorkflowIntegrationTests
 
             using var response = await Client.SendAsync(request);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Contains(
-                response.Headers.GetValues("Set-Cookie"),
-                value => value.StartsWith(
+            var authCookieHeader = response.Headers.GetValues("Set-Cookie")
+                .First(value => value.StartsWith(
                     $"{JwtService.AuthCookieName}=",
                     StringComparison.Ordinal));
+            var token = authCookieHeader.Split(';')[0].Substring($"{JwtService.AuthCookieName}=".Length);
+            _adminToken = token;
+            Client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", token);
 
             using var validationResponse = await Client.GetAsync("/api/autenticacao/validar");
             Assert.Equal(HttpStatusCode.OK, validationResponse.StatusCode);
@@ -303,6 +308,8 @@ public sealed class WorkflowIntegrationTests
             if (body is not null)
                 request.Content = JsonContent.Create(body);
             request.Headers.Add("X-CSRF-TOKEN", await GetCsrfTokenAsync());
+            if (!string.IsNullOrEmpty(_adminToken))
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _adminToken);
             return await Client.SendAsync(request);
         }
 
