@@ -230,8 +230,9 @@ test("admin carrega os dados de faturamento do dashboard", async ({ page }) => {
   expect(Number.isFinite(revenue) && Number.isFinite(expenses) && Number.isFinite(profit)).toBe(true);
 
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
-  await expect(page.getByText("Vendas do Dia")).toBeVisible();
-  await expect(page.getByText(`R$ ${revenue.toFixed(2)}`, { exact: true })).toBeVisible();
+  const dailySalesCard = page.getByText("Vendas do Dia").locator("xpath=../../..");
+  await expect(dailySalesCard).toBeVisible();
+  await expect(dailySalesCard.getByText(`R$ ${revenue.toFixed(2)}`, { exact: true })).toBeVisible();
   await expect(page.getByText("Produtos Mais Vendidos")).toBeVisible();
   await expect(page.getByText("Erro", { exact: true })).toHaveCount(0);
 });
