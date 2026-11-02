@@ -1,8 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using PIM3.API.Data;
 using PIM3.API.DTOs;
+using PIM3.API.Services;
 
 namespace PIM3.API.Controllers;
 
@@ -15,13 +14,14 @@ namespace PIM3.API.Controllers;
 [AllowAnonymous]
 public class HealthCheckController : ControllerBase
 {
-    // Injeção de dependência do banco de dados (verificação trivial de conectividade)
-    private readonly AppDbContext _context;
+    private readonly IDatabaseHealthService _databaseHealthService;
     private readonly ILogger<HealthCheckController> _logger;
 
-    public HealthCheckController(AppDbContext context, ILogger<HealthCheckController> logger)
+    public HealthCheckController(
+        IDatabaseHealthService databaseHealthService,
+        ILogger<HealthCheckController> logger)
     {
-        _context = context;
+        _databaseHealthService = databaseHealthService;
         _logger = logger;
     }
 
@@ -52,8 +52,7 @@ public class HealthCheckController : ControllerBase
     {
         try
         {
-            // Tentamos fazer uma conexão simples com o banco
-            await _context.Database.ExecuteSqlRawAsync("SELECT 1");
+            await _databaseHealthService.CanConnectAsync();
 
             return Ok(new RespostaPadraoDTO
             {

@@ -115,6 +115,7 @@ builder.Services.AddScoped<IReservaService, ReservaService>();
 builder.Services.AddScoped<ILogService, LogService>();
 builder.Services.AddScoped<IFuncionarioService, FuncionarioService>();
 builder.Services.AddScoped<IAutenticacaoService, AutenticacaoService>();
+builder.Services.AddScoped<IDatabaseHealthService, DatabaseHealthService>();
 
 builder.Services.AddSignalR();
 
