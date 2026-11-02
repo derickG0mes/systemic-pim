@@ -12,5 +12,7 @@ bd713afa3745d92912ae87f45a67b06fb6fd4f6e:docs/ARQUITETURA.md:generic-api-key:196
 833ae056156e1d0de0e7e81ec5b1664db2fee394:.vs/systemic-pim.slnx/config/applicationhost.config:generic-api-key:127
 # IIS Express-generated local session key material in IDE configuration.
 833ae056156e1d0de0e7e81ec5b1664db2fee394:.vs/systemic-pim.slnx/config/applicationhost.config:generic-api-key:128
-# Static JWT fixture in isolated integration tests; differs from local secrets.
+# Static JWT fixture in integration tests; test-only and never used outside tests.
 c34fb1b9e086b49ead148aa594ccf12b0e0b4cb9:tests/IntegrationTests/WorkflowIntegrationTests.cs:generic-api-key:134
+55f0db40754d19ccfddbc65b157c7307b78b72aa:tests/IntegrationTests/WorkflowIntegrationTests.cs:generic-api-key:157
+b48afcbf4a9c66d87cf9c2abbbe01d75132b938a:tests/IntegrationTests/WorkflowIntegrationTests.cs:generic-api-key:134
