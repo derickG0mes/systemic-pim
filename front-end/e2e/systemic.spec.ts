@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { randomBytes, randomInt } from "node:crypto";
 
 const email = process.env.E2E_ADMIN_EMAIL;
@@ -67,6 +67,33 @@ function getEntityId(body: Record<string, unknown>, key: string): number {
   const id = Number(data?.[key]);
   expect(Number.isInteger(id) && id > 0, `Response did not contain ${key}`).toBe(true);
   return id;
+}
+
+async function expectNoMobilePageOverflow(page: Page) {
+  const dimensions = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }));
+  expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
+}
+
+async function expectFullyInViewport(locator: Locator, page: Page) {
+  await expect(locator).toBeVisible();
+  const bounds = await locator.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      left: rect.left,
+      top: rect.top,
+      right: rect.right,
+      bottom: rect.bottom,
+      width: window.innerWidth,
+      height: window.innerHeight,
+    };
+  });
+  expect(bounds.left).toBeGreaterThanOrEqual(0);
+  expect(bounds.top).toBeGreaterThanOrEqual(0);
+  expect(bounds.right).toBeLessThanOrEqual(bounds.width);
+  expect(bounds.bottom).toBeLessThanOrEqual(bounds.height);
 }
 
 test("admin gera, lista, baixa backup e abre a confirmação de restore", async ({ page }) => {
@@ -302,6 +329,54 @@ test("admin carrega os dados de faturamento do dashboard", async ({ page }) => {
   await expect(dailySalesCard.getByText(`R$ ${revenue.toFixed(2)}`, { exact: true })).toBeVisible();
   await expect(page.getByText("Produtos Mais Vendidos")).toBeVisible();
   await expect(page.getByText("Erro", { exact: true })).toHaveCount(0);
+});
+
+test("admin navega pelas telas principais no mobile sem overflow horizontal", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await loginAsAdmin(page);
+
+  const menuButton = page.getByRole("button", { name: "Abrir ou fechar menu lateral" });
+  const navigateFromMobileMenu = async (
+    menuLabel: string,
+    heading: string,
+    primaryAction: Locator,
+  ) => {
+    await menuButton.click();
+    const mobileMenu = page.getByRole("dialog", { name: "Menu de navegação" });
+    await expect(mobileMenu).toBeVisible();
+    await mobileMenu.getByRole("link", { name: menuLabel, exact: true }).click();
+    await page.keyboard.press("Escape");
+    await expect(mobileMenu).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
+    await expectNoMobilePageOverflow(page);
+    await expectFullyInViewport(primaryAction, page);
+  };
+
+  await navigateFromMobileMenu(
+    "Dashboard",
+    "Dashboard",
+    page.getByText("Vendas do Dia", { exact: true }),
+  );
+  await navigateFromMobileMenu(
+    "Usuários",
+    "Gestão de Usuários",
+    page.getByRole("button", { name: "Novo Usuário" }),
+  );
+  await navigateFromMobileMenu(
+    "Estoque",
+    "Estoque & Produtos",
+    page.getByRole("button", { name: "Produto", exact: true }),
+  );
+  await navigateFromMobileMenu(
+    "Backup",
+    "Backup do Sistema",
+    page.getByRole("button", { name: "Gerar Backup Agora" }),
+  );
+  await navigateFromMobileMenu(
+    "Pedidos",
+    "Pedidos",
+    page.getByRole("button", { name: "Criar Novo Pedido" }),
+  );
 });
 
 test("widget VLibras carrega no painel de acessibilidade", async ({ page }) => {
