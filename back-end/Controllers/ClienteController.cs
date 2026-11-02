@@ -1,8 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using PIM3.API.Data;
-using PIM3.API.DTOs;
 using PIM3.API.Models;
+using PIM3.API.Services;
 
 namespace PIM3.API.Controllers;
 
@@ -11,68 +10,26 @@ namespace PIM3.API.Controllers;
 [Authorize(Roles = "admin,owner")]
 public class ClienteController : ControllerBase
 {
-    private readonly AppDbContext _context;
+    private readonly IClienteService _service;
 
-    public ClienteController(AppDbContext context)
+    public ClienteController(IClienteService service)
     {
-        _context = context;
+        _service = service;
     }
 
     [HttpGet]
-    public IActionResult GetAll()
-    {
-        var clientes = _context.Clientes.ToList();
-        return Ok(new RespostaPadraoDTO { Sucesso = true, Dados = clientes });
-    }
+    public IActionResult GetAll() => _service.GetAll();
 
     [HttpGet("{id}")]
-    public IActionResult GetById(int id)
-    {
-        var cliente = _context.Clientes.FirstOrDefault(c => c.IdCliente == id);
-        if (cliente == null)
-            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Cliente não encontrado" });
-
-        return Ok(new RespostaPadraoDTO { Sucesso = true, Dados = cliente });
-    }
+    public IActionResult GetById(int id) => _service.GetById(id);
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] Cliente cliente)
-    {
-        if (string.IsNullOrEmpty(cliente.NomeCliente))
-            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Nome do cliente é obrigatório" });
-
-        _context.Clientes.Add(cliente);
-        await _context.SaveChangesAsync();
-
-        return CreatedAtAction(nameof(GetById), new { id = cliente.IdCliente }, new RespostaPadraoDTO { Sucesso = true, Mensagem = "Cliente criado com sucesso", Dados = cliente });
-    }
+    public Task<IActionResult> Create([FromBody] Cliente cliente) => _service.Create(cliente);
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(int id, [FromBody] Cliente clienteAtualizado)
-    {
-        var cliente = _context.Clientes.FirstOrDefault(c => c.IdCliente == id);
-        if (cliente == null)
-            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Cliente não encontrado" });
-        cliente.NomeCliente = clienteAtualizado.NomeCliente;
-        cliente.TelefoneCliente = clienteAtualizado.TelefoneCliente;
-        cliente.Feedback = clienteAtualizado.Feedback;
-
-        _context.Clientes.Update(cliente);
-        await _context.SaveChangesAsync();
-
-        return Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Cliente atualizado", Dados = cliente });
-    }
+    public Task<IActionResult> Update(int id, [FromBody] Cliente clienteAtualizado) =>
+        _service.Update(id, clienteAtualizado);
 
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(int id)
-    {
-        var cliente = _context.Clientes.FirstOrDefault(c => c.IdCliente == id);
-        if (cliente == null)
-            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Cliente não encontrado" });
-
-        _context.Clientes.Remove(cliente);
-        await _context.SaveChangesAsync();
-
-        return Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Cliente deletado com sucesso" });
-    }
+    public Task<IActionResult> Delete(int id) => _service.Delete(id);
 }

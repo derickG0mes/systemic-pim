@@ -1,0 +1,98 @@
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using PIM3.API.Data;
+using PIM3.API.DTOs;
+
+namespace PIM3.API.Services;
+
+public sealed class AutenticacaoService : IAutenticacaoService
+{
+    private readonly AppDbContext _context;
+    private readonly JwtService _jwtService;
+
+    public AutenticacaoService(AppDbContext context, JwtService jwtService)
+    {
+        _context = context;
+        _jwtService = jwtService;
+    }
+
+    public async Task<IActionResult> Login(LoginDTO loginDTO, HttpResponse response)
+    {
+        if (string.IsNullOrWhiteSpace(loginDTO.Email) || string.IsNullOrWhiteSpace(loginDTO.Senha))
+        {
+            return ApiServiceResults.BadRequest(new RespostaPadraoDTO
+            {
+                Sucesso = false,
+                Mensagem = "Ops! Email e senha são obrigatórios.",
+                CodigoErro = "EMAIL_SENHA_VAZIOS"
+            });
+        }
+
+        var funcionario = await _context.Funcionarios
+            .FirstOrDefaultAsync(f => f.EmailFuncionario == loginDTO.Email);
+
+        if (funcionario == null)
+        {
+            return ApiServiceResults.Unauthorized(new RespostaPadraoDTO
+            {
+                Sucesso = false,
+                Mensagem = "Ops! Email ou senha incorretos.",
+                CodigoErro = "USUARIO_NAO_ENCONTRADO"
+            });
+        }
+
+        if (funcionario.LockedUntil.HasValue && funcionario.LockedUntil > DateTime.UtcNow)
+        {
+            return ApiServiceResults.Unauthorized(new RespostaPadraoDTO
+            {
+                Sucesso = false,
+                Mensagem = "Ops! Sua conta está temporariamente bloqueada. Tente novamente mais tarde.",
+                CodigoErro = "CONTA_BLOQUEADA"
+            });
+        }
+
+        if (!PasswordHashService.VerifyPassword(
+                loginDTO.Senha,
+                funcionario.PasswordFuncionario,
+                out var upgradedHash))
+        {
+            funcionario.LoginAttempts++;
+
+            if (funcionario.LoginAttempts >= LoginLockoutPolicy.MaxAttempts)
+            {
+                funcionario.LockedUntil = DateTime.UtcNow.AddMinutes(LoginLockoutPolicy.DurationMinutes);
+            }
+
+            await _context.SaveChangesAsync();
+
+            return ApiServiceResults.Unauthorized(new RespostaPadraoDTO
+            {
+                Sucesso = false,
+                Mensagem = "Ops! Email ou senha incorretos.",
+                CodigoErro = "SENHA_INCORRETA"
+            });
+        }
+
+        funcionario.LoginAttempts = 0;
+        funcionario.LockedUntil = null;
+        if (upgradedHash != null)
+            funcionario.PasswordFuncionario = upgradedHash;
+        await _context.SaveChangesAsync();
+
+        var token = _jwtService.GenerateToken(funcionario.IdFuncionario, funcionario.NomeFuncionario, funcionario.CpfFuncionario ?? "", funcionario.Role);
+        _jwtService.SetAuthCookie(response, token);
+
+        return ApiServiceResults.Ok(new RespostaPadraoDTO
+        {
+            Sucesso = true,
+            Mensagem = "Login realizado com sucesso!",
+            Dados = new
+            {
+                id = funcionario.IdFuncionario,
+                nomeUsuario = funcionario.NomeFuncionario,
+                role = funcionario.Role
+            }
+        });
+    }
+}

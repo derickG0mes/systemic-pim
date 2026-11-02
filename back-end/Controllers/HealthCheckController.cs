@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
@@ -11,9 +12,10 @@ namespace PIM3.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
+[AllowAnonymous]
 public class HealthCheckController : ControllerBase
 {
-    // Injeção de dependência do banco de dados
+    // Injeção de dependência do banco de dados (verificação trivial de conectividade)
     private readonly AppDbContext _context;
     private readonly ILogger<HealthCheckController> _logger;
 
