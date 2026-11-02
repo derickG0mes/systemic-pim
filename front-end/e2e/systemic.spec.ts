@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { randomBytes, randomInt } from "node:crypto";
 
 const email = process.env.E2E_ADMIN_EMAIL;
 const password = process.env.E2E_ADMIN_PASSWORD;
@@ -201,6 +202,72 @@ test("admin carrega funcionários e abre o formulário de cadastro", async ({ pa
   await page.getByRole("button", { name: "Novo Usuário" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Novo funcionário" })).toBeVisible();
+});
+
+test("admin cadastra, edita e inativa funcionário", async ({ page }) => {
+  await loginAsAdmin(page);
+  const api = await createApiClient(page);
+  const suffix = `${Date.now()}-${randomBytes(4).toString("hex")}`;
+  const email = `e2e-${suffix}@teste.local`;
+  const initialName = `Funcionário E2E ${suffix}`;
+  const updatedName = `Funcionário E2E atualizado ${suffix}`;
+  const cpf = Array.from({ length: 11 }, () => randomInt(10)).join("");
+  const employeePassword = randomBytes(32).toString("base64");
+  let employeeId: number | undefined;
+  let deactivated = false;
+
+  try {
+    await page.goto("/users");
+    await expect(page.getByRole("heading", { name: "Gestão de Usuários" })).toBeVisible();
+    await page.getByRole("button", { name: "Novo Usuário" }).click();
+
+    const createDialog = page.getByRole("dialog");
+    await createDialog.getByLabel("Nome").fill(initialName);
+    await createDialog.getByLabel("CPF (11 dígitos)").fill(cpf);
+    await createDialog.getByLabel("E-mail").fill(email);
+    await createDialog.getByLabel("Cargo").fill("E2E");
+    await createDialog.getByLabel("Senha (mínimo 6 caracteres)").fill(employeePassword);
+
+    const createResponse = page.waitForResponse((response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === "/api/funcionario",
+    );
+    await createDialog.getByRole("button", { name: "Cadastrar" }).click();
+    const created = await createResponse;
+    expect(created.status()).toBe(201);
+    const createdBody = await expectSuccessful(created);
+    employeeId = getEntityId(createdBody, "idFuncionario");
+
+    const employeeRow = page.getByRole("row").filter({ hasText: email });
+    await expect(employeeRow).toBeVisible();
+    await expect(employeeRow.getByText(initialName, { exact: true })).toBeVisible();
+
+    await employeeRow.getByRole("button", { name: `Editar ${initialName}` }).click();
+    const editDialog = page.getByRole("dialog");
+    await expect(editDialog.getByRole("heading", { name: "Editar funcionário" })).toBeVisible();
+    await editDialog.getByLabel("Nome").fill(updatedName);
+    const updateResponse = page.waitForResponse((response) =>
+      response.request().method() === "PUT" &&
+      new URL(response.url()).pathname === `/api/funcionario/${employeeId}`,
+    );
+    await editDialog.getByRole("button", { name: "Salvar alterações" }).click();
+    expect((await updateResponse).status()).toBe(200);
+    await expect(employeeRow.getByText(updatedName, { exact: true })).toBeVisible();
+
+    page.once("dialog", (dialog) => dialog.accept());
+    const deactivateResponse = page.waitForResponse((response) =>
+      response.request().method() === "DELETE" &&
+      new URL(response.url()).pathname === `/api/funcionario/${employeeId}`,
+    );
+    await employeeRow.getByRole("button", { name: "Desativar" }).click();
+    expect((await deactivateResponse).status()).toBe(200);
+    await expect(employeeRow.getByText("Inativo", { exact: true })).toBeVisible();
+    deactivated = true;
+  } finally {
+    if (employeeId && !deactivated) {
+      await api.send("DELETE", `/funcionario/${employeeId}`);
+    }
+  }
 });
 
 test("admin carrega os dados de faturamento do dashboard", async ({ page }) => {
