@@ -214,12 +214,12 @@ test("admin carrega funcionários e abre o formulário de cadastro", async ({ pa
   const employeesResponse = page.waitForResponse((response) =>
     response.request().method() === "GET" &&
     new URL(response.url()).pathname === "/api/funcionario",
-  );
+  ).then(async (response) => ({ response, body: await response.text() }));
   await page.goto("/users");
 
-  const response = await employeesResponse;
-  expect(response.ok(), `API returned ${response.status()}`).toBe(true);
-  const employeesBody = await expectSuccessful(response);
+  const { response, body } = await employeesResponse;
+  expect(response.ok(), `API returned ${response.status()}: ${body}`).toBe(true);
+  const employeesBody = body ? JSON.parse(body) as Record<string, unknown> : {};
   const employees = employeesBody.dados ?? employeesBody.Dados;
   expect(Array.isArray(employees)).toBe(true);
   await expect(page.getByRole("heading", { name: "Gestão de Usuários" })).toBeVisible();
@@ -299,10 +299,11 @@ test("admin cadastra, edita e inativa funcionário", async ({ page }) => {
 
 test("admin carrega os dados de faturamento do dashboard", async ({ page }) => {
   await loginAsAdmin(page);
-  const financeResponses = [
-    page.waitForResponse((response) =>
+  const summaryResponse = page.waitForResponse((response) =>
       new URL(response.url()).pathname === "/api/faturamento",
-    ),
+  ).then(async (response) => ({ response, body: await response.text() }));
+  const financeResponses = [
+    summaryResponse,
     page.waitForResponse((response) =>
       new URL(response.url()).pathname === "/api/faturamento/receita-por-forma",
     ),
