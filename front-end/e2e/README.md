@@ -11,6 +11,11 @@ janela em que executará os testes:
 
 ```powershell
 $env:E2E_SEED = "1"
+$env:SQL_SERVER_PORT = "1434"
+$env:FRONTEND_PORT = "8081"
+$env:E2E_API_URL = "http://localhost:5050/api"
+$env:E2E_BASE_URL = "http://localhost:8081"
+$env:CORS_ALLOWED_ORIGINS = "http://localhost:8081"
 $emailLine = Get-Content .env -ErrorAction SilentlyContinue | Where-Object { $_ -like 'E2E_ADMIN_EMAIL=*' } | Select-Object -First 1
 if (-not $emailLine) {
   $emailLine = Get-Content .env.example | Where-Object { $_ -like 'E2E_ADMIN_EMAIL=*' } | Select-Object -First 1
@@ -31,22 +36,31 @@ $kdf = [Security.Cryptography.Rfc2898DeriveBytes]::new(
 )
 $derivedKey = [Convert]::ToBase64String($kdf.GetBytes(32))
 $kdf.Dispose()
-$env:E2E_ADMIN_PASSWORD_HASH = 'pbkdf2-sha256$v1$600000$' + [Convert]::ToBase64String($salt) + '$' + $derivedKey
-docker compose -p systemic-e2e up -d --build --wait
-Push-Location front-end
+$passwordHash = 'pbkdf2-sha256$v1$600000$' + [Convert]::ToBase64String($salt) + '$' + $derivedKey
+$env:E2E_ADMIN_PASSWORD_HASH_HEX = [BitConverter]::ToString([Text.Encoding]::ASCII.GetBytes($passwordHash)).Replace('-', '')
+$defaultApiWasRunning = [bool](docker compose ps --status running -q api)
+if ($defaultApiWasRunning) { docker compose stop api }
 try {
-npm.cmd ci
-npx.cmd playwright install chromium
-npm.cmd run test:e2e
+  docker compose -p systemic-e2e up -d --build --wait
+  Push-Location front-end
+  try {
+    npm.cmd ci
+    npx.cmd playwright install chromium
+    npm.cmd run test:e2e
+  } finally {
+    Pop-Location
+  }
 } finally {
-  Pop-Location
+  docker compose -p systemic-e2e down
+  if ($defaultApiWasRunning) { docker compose start api }
 }
 ```
 
 O `E2E_SEED` padrão é `0`; sem ativá-lo, o seed de teste não é executado.
 O nome de projeto `systemic-e2e` mantém o banco separado dos volumes de
-desenvolvimento. Ao terminar, remova o ambiente descartável com
-`docker compose -p systemic-e2e down -v`. Opcionalmente, configure
+desenvolvimento. A porta da API (5050) é fixa no front-end; se o Compose normal
+estiver ativo, o bloco para temporariamente apenas a API e a reinicia ao final.
+O comando `down` preserva os volumes E2E para uma execução posterior. Opcionalmente, configure
 `E2E_BASE_URL` (padrão `http://localhost:8080`) e `E2E_API_URL` (padrão
 `http://localhost:5050/api`).
 
