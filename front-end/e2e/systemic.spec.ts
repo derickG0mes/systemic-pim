@@ -17,8 +17,14 @@ async function loginAsAdmin(page: Page) {
   await page.goto("/login");
   await page.getByPlaceholder("E-mail").fill(email);
   await page.getByPlaceholder("Senha").fill(password);
+  const loginResponse = page.waitForResponse((response) =>
+    response.request().method() === "POST" &&
+    new URL(response.url()).pathname === "/api/autenticacao/login",
+  );
   await page.getByRole("button", { name: "Entrar" }).click();
-  await expect(page).not.toHaveURL(/\/login$/);
+  const response = await loginResponse;
+  expect(response.ok(), `Login API returned ${response.status()}`).toBe(true);
+  await expect(page).not.toHaveURL(/\/login$/, { timeout: 15_000 });
 }
 
 async function expectSuccessful(response: {
@@ -313,11 +319,12 @@ test("admin carrega os dados de faturamento do dashboard", async ({ page }) => {
   ];
   await page.goto("/dashboard");
 
-  const [summaryResponse, paymentsResponse, productsResponse] = await Promise.all(financeResponses);
-  for (const response of [summaryResponse, paymentsResponse, productsResponse]) {
+  const [{ response: summaryApiResponse, body: summaryText }, paymentsResponse, productsResponse] =
+    await Promise.all(financeResponses);
+  for (const response of [summaryApiResponse, paymentsResponse, productsResponse]) {
     expect(response.ok(), `API returned ${response.status()}`).toBe(true);
   }
-  const summaryBody = await expectSuccessful(summaryResponse);
+  const summaryBody = summaryText ? JSON.parse(summaryText) as Record<string, unknown> : {};
   const summary = asRecord(summaryBody.dados) ?? asRecord(summaryBody.Dados);
   const revenue = Number(summary?.receita);
   const expenses = Number(summary?.despesas);
