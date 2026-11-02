@@ -1,12 +1,9 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
-using PIM3.API.Data;
 using PIM3.API.DTOs;
-using PIM3.API.Hubs;
 using PIM3.API.Models;
+using PIM3.API.Services;
 
 namespace PIM3.API.Controllers;
 
@@ -15,453 +12,46 @@ namespace PIM3.API.Controllers;
 [Authorize(Roles = "employee,admin,owner")]
 public class ComandaController : ControllerBase
 {
-    private readonly AppDbContext _context;
-    private readonly IHubContext<CozinhaHub> _cozinhaHub;
-    private readonly ILogger<ComandaController> _logger;
+    private readonly IComandaService _service;
 
-    public ComandaController(AppDbContext context, IHubContext<CozinhaHub> cozinhaHub, ILogger<ComandaController> logger)
-    {
-        _context = context;
-        _cozinhaHub = cozinhaHub;
-        _logger = logger;
-    }
+    public ComandaController(IComandaService service) => _service = service;
 
     [HttpGet]
-    public IActionResult GetAll()
-    {
-        var comandas = _context.Comandas
-            .Include(c => c.ItensComanda)
-            .ThenInclude(i => i.Produto)
-            .Include(c => c.Cliente)
-            .Include(c => c.Mesa)
-            .Include(c => c.DetalhesPagamento)
-            .ThenInclude(dp => dp.FormaPagamento)
-            .ToList();
-
-        return Ok(new { sucesso = true, dados = comandas });
-    }
+    public IActionResult GetAll() => _service.GetAll();
 
     [HttpGet("{id}")]
-    public IActionResult GetById(int id)
-    {
-        var comanda = _context.Comandas
-            .Include(c => c.ItensComanda)
-            .ThenInclude(i => i.Produto)
-            .Include(c => c.Cliente)
-            .Include(c => c.Mesa)
-            .FirstOrDefault(c => c.IdComanda == id);
+    public IActionResult GetById(int id) => _service.GetById(id);
 
-        if (comanda == null)
-            return NotFound(new { sucesso = false, mensagem = "Comanda não encontrada" });
-
-        return Ok(new { sucesso = true, dados = comanda });
-    }
-
-    /// <summary>
-    /// Lista apenas as comandas abertas (ativas)
-    /// Endpoint específico para o frontend atualizar a UI
-    /// </summary>
     [HttpGet("abertas/todas")]
     [Authorize]
-    public IActionResult GetAbertasComTotais()
-    {
+    public IActionResult GetAbertasComTotais() => _service.GetAbertasComTotais();
 
-        try
-        {
-            var comandasAbertas = _context.Comandas
-                .Where(c => c.StatusComanda == "ABERTA")
-                .Include(c => c.Mesa)
-                .Include(c => c.ItensComanda)
-                .ThenInclude(i => i.Produto)
-                .Select(c => new
-                {
-                    c.IdComanda,
-                    c.DataAberta,
-                    c.IdMesa,
-                    NumeroMesa = c.Mesa != null ? c.Mesa.NumeroMesa : c.IdMesa,
-                    c.IdCliente,
-                    c.StatusComanda,
-                    ValorTotal = c.ItensComanda.Sum(i => i.QtdProduto * i.PrecoUnitarioPago),
-                    // Retorna os itens ativos para reconstruir o estado após o F5
-                    ItensComanda = c.ItensComanda
-                        .Where(i => i.StatusItem != "CONCLUIDO" && i.StatusItem != "ENTREGUE")
-                        .Select(i => new
-                        {
-                            i.IdItemComanda,
-                            i.IdProduto,
-                            i.QtdProduto,
-                            i.PrecoUnitarioPago,
-                            i.StatusItem,
-                            NomeProduto = i.Produto != null ? i.Produto.NomeProduto : ""
-                        }).ToList()
-                })
-                .ToList();
-
-            return Ok(new RespostaPadraoDTO { Sucesso = true, Dados = comandasAbertas });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load open orders.");
-            return StatusCode(500, new { error = ex.Message });
-        }
-    }
-
-    /// <summary>
-    /// Abre uma nova comanda
-    /// </summary>
     [HttpGet("mesa/{tableNumber}")]
-    public IActionResult GetComandasByTable(int tableNumber)
-    {
+    public IActionResult GetComandasByTable(int tableNumber) => _service.GetComandasByTable(tableNumber);
 
-        var mesa = _context.Mesas.FirstOrDefault(m => m.NumeroMesa == tableNumber);
-        if (mesa == null)
-            return NotFound(new { sucesso = false, mensagem = "Mesa não encontrada" });
-
-        var comandas = _context.Comandas
-            .Where(c => c.IdMesa == mesa.IdMesa && c.StatusComanda == "ABERTA")
-            .Include(c => c.ItensComanda)
-            .Include(c => c.Mesa)
-            .Include(c => c.Cliente)
-            .ToList();
-
-        return Ok(comandas);
-    }
-
-    /// <summary>
-    /// Atualiza dados gerais de uma comanda (não itens)
-    /// PUT: api/comanda/{id}
-    /// </summary>
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(int id, [FromBody] Comanda comandaAtualizada)
-    {
-        var comanda = _context.Comandas.FirstOrDefault(c => c.IdComanda == id);
-        if (comanda == null)
-            return NotFound(new { message = "Comanda não encontrada" });
+    public Task<IActionResult> Update(int id, [FromBody] Comanda comandaAtualizada) => _service.Update(id, comandaAtualizada);
 
-        // Só permitir atualizar cliente e mesa se a comanda ainda não foi fechada
-        if (comanda.StatusComanda != "FECHADA")
-        {
-            comanda.IdCliente = comandaAtualizada.IdCliente;
-            comanda.IdMesa = comandaAtualizada.IdMesa;
-        }
-
-        _context.Comandas.Update(comanda);
-        await _context.SaveChangesAsync();
-        await NotificarComandaAtualizada(comanda.IdComanda, comanda.IdMesa, comanda.StatusComanda);
-
-        return Ok(comanda);
-    }
-
-    /// <summary>
-    /// Abre uma nova comanda
-    /// </summary>
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] Comanda comanda)
-    {
-        if (comanda.IdMesa <= 0)
-            return BadRequest(new { message = "Mesa é obrigatória" });
+    public Task<IActionResult> Create([FromBody] Comanda comanda) => _service.Create(comanda);
 
-        // Se nenhum cliente foi informado (idCliente = 0), usa o cliente padrão "Consumidor"
-        if (comanda.IdCliente <= 0)
-        {
-            var consumidor = _context.Clientes.FirstOrDefault(c => c.NomeCliente == "Consumidor");
-            if (consumidor == null)
-                return BadRequest(new { message = "Cliente padrão 'Consumidor' não encontrado. Execute a migration-cliente-consumidor.sql." });
-            comanda.IdCliente = consumidor.IdCliente;
-        }
-
-        var mesa = _context.Mesas.FirstOrDefault(m => m.IdMesa == comanda.IdMesa)
-            ?? _context.Mesas.FirstOrDefault(m => m.NumeroMesa == comanda.IdMesa);
-        if (mesa == null)
-            return BadRequest(new { message = "Mesa não encontrada" });
-
-        comanda.IdMesa = mesa.IdMesa;
-
-        // Verificar se cliente existe
-        var cliente = _context.Clientes.FirstOrDefault(c => c.IdCliente == comanda.IdCliente);
-        if (cliente == null)
-            return BadRequest(new { message = "Cliente não encontrado" });
-
-        // Verificar se já existe comanda aberta para esta mesa
-        var comandaAberta = _context.Comandas
-            .FirstOrDefault(c => c.IdMesa == comanda.IdMesa && c.StatusComanda == "ABERTA");
-        if (comandaAberta != null)
-            return BadRequest(new { message = "Já existe uma comanda aberta para esta mesa" });
-
-        comanda.DataAberta = DateTime.UtcNow;
-        comanda.StatusComanda = "ABERTA";
-        comanda.ValorTotal = 0m;
-
-        _context.Comandas.Add(comanda);
-        await _context.SaveChangesAsync();
-        await NotificarComandaAtualizada(comanda.IdComanda, comanda.IdMesa, comanda.StatusComanda);
-
-        return CreatedAtAction(nameof(GetById), new { id = comanda.IdComanda }, comanda);
-    }
-
-    /// <summary>
-    /// Adiciona um item à comanda e recalcula o total
-    /// </summary>
     [HttpPost("{id}/itens")]
-    public async Task<IActionResult> AddItem(int id, [FromBody] ItemComanda item)
-    {
-        var comanda = _context.Comandas
-            .Include(c => c.ItensComanda)
-            .FirstOrDefault(c => c.IdComanda == id);
-        if (comanda == null)
-            return NotFound(new { message = "Comanda não encontrada" });
+    public Task<IActionResult> AddItem(int id, [FromBody] ItemComanda item) => _service.AddItem(id, item);
 
-        if (comanda.StatusComanda != "ABERTA")
-            return BadRequest(new { message = "Comanda não está aberta. Não é possível adicionar itens" });
-
-        if (item.QtdProduto <= 0)
-            return BadRequest(new { message = "Quantidade deve ser maior que 0" });
-
-        if (item.PrecoUnitarioPago <= 0)
-            return BadRequest(new { message = "Preço deve ser maior que 0" });
-
-        var produto = _context.Produtos.FirstOrDefault(p => p.IdProduto == item.IdProduto);
-        if (produto == null)
-            return NotFound(new { message = "Produto não encontrado" });
-
-        // Validar estoque
-        if (produto.QtdEstoque < item.QtdProduto)
-            return BadRequest(new { message = $"Estoque insuficiente. Disponível: {produto.QtdEstoque}" });
-
-        // Se não foi passado preço, usa o preço do produto
-        if (item.PrecoUnitarioPago == 0)
-            item.PrecoUnitarioPago = produto.PrecoProduto;
-
-        item.IdComanda = id;
-        _context.ItensComanda.Add(item);
-
-        // Diminuir estoque
-        produto.QtdEstoque -= item.QtdProduto;
-        _context.Produtos.Update(produto);
-
-        await _context.SaveChangesAsync();
-
-        var novoTotal = await _context.Comandas.Where(c => c.IdComanda == id).Select(c => c.ValorTotal).FirstAsync();
-        await _cozinhaHub.Clients.All.SendAsync("PedidoNovo", new
-        {
-            idComanda = id,
-            idMesa = comanda.IdMesa,
-            itens = new[] { new { idProduto = item.IdProduto, qtdProduto = item.QtdProduto, statusItem = item.StatusItem } },
-            timestamp = DateTime.UtcNow
-        });
-        await NotificarComandaAtualizada(comanda.IdComanda, comanda.IdMesa, comanda.StatusComanda);
-        return Ok(new { message = "Item adicionado com sucesso", itemId = item.IdItemComanda, novoTotal });
-    }
-
-    /// <summary>
-    /// Registra pagamento, fecha comanda e libera mesa
-    /// PUT: api/comanda/{id}/pagar
-    /// </summary>
     [HttpPut("{id}/pagar")]
-    public async Task<IActionResult> Pagar(int id, [FromBody] PagarComandaDTO dto)
-    {
-        var idFuncionarioClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (!int.TryParse(idFuncionarioClaim, out var idFuncionario) || idFuncionario <= 0)
-            return Unauthorized(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Identificação do funcionário inválida." });
+    public Task<IActionResult> Pagar(int id, [FromBody] PagarComandaDTO dto) =>
+        _service.Pagar(id, dto, User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
 
-        var comanda = await _context.Comandas
-            .Include(c => c.Mesa)
-            .Include(c => c.ItensComanda)
-            .FirstOrDefaultAsync(c => c.IdComanda == id);
-
-        if (comanda == null)
-            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Comanda não encontrada" });
-
-        if (comanda.StatusComanda == "FECHADA")
-            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Comanda já está fechada" });
-
-        var valorPago = await _context.Comandas
-            .Where(c => c.IdComanda == id)
-            .Select(c => c.ValorTotal)
-            .FirstAsync();
-
-        _context.DetalhesPagamento.Add(new DetalhePagamento
-        {
-            IdComanda = id,
-            ValorPago = valorPago,
-            Troco = dto.Troco,
-            StatusPagamento = "PAGO",
-            IdFormaPagamento = dto.IdFormaPagamento,
-            IdFuncionario = idFuncionario,
-            DataPagamento = DateTime.UtcNow
-        });
-
-        await _context.SaveChangesAsync();
-        LogSistemaHelper.Registrar(_context, "PEDIDO", $"Pagamento comanda {id} - R$ {valorPago}");
-        await _context.SaveChangesAsync();
-
-        await _context.Entry(comanda).ReloadAsync();
-        await NotificarComandaAtualizada(comanda.IdComanda, comanda.IdMesa, comanda.StatusComanda);
-        return Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Pagamento registrado e comanda fechada", Dados = comanda });
-    }
-
-    /// <summary>
-    /// Fecha a comanda e libera a mesa
-    /// </summary>
     [HttpPut("{id}/fechar")]
-    public async Task<IActionResult> Close(int id)
-    {
-        var idFuncionarioClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (!int.TryParse(idFuncionarioClaim, out var idFuncionario) || idFuncionario <= 0)
-            return Unauthorized(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Identificação do funcionário inválida." });
+    public Task<IActionResult> Close(int id) =>
+        _service.Close(id, User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
 
-        var comanda = await _context.Comandas
-            .Include(c => c.Mesa)
-            .FirstOrDefaultAsync(c => c.IdComanda == id);
-        if (comanda == null)
-            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Comanda não encontrada" });
-
-        if (comanda.StatusComanda == "FECHADA")
-            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Comanda já está fechada" });
-
-        var valorPago = await _context.Comandas
-            .Where(c => c.IdComanda == id)
-            .Select(c => c.ValorTotal)
-            .FirstAsync();
-
-        _context.DetalhesPagamento.Add(new DetalhePagamento
-        {
-            IdComanda = id,
-            ValorPago = valorPago,
-            Troco = 0,
-            StatusPagamento = "PAGO",
-            IdFormaPagamento = 1,
-            IdFuncionario = idFuncionario,
-            DataPagamento = DateTime.UtcNow
-        });
-
-        await _context.SaveChangesAsync();
-        await _context.Entry(comanda).ReloadAsync();
-
-        await NotificarComandaAtualizada(comanda.IdComanda, comanda.IdMesa, comanda.StatusComanda);
-
-        return Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Comanda fechada via trigger de pagamento", Dados = comanda });
-    }
-
-    /// <summary>
-    /// Remove um item da comanda e recalcula o total
-    /// </summary>
     [HttpDelete("{id}/itens/{itemId}")]
-    public async Task<IActionResult> RemoveItem(int id, int itemId)
-    {
-        var comanda = _context.Comandas
-            .Include(c => c.ItensComanda)
-            .FirstOrDefault(c => c.IdComanda == id);
-        if (comanda == null)
-            return NotFound(new { message = "Comanda não encontrada" });
+    public Task<IActionResult> RemoveItem(int id, int itemId) => _service.RemoveItem(id, itemId);
 
-        if (comanda.StatusComanda != "ABERTA")
-            return BadRequest(new { message = "Comanda não está aberta. Não é possível remover itens" });
-
-        var item = comanda.ItensComanda.FirstOrDefault(i => i.IdItemComanda == itemId);
-        if (item == null)
-            return NotFound(new { message = "Item não encontrado nesta comanda" });
-
-        // Restaurar estoque do produto
-        var produto = _context.Produtos.FirstOrDefault(p => p.IdProduto == item.IdProduto);
-        if (produto != null)
-        {
-            produto.QtdEstoque += item.QtdProduto;
-            _context.Produtos.Update(produto);
-        }
-
-        _context.ItensComanda.Remove(item);
-
-        await _context.SaveChangesAsync();
-
-        var novoTotal = await _context.Comandas.Where(c => c.IdComanda == id).Select(c => c.ValorTotal).FirstAsync();
-        await NotificarComandaAtualizada(comanda.IdComanda, comanda.IdMesa, comanda.StatusComanda);
-
-        return Ok(new { message = "Item removido com sucesso", novoTotal });
-    }
-
-    /// <summary>
-    /// Marca comanda como inadimplente: fecha sem registro de pagamento e registra log NAO_PAGO.
-    /// A comanda fica com status FECHADA mas sem DETALHE_PAGAMENTO, portanto não entra no faturamento.
-    /// PUT: api/comanda/{id}/inadimplente
-    /// </summary>
     [HttpPut("{id}/inadimplente")]
-    public async Task<IActionResult> MarcarInadimplente(int id)
-    {
-        var comanda = await _context.Comandas
-            .Include(c => c.Mesa)
-            .FirstOrDefaultAsync(c => c.IdComanda == id);
+    public Task<IActionResult> MarcarInadimplente(int id) => _service.MarcarInadimplente(id);
 
-        if (comanda == null)
-            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Comanda não encontrada" });
-
-        if (comanda.StatusComanda == "FECHADA")
-            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Comanda já está fechada" });
-
-        // Fecha a comanda sem criar DETALHE_PAGAMENTO (não entra no faturamento)
-        comanda.StatusComanda = "FECHADA";
-        comanda.DataFechada = DateTime.UtcNow;
-        _context.Comandas.Update(comanda);
-
-        // Libera a mesa
-        if (comanda.Mesa != null)
-        {
-            comanda.Mesa.StatusMesa = "DISPONIVEL";
-            _context.Mesas.Update(comanda.Mesa);
-        }
-
-        await _context.SaveChangesAsync();
-
-        // Registra no log de sistema como inadimplência
-        LogSistemaHelper.Registrar(_context, "NAO_PAGO",
-            $"Comanda {id} fechada como inadimplente — sem pagamento registrado");
-        await _context.SaveChangesAsync();
-
-        await NotificarComandaAtualizada(comanda.IdComanda, comanda.IdMesa, comanda.StatusComanda);
-
-        return Ok(new RespostaPadraoDTO
-        {
-            Sucesso = true,
-            Mensagem = "Comanda marcada como inadimplente e mesa liberada",
-            Dados = new { idComanda = id, status = "FECHADA", inadimplente = true }
-        });
-    }
-
-    /// <summary>
-    /// Deleta a comanda e libera a mesa
-    /// </summary>
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(int id)
-    {
-        var comanda = _context.Comandas
-            .Include(c => c.Mesa)
-            .FirstOrDefault(c => c.IdComanda == id);
-        if (comanda == null)
-            return NotFound(new { message = "Comanda não encontrada" });
-
-        // Liberar a mesa
-        if (comanda.Mesa != null)
-        {
-            comanda.Mesa.StatusMesa = "DISPONIVEL";
-            _context.Mesas.Update(comanda.Mesa);
-        }
-
-        _context.Comandas.Remove(comanda);
-        await _context.SaveChangesAsync();
-
-        await NotificarComandaAtualizada(comanda.IdComanda, comanda.IdMesa, "REMOVIDA");
-
-        return Ok(new { message = "Comanda deletada e mesa liberada com sucesso" });
-    }
-
-    private Task NotificarComandaAtualizada(int idComanda, int idMesa, string novoStatus)
-    {
-        return _cozinhaHub.Clients.All.SendAsync("ComandaAtualizada", new
-        {
-            idComanda,
-            idMesa,
-            novoStatus,
-            timestamp = DateTime.UtcNow
-        });
-    }
+    public Task<IActionResult> Delete(int id) => _service.Delete(id);
 }

@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { useRestaurant } from "@/contexts/RestaurantContext";
+import { useRestaurant } from "@/contexts/useRestaurant";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -61,7 +62,7 @@ export default function InventoryPage() {
         <h1 className="text-2xl font-bold">Estoque & Produtos</h1>
         <div className="flex gap-2">
           <Select value={filterCat} onValueChange={setFilterCat}>
-            <SelectTrigger className="w-36"><SelectValue placeholder="Categoria" /></SelectTrigger>
+            <SelectTrigger className="w-36" aria-label="Filtrar por categoria"><SelectValue placeholder="Categoria" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas</SelectItem>
               {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -72,14 +73,19 @@ export default function InventoryPage() {
             <DialogContent>
               <DialogHeader><DialogTitle>Novo Produto</DialogTitle></DialogHeader>
               <div className="space-y-3">
-                <Input placeholder="Nome" value={name} onChange={e => setName(e.target.value)} />
+                <Label htmlFor="inventory-product-name">Nome do produto</Label>
+                <Input id="inventory-product-name" placeholder="Nome" value={name} onChange={e => setName(e.target.value)} />
+                <Label htmlFor="inventory-product-category">Categoria</Label>
                 <Select value={category} onValueChange={setCategory}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="inventory-product-category" aria-label="Categoria do produto"><SelectValue /></SelectTrigger>
                   <SelectContent>{CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                 </Select>
-                <Input placeholder="Preço" type="number" value={price} onChange={e => setPrice(e.target.value)} />
-                <Input placeholder="Estoque" type="number" value={stock} onChange={e => setStock(e.target.value)} />
-                <Input placeholder="Estoque Mín." type="number" value={minStock} onChange={e => setMinStock(e.target.value)} />
+                <Label htmlFor="inventory-product-price">Preço</Label>
+                <Input id="inventory-product-price" placeholder="Preço" type="number" value={price} onChange={e => setPrice(e.target.value)} />
+                <Label htmlFor="inventory-product-stock">Estoque</Label>
+                <Input id="inventory-product-stock" placeholder="Estoque" type="number" value={stock} onChange={e => setStock(e.target.value)} />
+                <Label htmlFor="inventory-product-min-stock">Estoque mínimo</Label>
+                <Input id="inventory-product-min-stock" placeholder="Estoque Mín." type="number" value={minStock} onChange={e => setMinStock(e.target.value)} />
                 <Button onClick={handleAdd} className="w-full">Cadastrar</Button>
               </div>
             </DialogContent>
@@ -89,8 +95,8 @@ export default function InventoryPage() {
 
       <Card>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
+          <div>
+            <Table aria-label="Produtos do estoque">
               <TableHeader>
                 <TableRow>
                   <TableHead>Produto</TableHead>
@@ -134,14 +140,16 @@ export default function InventoryPage() {
           <p className="text-sm text-muted-foreground">Quantidade atual: {selectedProduct?.stock}</p>
           <div className="space-y-3">
             <Select value={adjustment.tipo} onValueChange={(tipo: "ADICIONAR" | "REMOVER") => setAdjustment({ ...adjustment, tipo })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label="Tipo de ajuste"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="ADICIONAR">Adicionar (entrada)</SelectItem>
                 <SelectItem value="REMOVER">Remover (baixa)</SelectItem>
               </SelectContent>
             </Select>
-            <Input type="number" min="1" placeholder="Quantidade" value={adjustment.quantidade} onChange={(event) => setAdjustment({ ...adjustment, quantidade: event.target.value })} />
-            <Input placeholder="Motivo do ajuste" value={adjustment.motivo} onChange={(event) => setAdjustment({ ...adjustment, motivo: event.target.value })} />
+            <Label htmlFor="stock-adjustment-quantity">Quantidade</Label>
+            <Input id="stock-adjustment-quantity" type="number" min="1" placeholder="Quantidade" value={adjustment.quantidade} onChange={(event) => setAdjustment({ ...adjustment, quantidade: event.target.value })} />
+            <Label htmlFor="stock-adjustment-reason">Motivo do ajuste</Label>
+            <Input id="stock-adjustment-reason" placeholder="Motivo do ajuste" value={adjustment.motivo} onChange={(event) => setAdjustment({ ...adjustment, motivo: event.target.value })} />
             <Button className="w-full" onClick={handleAdjust} disabled={adjusting}>
               {adjusting ? "Processando..." : "Confirmar ajuste"}
             </Button>

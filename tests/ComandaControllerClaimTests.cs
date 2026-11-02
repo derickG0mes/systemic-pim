@@ -7,6 +7,7 @@ using PIM3.API.Controllers;
 using PIM3.API.Data;
 using PIM3.API.DTOs;
 using PIM3.API.Hubs;
+using PIM3.API.Services;
 
 namespace back_end.Tests;
 
@@ -27,10 +28,11 @@ public class ComandaControllerClaimTests
             .UseSqlServer("Server=localhost;Database=not-used;TrustServerCertificate=True")
             .Options;
         await using var context = new AppDbContext(options);
-        var controller = new ComandaController(
+        var service = new ComandaService(
             context,
             null!,
-            NullLogger<ComandaController>.Instance);
+            NullLogger<ComandaService>.Instance);
+        var controller = new ComandaController(service);
         var claims = claimValue is null
             ? Array.Empty<Claim>()
             : new[] { new Claim(ClaimTypes.NameIdentifier, claimValue) };

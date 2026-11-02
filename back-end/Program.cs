@@ -104,6 +104,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddScoped<JwtService>();
 builder.Services.AddScoped<BackupService>();
 builder.Services.AddScoped<PIM3.API.Services.Backup.BackupRestoreService>();
+builder.Services.AddScoped<IComandaService, ComandaService>();
+builder.Services.AddScoped<IPedidoService, PedidoService>();
+builder.Services.AddScoped<IFaturamentoService, FaturamentoService>();
+builder.Services.AddScoped<IClienteService, ClienteService>();
+builder.Services.AddScoped<IFormaPagamentoService, FormaPagamentoService>();
+builder.Services.AddScoped<IMesaService, MesaService>();
+builder.Services.AddScoped<IProdutoService, ProdutoService>();
+builder.Services.AddScoped<IReservaService, ReservaService>();
+builder.Services.AddScoped<ILogService, LogService>();
+builder.Services.AddScoped<IFuncionarioService, FuncionarioService>();
+builder.Services.AddScoped<IAutenticacaoService, AutenticacaoService>();
+builder.Services.AddScoped<IDatabaseHealthService, DatabaseHealthService>();
 
 builder.Services.AddSignalR();
 

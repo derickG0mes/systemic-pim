@@ -87,10 +87,31 @@ npm run lint
 npm run build
 ```
 
+Os testes de integridade do backup precisam de SQL Server e são executados
+explicitamente para evitar dependência de banco nos testes comuns. Com o SQL
+Server do Compose ativo, configure uma conexão com permissão para criar e
+remover bancos (o teste conecta inicialmente ao `master`):
+
+```powershell
+$env:RUN_INTEGRATION_TESTS = "1"
+$env:DB_PASSWORD = "YOUR_SQL_PASSWORD"
+$env:BACKUP_TEST_CONNECTION_STRING = "Server=localhost,1433;Database=master;User Id=sa;Password=$env:DB_PASSWORD;TrustServerCertificate=True"
+dotnet test tests/back-end.Tests.csproj
+Remove-Item Env:RUN_INTEGRATION_TESTS
+Remove-Item Env:BACKUP_TEST_CONNECTION_STRING
+Remove-Item Env:DB_PASSWORD
+```
+
+Cada teste cria um banco temporário com nome aleatório, direciona a API de teste
+somente a esse banco e o remove ao terminar; nunca restaura em
+`DB_RESTAURANTE`. Sem `RUN_INTEGRATION_TESTS=1`, esses dois testes ficam
+ignorados.
+
 O workflow de CI executa build e testes .NET, `npm ci`, lint, testes do
 front-end (`npm test -- --run`) e build em push e pull request. Não há deploy
-em nuvem configurado. Na última validação local, `dotnet test` aprovou 46
-testes; o front-end aprovou 14 testes em 2 arquivos. `npm audit` reportou zero
+em nuvem configurado. Na última validação local, `dotnet test` aprovou 49
+testes, incluindo os dois testes de backup com `RUN_INTEGRATION_TESTS=1`; o
+front-end aprovou 14 testes em 2 arquivos. `npm audit` reportou zero
 vulnerabilidades; o lint terminou sem erros e com 7 avisos.
 
 O Nginx do front-end define CSP e cabeçalhos de segurança. A política permite

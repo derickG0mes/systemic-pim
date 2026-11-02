@@ -246,7 +246,7 @@ mensagens variam conforme a validação do controller.
 | `DELETE /api/funcionario/{id}` | JWT; `admin` ou `owner` | `id` na rota | Envelope; desativa funcionário |
 | `GET /api/healthcheck` | Público | — | Envelope com status, timestamp e versão `2.0` |
 | `GET /api/healthcheck/database` | Público | — | Envelope de status; em erro retorna mensagem genérica e registra detalhes no log |
-| `GET /api/healthcheck/info` | Público | — | Envelope com nome, versão `2.0` e URL base `http://localhost:5050` |
+| `GET /api/healthcheck/info` | Público | — | Envelope com status genérico da API (`status: ok`) |
 | `GET /api/log/sistema` | JWT; `admin` ou `owner` | Query opcional `pagina` (padrão 1), `tamanho` (50), `filtro` | JSON `{sucesso,total,pagina,dados}` |
 | `POST /api/log/registrar` | JWT; `admin` ou `owner` | JSON `{tipoLog,descricaoLog,usuarioLog,dadoAnterior,dadoNovo}` | Envelope com o ID criado |
 | `GET /api/log/comanda/{idComanda}` | JWT; `admin` ou `owner` | `idComanda` na rota | JSON `{sucesso,dados}` com logs |
@@ -282,9 +282,8 @@ Banco: `DB_RESTAURANTE`. O script de schema define 12 tabelas:
 três triggers e dados básicos. `02-procedures-views.sql` define três
 procedures (`sp_fechar_comanda`, `sp_relatorio_faturamento`,
 `sp_ajustar_estoque`) e duas views (`vw_comandas_abertas`,
-`vw_produtos_mais_vendidos`). `init-database.sql` é um script SQL legado
-separado; o Compose não o executa. Os quatro usuários encontrados nesse script
-e no script idempotente têm hashes no banco, não senhas verificáveis em texto
+`vw_produtos_mais_vendidos`). Os quatro usuários encontrados no script
+idempotente têm hashes no banco, não senhas verificáveis em texto
 claro. O índice `IDX_LOG_SISTEMA_DATA` também consta na migração histórica
 `migration-logs-sistema.sql`; sua criação idempotente está incluída no script
 executado pelo Compose.

@@ -40,7 +40,7 @@ export function useSignalR(
         withCredentials: true,
       })
       .configureLogging(LogLevel.Warning)
-      .withAutomaticReconnect()
+      .withAutomaticReconnect([0, 2000, 10000, 30000])
       .build();
 
     Object.keys(eventsRef.current).forEach((eventName) => {

@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
+import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -37,7 +38,54 @@ export default defineConfig(() => ({
       "@radix-ui/react-separator",
     ],
   },
-  plugins: [react()].filter(Boolean),
+  plugins: [
+    react(),
+    VitePWA({
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
+      registerType: "autoUpdate",
+      includeAssets: [
+        "favicon.svg",
+        "icons/systemic-192.png",
+        "icons/systemic-512.png",
+        "icons/systemic-maskable-512.png",
+      ],
+      manifest: {
+        name: "Systemic",
+        short_name: "Systemic",
+        lang: "pt-BR",
+        description: "Sistema de gerenciamento de restaurantes",
+        start_url: "/",
+        scope: "/",
+        display: "standalone",
+        background_color: "#111827",
+        theme_color: "#111827",
+        icons: [
+          {
+            src: "/icons/systemic-192.png",
+            sizes: "192x192",
+            type: "image/png",
+          },
+          {
+            src: "/icons/systemic-512.png",
+            sizes: "512x512",
+            type: "image/png",
+          },
+          {
+            src: "/icons/systemic-maskable-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
+          },
+        ],
+      },
+      injectManifest: {
+        globPatterns: ["**/*.{html,js,css,svg,png,woff2,ico}"],
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+      },
+    }),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

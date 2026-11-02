@@ -241,7 +241,7 @@ Os comandos foram executados com Docker Compose e SQL Server ativos. O
 **12 tabelas, 3 triggers, 3 procedures, 2 views e 5 índices**. Após incluir
 `IDX_LOG_SISTEMA_DATA` no script do `db-init`, nova execução duas vezes passou
 e `sys.indexes` retornou exatamente um índice com esse nome na tabela
-`LOG_SISTEMA`. `init-database.sql` é legado e não é executado pelo Compose.
+`LOG_SISTEMA`.
 
 Os efeitos foram testados com dados de exemplo dentro de transação revertida:
 

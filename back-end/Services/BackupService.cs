@@ -10,17 +10,20 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
+using PIM3.API.Services.Backup;
 
 namespace PIM3.API.Services;
 
 public class BackupService
 {
     private readonly AppDbContext _context;
+    private readonly IConfiguration _configuration;
     public string BackupDirectory { get; }
 
     public BackupService(AppDbContext context, IConfiguration configuration)
     {
         _context = context;
+        _configuration = configuration;
         var configuredPath = Environment.GetEnvironmentVariable("BACKUP_PATH")
             ?? configuration["BACKUP_PATH"];
         BackupDirectory = Path.GetFullPath(string.IsNullOrWhiteSpace(configuredPath)
@@ -183,6 +186,7 @@ public class BackupService
 
     public string GerarBackupCompleto(out string zipPath, out string folderPath, out long zipSize)
     {
+        var hmacKey = BackupIntegrity.GetKey(_configuration);
         string dataFormatada = DateTime.Now.ToString("ddMMyyyy");
         string horaFormatada = DateTime.Now.ToString("HHmmss");
         string backupName = $"backup_{dataFormatada}_{horaFormatada}";
@@ -211,14 +215,33 @@ public class BackupService
         string configPath = Path.Combine(folderPath, $"backup_config_{dataFormatada}.json");
         File.WriteAllText(configPath, configContent, Encoding.UTF8);
 
-        // Remover o zip anterior se existir
-        if (File.Exists(zipPath))
+        var stagingZipPath = Path.Combine(
+            BackupDirectory,
+            $"{backupName}_{Guid.NewGuid():N}.tmp");
+        try
         {
-            File.Delete(zipPath);
-        }
+            ZipFile.CreateFromDirectory(folderPath, stagingZipPath);
+            byte[] signature;
+            using (var archive = ZipFile.OpenRead(stagingZipPath))
+            {
+                signature = BackupIntegrity.ComputeSignature(
+                    archive.Entries,
+                    hmacKey);
+            }
+            File.WriteAllText(
+                Path.Combine(folderPath, BackupIntegrity.SignatureEntryName),
+                Convert.ToHexString(signature),
+                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 
-        // Compactar a pasta do backup em arquivo zip
-        ZipFile.CreateFromDirectory(folderPath, zipPath);
+            File.Delete(stagingZipPath);
+            ZipFile.CreateFromDirectory(folderPath, stagingZipPath);
+            File.Move(stagingZipPath, zipPath, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(stagingZipPath))
+                File.Delete(stagingZipPath);
+        }
 
         zipSize = new FileInfo(zipPath).Length;
 

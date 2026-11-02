@@ -11,6 +11,7 @@ using PIM3.API.Services;
 
 namespace Systemic.IntegrationTests;
 
+[Collection("Process-wide environment")]
 public class RbacIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly WebApplicationFactory<Program> _factory;

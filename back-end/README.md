@@ -26,8 +26,9 @@ versione segredos.
   das variáveis de ambiente.
 - A chave JWT deve conter no mínimo 32 caracteres. A validade padrão é
   480 minutos e pode ser substituída por `JWT_EXPIRATION_MINUTES`.
-- Senhas são armazenadas com PBKDF2, SHA-256, salt aleatório de 16 bytes e
-  10.000 iterações. Não é utilizado bcrypt.
+- Novos hashes de senha usam PBKDF2-SHA256 com salt aleatório de 16 bytes e
+  600.000 iterações. As 10.000 iterações são mantidas somente para compatibilidade
+  com hashes legados.
 - Os logins por email e CPF bloqueiam após 5 falhas por 15 minutos, conforme
   a política compartilhada em `Services/LoginLockoutPolicy.cs`.
 - As ações de negócio exigem JWT e os controllers aplicam os perfis
@@ -57,6 +58,10 @@ procedures, views, rotas e respostas está em
 `AppContext.BaseDirectory`. No Docker Compose, `BACKUP_PATH` aponta para
 `/app/backups`, montado no volume nomeado persistente `backup_data`. O valor
 pode ser substituído por outro caminho absoluto dentro do container.
+
+A evolução do esquema do banco é feita exclusivamente pelos scripts SQL
+versionados em `Scripts/`, executados na ordem documentada pelo Docker Compose.
+Não são usadas migrations do Entity Framework Core.
 
 ## Validação
 

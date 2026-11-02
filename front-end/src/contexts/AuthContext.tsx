@@ -1,12 +1,11 @@
 import React, {
-  createContext,
-  useContext,
   useState,
   useCallback,
   useEffect,
   useRef,
   ReactNode,
 } from "react";
+import { AuthContext } from "@/contexts/auth-context";
 import {
   getAuthenticatedProfileAPI,
   loginAPI,
@@ -22,21 +21,6 @@ export interface User {
   role: UserRole;
   position: string;
 }
-
-interface AuthContextType {
-  user: User | null;
-  login: (
-    email: string,
-    password: string,
-  ) => Promise<{ success: boolean; message: string }>;
-  logout: () => void;
-  isAuthenticated: boolean;
-  authReady: boolean;
-  failedAttempts: number;
-  lockedUntil: number | null;
-}
-
-const AuthContext = createContext<AuthContextType | null>(null);
 
 function parseUserRole(role: unknown): UserRole | null {
   return role === "employee" || role === "admin" || role === "owner"
@@ -248,9 +232,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     </AuthContext.Provider>
   );
 }
-
-export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
-};

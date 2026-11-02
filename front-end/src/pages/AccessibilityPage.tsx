@@ -1,11 +1,44 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Accessibility, Hand } from "lucide-react";
-import { useAccessibility } from "@/contexts/AccessibilityContext";
+import { Button } from "@/components/ui/button";
+import { Accessibility, Hand, Minus, Plus } from "lucide-react";
+import { useAccessibility } from "@/contexts/useAccessibility";
+import {
+  FONT_SIZE_LEVELS,
+  type AccessibilityTheme,
+} from "@/contexts/accessibility-context";
+
+const themeLabels: Record<AccessibilityTheme, string> = {
+  light: "claro",
+  dark: "escuro",
+  "high-contrast": "alto contraste",
+};
 
 export default function AccessibilityPage() {
-  const { vlibrasEnabled, setVlibrasEnabled } = useAccessibility();
+  const {
+    vlibrasEnabled,
+    setVlibrasEnabled,
+    fontSizeScale,
+    setFontSizeScale,
+    theme,
+    setTheme,
+  } = useAccessibility();
+  const [announcement, setAnnouncement] = useState("");
+
+  const changeFontSize = (direction: -1 | 1) => {
+    const currentIndex = FONT_SIZE_LEVELS.indexOf(fontSizeScale);
+    const nextScale = FONT_SIZE_LEVELS[currentIndex + direction];
+    if (nextScale === undefined) return;
+    setFontSizeScale(nextScale);
+    setAnnouncement(`Tamanho da fonte alterado para ${nextScale}%.`);
+  };
+
+  const changeTheme = (nextTheme: AccessibilityTheme) => {
+    setTheme(nextTheme);
+    setAnnouncement(`Tema ${themeLabels[nextTheme]} ativado.`);
+  };
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -20,6 +53,64 @@ export default function AccessibilityPage() {
           </p>
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Preferências visuais</CardTitle>
+          <CardDescription>
+            Ajuste o tamanho do texto e o tema de cores. As escolhas ficam salvas neste dispositivo.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <section aria-labelledby="font-size-heading" className="space-y-3">
+            <h2 id="font-size-heading" className="font-semibold">Tamanho da fonte</h2>
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                aria-label="Diminuir tamanho da fonte"
+                onClick={() => changeFontSize(-1)}
+                disabled={fontSizeScale === FONT_SIZE_LEVELS[0]}
+              >
+                <Minus aria-hidden="true" className="h-4 w-4" />
+              </Button>
+              <output aria-label="Tamanho atual da fonte" className="min-w-16 text-center font-medium">
+                {fontSizeScale}%
+              </output>
+              <Button
+                type="button"
+                variant="outline"
+                aria-label="Aumentar tamanho da fonte"
+                onClick={() => changeFontSize(1)}
+                disabled={fontSizeScale === FONT_SIZE_LEVELS[FONT_SIZE_LEVELS.length - 1]}
+              >
+                <Plus aria-hidden="true" className="h-4 w-4" />
+              </Button>
+            </div>
+          </section>
+
+          <section aria-labelledby="theme-heading" className="space-y-3">
+            <h2 id="theme-heading" className="font-semibold">Tema</h2>
+            <div role="group" aria-label="Tema de cores" className="flex flex-wrap gap-2">
+              {(["light", "dark", "high-contrast"] as const).map((themeOption) => (
+                <Button
+                  key={themeOption}
+                  type="button"
+                  variant={theme === themeOption ? "default" : "outline"}
+                  aria-label={`Tema ${themeLabels[themeOption]}`}
+                  aria-pressed={theme === themeOption}
+                  onClick={() => changeTheme(themeOption)}
+                >
+                  {themeLabels[themeOption]}
+                </Button>
+              ))}
+            </div>
+          </section>
+          <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+            {announcement}
+          </p>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

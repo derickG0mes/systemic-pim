@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -117,14 +118,20 @@ export default function UsersPage() {
           <DialogContent>
             <DialogHeader><DialogTitle>{selectedEmployee ? "Editar funcionário" : "Novo funcionário"}</DialogTitle></DialogHeader>
             <form onSubmit={handleSave} className="space-y-3">
-              <Input placeholder="Nome" value={form.nomeFuncionario} onChange={e => setForm({ ...form, nomeFuncionario: e.target.value })} required />
-              <Input placeholder="CPF (11 dígitos)" value={form.cpfFuncionario} onChange={e => setForm({ ...form, cpfFuncionario: e.target.value.replace(/\D/g, "").slice(0, 11) })} required disabled={!!selectedEmployee} />
-              <Input placeholder="E-mail" type="email" value={form.emailFuncionario} onChange={e => setForm({ ...form, emailFuncionario: e.target.value })} />
-              <Input placeholder="Telefone" value={form.telefoneFuncionario} onChange={e => setForm({ ...form, telefoneFuncionario: e.target.value })} />
-              <Input placeholder="Cargo" value={form.cargoFuncionario} onChange={e => setForm({ ...form, cargoFuncionario: e.target.value })} />
-              {!selectedEmployee && <div className="relative"><Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input placeholder="Senha (mínimo 6 caracteres)" type="password" value={form.senha} onChange={e => setForm({ ...form, senha: e.target.value })} className="pl-10" required minLength={6} /></div>}
+              <Label htmlFor="user-name">Nome</Label>
+              <Input id="user-name" placeholder="Nome" value={form.nomeFuncionario} onChange={e => setForm({ ...form, nomeFuncionario: e.target.value })} required />
+              <Label htmlFor="user-cpf">CPF (11 dígitos)</Label>
+              <Input id="user-cpf" placeholder="CPF (11 dígitos)" value={form.cpfFuncionario} onChange={e => setForm({ ...form, cpfFuncionario: e.target.value.replace(/\D/g, "").slice(0, 11) })} required disabled={!!selectedEmployee} />
+              <Label htmlFor="user-email">E-mail</Label>
+              <Input id="user-email" placeholder="E-mail" type="email" value={form.emailFuncionario} onChange={e => setForm({ ...form, emailFuncionario: e.target.value })} />
+              <Label htmlFor="user-phone">Telefone</Label>
+              <Input id="user-phone" placeholder="Telefone" value={form.telefoneFuncionario} onChange={e => setForm({ ...form, telefoneFuncionario: e.target.value })} />
+              <Label htmlFor="user-position">Cargo</Label>
+              <Input id="user-position" placeholder="Cargo" value={form.cargoFuncionario} onChange={e => setForm({ ...form, cargoFuncionario: e.target.value })} />
+              {!selectedEmployee && <div className="relative"><Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" /><Label htmlFor="user-password">Senha (mínimo 6 caracteres)</Label><Input id="user-password" placeholder="Senha (mínimo 6 caracteres)" type="password" value={form.senha} onChange={e => setForm({ ...form, senha: e.target.value })} className="pl-10" required minLength={6} /></div>}
+              <Label htmlFor="user-role">Perfil</Label>
               <Select value={form.role} onValueChange={(role: Role) => setForm({ ...form, role })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="user-role" aria-label="Perfil do usuário"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="employee">Funcionário</SelectItem><SelectItem value="admin">Administrador</SelectItem><SelectItem value="owner">Proprietário</SelectItem></SelectContent>
               </Select>
               <Button type="submit" className="w-full" disabled={saving}>{saving ? "Salvando..." : selectedEmployee ? "Salvar alterações" : "Cadastrar"}</Button>
@@ -134,7 +141,7 @@ export default function UsersPage() {
       </div>
       <Card>
         <CardContent className="p-0">
-          <Table>
+          <Table aria-label="Funcionários">
             <TableHeader>
               <TableRow>
                 <TableHead>Nome</TableHead>
@@ -154,7 +161,7 @@ export default function UsersPage() {
                   <TableCell><Badge variant="outline">{roleLabels[e.role] ?? e.role}</Badge></TableCell>
                   <TableCell><Badge className={e.statusFuncionario === "ATIVO" ? "status-completed" : "status-alert"}>{e.statusFuncionario === "ATIVO" ? "Ativo" : "Inativo"}</Badge></TableCell>
                   <TableCell className="text-right">
-                    <Button size="sm" variant="ghost" onClick={() => beginEdit(e)} aria-label={`Editar ${e.nomeFuncionario}`}><Pencil className="h-4 w-4" /></Button>
+                    <Button size="sm" variant="ghost" onClick={() => beginEdit(e)} aria-label={`Editar ${e.nomeFuncionario}`}><Pencil className="h-4 w-4" aria-hidden="true" /></Button>
                     {e.statusFuncionario === "ATIVO" && <Button size="sm" variant="ghost" onClick={() => void handleDeactivate(e)}>Desativar</Button>}
                   </TableCell>
                 </TableRow>

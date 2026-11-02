@@ -104,6 +104,9 @@ public class BackupController : ControllerBase
     [HttpPost("restore")]
     [RequestSizeLimit(101 * 1024 * 1024)]
     [RequestFormLimits(MultipartBodyLengthLimit = 100L * 1024 * 1024)]
+    [ProducesResponseType(typeof(RespostaPadraoDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(RespostaPadraoDTO), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(RespostaPadraoDTO), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> Restore([FromForm] RestoreRequest request, CancellationToken cancellationToken)
     {
         if (request?.Arquivo == null || request.Arquivo.Length == 0)

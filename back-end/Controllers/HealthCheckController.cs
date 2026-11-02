@@ -1,8 +1,7 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using PIM3.API.Data;
 using PIM3.API.DTOs;
-using PIM3.API;
+using PIM3.API.Services;
 
 namespace PIM3.API.Controllers;
 
@@ -12,15 +11,17 @@ namespace PIM3.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
+[AllowAnonymous]
 public class HealthCheckController : ControllerBase
 {
-    // Injeção de dependência do banco de dados
-    private readonly AppDbContext _context;
+    private readonly IDatabaseHealthService _databaseHealthService;
     private readonly ILogger<HealthCheckController> _logger;
 
-    public HealthCheckController(AppDbContext context, ILogger<HealthCheckController> logger)
+    public HealthCheckController(
+        IDatabaseHealthService databaseHealthService,
+        ILogger<HealthCheckController> logger)
     {
-        _context = context;
+        _databaseHealthService = databaseHealthService;
         _logger = logger;
     }
 
@@ -37,9 +38,7 @@ public class HealthCheckController : ControllerBase
             Mensagem = "API está funcionando perfeitamente!",
             Dados = new
             {
-                status = "SAUDÁVEL",
-                timestamp = DateTime.UtcNow,
-                versao = ApiMetadata.Version
+                status = "SAUDÁVEL"
             }
         });
     }
@@ -53,8 +52,7 @@ public class HealthCheckController : ControllerBase
     {
         try
         {
-            // Tentamos fazer uma conexão simples com o banco
-            await _context.Database.ExecuteSqlRawAsync("SELECT 1");
+            await _databaseHealthService.CanConnectAsync();
 
             return Ok(new RespostaPadraoDTO
             {
@@ -82,7 +80,7 @@ public class HealthCheckController : ControllerBase
     }
 
     /// <summary>
-    /// Retorna informações sobre a API
+    /// Retorna um status genérico da API
     /// GET: api/healthcheck/info
     /// </summary>
     [HttpGet("info")]
@@ -91,16 +89,8 @@ public class HealthCheckController : ControllerBase
         return Ok(new RespostaPadraoDTO
         {
             Sucesso = true,
-            Mensagem = "Informações da API",
-            Dados = new
-            {
-                nome = "Systemic API - PIM IV",
-                descricao = "API para gerenciamento de restaurante/bar",
-                versao = ApiMetadata.Version,
-                ambiente = "Desenvolvimento",
-                desenvolvedor = "Turma de Estudantes",
-                urlBase = ApiMetadata.BaseUrl
-            }
+            Mensagem = "Status da API",
+            Dados = new { status = "ok" }
         });
     }
 }

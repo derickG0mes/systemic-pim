@@ -27,11 +27,16 @@ public class BackupRestoreService
 
     private readonly AppDbContext _context;
     private readonly BackupService _backupService;
+    private readonly IConfiguration _configuration;
 
-    public BackupRestoreService(AppDbContext context, BackupService backupService)
+    public BackupRestoreService(
+        AppDbContext context,
+        BackupService backupService,
+        IConfiguration configuration)
     {
         _context = context;
         _backupService = backupService;
+        _configuration = configuration;
     }
 
     /// <summary>
@@ -91,6 +96,10 @@ public class BackupRestoreService
 
                 if (sqlEntry == null || sqlEntry.Length == 0 || sqlEntry.Length > MaxSqlBytes)
                     throw new BackupValidationException("O ZIP deve conter um script SQL válido de até 256 MB.");
+
+                BackupIntegrity.ValidateSignature(
+                    archive,
+                    BackupIntegrity.GetKey(_configuration));
 
                 await using var sqlStream = sqlEntry.Open();
                 using var reader = new StreamReader(sqlStream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);

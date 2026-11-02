@@ -1,8 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using PIM3.API.Data;
 using PIM3.API.DTOs;
-using PIM3.API.Models;
+using PIM3.API.Services;
 
 namespace PIM3.API.Controllers;
 
@@ -11,128 +10,33 @@ namespace PIM3.API.Controllers;
 [Authorize(Roles = "employee,admin,owner")]
 public class ProdutoController : ControllerBase
 {
-    private readonly AppDbContext _context;
+    private readonly IProdutoService _service;
 
-    public ProdutoController(AppDbContext context)
+    public ProdutoController(IProdutoService service)
     {
-        _context = context;
+        _service = service;
     }
 
     [HttpGet]
-    public IActionResult GetAll()
-    {
-        var produtos = _context.Produtos.ToList().Select(CategoriaProdutoHelper.Mapear).ToList();
-        return Ok(new RespostaPadraoDTO { Sucesso = true, Dados = produtos });
-    }
+    public IActionResult GetAll() => _service.GetAll();
 
     [HttpGet("{id}")]
-    public IActionResult GetById(int id)
-    {
-        var produto = _context.Produtos.FirstOrDefault(p => p.IdProduto == id);
-        if (produto == null)
-            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Produto não encontrado" });
-
-        return Ok(new RespostaPadraoDTO { Sucesso = true, Dados = CategoriaProdutoHelper.Mapear(produto) });
-    }
+    public IActionResult GetById(int id) => _service.GetById(id);
 
     [HttpPost]
     [Authorize(Roles = "admin,owner")]
-    public async Task<IActionResult> Create([FromBody] ProdutoDto dto)
-    {
-        if (string.IsNullOrEmpty(dto.NomeProduto))
-            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Nome do produto é obrigatório" });
-
-        var produto = new Produto
-        {
-            NomeProduto = dto.NomeProduto,
-            DescricaoProduto = dto.DescricaoProduto,
-            PrecoProduto = dto.PrecoProduto,
-            QtdEstoque = dto.QtdEstoque,
-            EstoqueMinimo = dto.EstoqueMinimo > 0 ? dto.EstoqueMinimo : 5,
-            StatusProduto = string.IsNullOrEmpty(dto.StatusProduto) ? "DISPONIVEL" : dto.StatusProduto,
-            CategoriaProduto = CategoriaProdutoHelper.ParaBanco(dto.Categoria ?? dto.CategoriaProduto)
-        };
-
-        _context.Produtos.Add(produto);
-        await _context.SaveChangesAsync();
-        LogSistemaHelper.Registrar(_context, "ESTOQUE", $"Produto criado: {produto.NomeProduto}");
-        await _context.SaveChangesAsync();
-
-        return CreatedAtAction(nameof(GetById), new { id = produto.IdProduto },
-            new RespostaPadraoDTO { Sucesso = true, Mensagem = "Produto criado com sucesso", Dados = CategoriaProdutoHelper.Mapear(produto) });
-    }
+    public Task<IActionResult> Create([FromBody] ProdutoDto dto) => _service.Create(dto);
 
     [HttpPut("{id}")]
     [Authorize(Roles = "admin,owner")]
-    public async Task<IActionResult> Update(int id, [FromBody] ProdutoDto dto)
-    {
-        var produto = _context.Produtos.FirstOrDefault(p => p.IdProduto == id);
-        if (produto == null)
-            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Produto não encontrado" });
-
-        produto.NomeProduto = dto.NomeProduto;
-        produto.DescricaoProduto = dto.DescricaoProduto;
-        produto.QtdEstoque = dto.QtdEstoque;
-        produto.PrecoProduto = dto.PrecoProduto;
-        produto.EstoqueMinimo = dto.EstoqueMinimo;
-        produto.StatusProduto = dto.StatusProduto;
-        if (!string.IsNullOrEmpty(dto.Categoria) || !string.IsNullOrEmpty(dto.CategoriaProduto))
-            produto.CategoriaProduto = CategoriaProdutoHelper.ParaBanco(dto.Categoria ?? dto.CategoriaProduto);
-
-        _context.Produtos.Update(produto);
-        await _context.SaveChangesAsync();
-        LogSistemaHelper.Registrar(_context, "ESTOQUE", $"Produto atualizado: {produto.NomeProduto}");
-        await _context.SaveChangesAsync();
-
-        return Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Produto atualizado", Dados = CategoriaProdutoHelper.Mapear(produto) });
-    }
+    public Task<IActionResult> Update(int id, [FromBody] ProdutoDto dto) => _service.Update(id, dto);
 
     [HttpDelete("{id}")]
     [Authorize(Roles = "admin,owner")]
-    public async Task<IActionResult> Delete(int id)
-    {
-        var produto = _context.Produtos.FirstOrDefault(p => p.IdProduto == id);
-        if (produto == null)
-            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Produto não encontrado" });
-
-        _context.Produtos.Remove(produto);
-        await _context.SaveChangesAsync();
-        LogSistemaHelper.Registrar(_context, "ESTOQUE", $"Produto removido: {produto.NomeProduto}");
-        await _context.SaveChangesAsync();
-
-        return Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Produto deletado com sucesso" });
-    }
+    public Task<IActionResult> Delete(int id) => _service.Delete(id);
 
     [HttpPut("{id}/ajustar-estoque")]
     [Authorize(Roles = "admin,owner")]
-    public async Task<IActionResult> AjustarEstoque(int id, [FromBody] AjusteEstoqueDTO ajuste)
-    {
-        if (ajuste == null || string.IsNullOrEmpty(ajuste.Motivo))
-            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Motivo do ajuste é obrigatório" });
-
-        var produto = _context.Produtos.FirstOrDefault(p => p.IdProduto == id);
-        if (produto == null)
-            return NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Produto não encontrado" });
-
-        int quantidadeAnterior = produto.QtdEstoque;
-        int quantidadeNova = ajuste.Tipo == "ADICIONAR"
-            ? quantidadeAnterior + ajuste.Quantidade
-            : quantidadeAnterior - ajuste.Quantidade;
-
-        if (quantidadeNova < 0)
-            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = $"Estoque insuficiente. Disponível: {quantidadeAnterior}" });
-
-        produto.QtdEstoque = quantidadeNova;
-        _context.Produtos.Update(produto);
-        await _context.SaveChangesAsync();
-        LogSistemaHelper.Registrar(_context, "ESTOQUE", $"Ajuste {produto.NomeProduto}: {quantidadeAnterior} → {quantidadeNova} ({ajuste.Motivo})");
-        await _context.SaveChangesAsync();
-
-        return Ok(new RespostaPadraoDTO
-        {
-            Sucesso = true,
-            Mensagem = "Estoque ajustado com sucesso",
-            Dados = new { quantidadeAnterior, quantidadeNova, motivo = ajuste.Motivo, produto = CategoriaProdutoHelper.Mapear(produto) }
-        });
-    }
+    public Task<IActionResult> AjustarEstoque(int id, [FromBody] AjusteEstoqueDTO ajuste) =>
+        _service.AjustarEstoque(id, ajuste, User.Identity?.Name);
 }

@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Análise de conformidade v3 — Systemic (PIM IV)</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7fa;
+      --surface: #fff;
+      --surface-soft: #edf1f5;
+      --text: #17212b;
+      --muted: #526170;
+      --border: #cbd4de;
+      --link: #075a9c;
+      --pass: #17653a;
+      --partial: #815000;
+      --fail: #9e2525;
+      --unknown: #4b5563;
+      --out: #4a3b85;
+      --focus: #005fcc;
+      font: 16px/1.55 system-ui, "Segoe UI", sans-serif;
+    }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #111820;
+      --surface: #1b2631;
+      --surface-soft: #253342;
+      --text: #edf3f8;
+      --muted: #bbc8d4;
+      --border: #435364;
+      --link: #8bc8ff;
+      --pass: #8ee0aa;
+      --partial: #ffd27b;
+      --fail: #ff9a9a;
+      --unknown: #d3dae2;
+      --out: #c4b5fd;
+      --focus: #8bc8ff;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); }
+    a { color: var(--link); }
+    button, select, input { font: inherit; }
+    button, select { cursor: pointer; }
+    :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+    .page { width: min(1440px, 100%); margin: 0 auto; padding: 1.25rem; }
+    header { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
+    h1 { margin: 0 0 .4rem; font-size: clamp(1.7rem, 4vw, 2.5rem); line-height: 1.15; }
+    h2 { margin: 2rem 0 .7rem; font-size: 1.35rem; }
+    h3 { margin: 1rem 0 .4rem; font-size: 1.05rem; }
+    p { margin: .55rem 0; }
+    .meta { color: var(--muted); font-size: .92rem; }
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: .8rem; padding: 1rem; margin-top: 1rem; }
+    .verdict { border-left: .4rem solid var(--partial); }
+    .theme-button, .filter select, .filter input {
+      color: var(--text); background: var(--surface); border: 1px solid var(--border);
+      border-radius: .5rem; padding: .55rem .7rem;
+    }
+    .score-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .75rem; }
+    .score-card { background: var(--surface-soft); border-radius: .6rem; padding: .8rem; }
+    .score-card strong { display: block; font-size: 1.45rem; }
+    .filters { display: flex; flex-wrap: wrap; align-items: end; gap: .8rem; margin: 1rem 0; }
+    .filter { display: grid; gap: .25rem; }
+    .result-count { margin: 0 0 .4rem auto; color: var(--muted); }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 1050px; }
+    th, td { padding: .65rem; border: 1px solid var(--border); text-align: left; vertical-align: top; }
+    th { background: var(--surface-soft); }
+    td:nth-child(1) { white-space: nowrap; }
+    .badge { display: inline-block; border-radius: 999px; padding: .15rem .55rem; font-weight: 700; white-space: nowrap; }
+    .ATENDE { color: var(--pass); background: color-mix(in srgb, var(--pass) 12%, var(--surface)); }
+    .PARCIAL { color: var(--partial); background: color-mix(in srgb, var(--partial) 12%, var(--surface)); }
+    .NÃO-ATENDE { color: var(--fail); background: color-mix(in srgb, var(--fail) 12%, var(--surface)); }
+    .NÃO-VERIFICÁVEL { color: var(--unknown); background: color-mix(in srgb, var(--unknown) 12%, var(--surface)); }
+    .FORA-DE-ESCOPO { color: var(--out); background: color-mix(in srgb, var(--out) 12%, var(--surface)); }
+    .risk-list li, .steps li { margin: .55rem 0; }
+    details { margin: .65rem 0; }
+    summary { cursor: pointer; font-weight: 650; }
+    code, pre { background: var(--surface-soft); border-radius: .25rem; }
+    code { padding: .08rem .25rem; }
+    pre { overflow-x: auto; padding: .75rem; }
+    @media (max-width: 650px) {
+      .page { padding: .7rem; }
+      header { display: block; }
+      .theme-button { margin-top: .75rem; }
+      .result-count { width: 100%; margin-left: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div>
+        <h1>Análise de conformidade — Systemic (PIM IV) · v3</h1>
+        <p class="meta">Reavaliação independente dos 76 itens · validação executada em 30/10/2026 · branch melhorias-conformidade</p>
+      </div>
+      <button class="theme-button" id="themeToggle" type="button" aria-pressed="false">Ativar tema escuro</button>
+    </header>
+
+    <section class="panel verdict" aria-labelledby="verdict-title">
+      <h2 id="verdict-title">Veredito: atende parcialmente</h2>
+      <p>As fases 8–10 entregaram PWA instalável, CD para publicar imagens no GHCR, plano de nuvem e decisões de escopo. A revisão final reexecutou Compose, endpoints, testes, E2E e Gitleaks. Permanecem uma falha de autenticação num cenário .NET de pedido/pagamento e quatro vulnerabilidades npm de baixa severidade; os fluxos E2E administrativos e VLibras remoto não foram verificáveis sem credenciais de teste.</p>
+      <p class="meta">Não foi feito deploy real nem push. Itens explicitamente excluídos em <a href="docs/DECISOES_ESCOPO.md">docs/DECISOES_ESCOPO.md</a> ficam fora do denominador; NÃO VERIFICÁVEL não conta como conforme.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="score-title">
+      <h2 id="score-title">Comparativo v2 × v3</h2>
+      <div class="score-grid">
+        <div class="score-card"><span>v2 · conformidade estrita</span><strong>49/75 · 65,3%</strong><span class="meta">1 item fora de escopo</span></div>
+        <div class="score-card"><span>v3 · conformidade estrita</span><strong id="currentScore"></strong><span class="meta" id="currentScope"></span></div>
+        <div class="score-card"><span>v3 · falhas/parciais</span><strong id="pendingCount"></strong><span class="meta">Itens em escopo que não atingem plenamente o esperado</span></div>
+        <div class="score-card"><span>v3 · não verificáveis</span><strong id="unknownCount"></strong><span class="meta">Fora do denominador de conformidade estrita</span></div>
+      </div>
+      <p class="meta">O v2 é apenas a linha de base arquivada. Os resultados v3 foram atribuídos a partir das execuções e evidências listadas abaixo, não copiando as classificações anteriores. O denominador atual é 70: 76 itens menos 6 FORA DE ESCOPO.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="changes-title">
+      <h2 id="changes-title">O que mudou desde o v2</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Área</th><th>Antes</th><th>Agora</th><th>Evidência / limite</th></tr></thead>
+          <tbody>
+            <tr><td>PWA</td><td>Não havia manifest nem service worker.</td><td>Instalável, com fallback offline e precache de estáticos, sem cache de /api.</td><td>E2E passou; Lighthouse PWA score 1, com manifest e ícone maskable aprovados.</td></tr>
+            <tr><td>CD / nuvem</td><td>Sem workflow de publicação nem plano.</td><td>CD publica API e front no GHCR após CI bem-sucedido na main; plano Azure está documentado.</td><td>YAML/Compose validados localmente. Workflow remoto e deploy real não foram executados.</td></tr>
+            <tr><td>Acessibilidade</td><td>Sem ajuste de fonte ou tema persistido.</td><td>Quatro tamanhos de fonte e temas claro/escuro/alto contraste, com anúncio e persistência.</td><td>E2E de controles, contraste >= 7:1 e navegação por teclado passaram.</td></tr>
+            <tr><td>Escopo</td><td>Somente Scrum/Kanban estava fora do escopo.</td><td>Seis decisões documentadas e linkadas no índice; seis itens excluídos do denominador.</td><td>Inclui repository genérico, app nativo, funções SQL, migrations EF, AES e artefatos Scrum.</td></tr>
+            <tr><td>Segredos</td><td>Sete falsos positivos históricos já estavam documentados.</td><td>Um novo achado genérico no segredo fixo de fixture foi comparado localmente, classificado como teste e ignorado por fingerprint; varredura final: zero.</td><td>O valor e os hashes não foram exibidos. A configuração de ignore registra a justificativa.</td></tr>
+            <tr><td>Verificação final</td><td>Relatório anterior registrava suites sem execução integral de todos os fluxos.</td><td>Compose e endpoints passaram; E2E: 5 passaram/4 ignorados; .NET: 55 passaram/1 falhou; npm audit: 4 low.</td><td>Falha .NET: pedido esperava Created e recebeu Unauthorized. E2E ignorados por credenciais admin ausentes.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="matrix-title">
+      <h2 id="matrix-title">Matriz final — 76 itens reavaliados</h2>
+      <div class="filters">
+        <div class="filter">
+          <label for="statusFilter">Resultado</label>
+          <select id="statusFilter">
+            <option value="">Todos</option>
+            <option>ATENDE</option>
+            <option>PARCIAL</option>
+            <option>NÃO ATENDE</option>
+            <option>NÃO VERIFICÁVEL</option>
+            <option>FORA DE ESCOPO</option>
+          </select>
+        </div>
+        <div class="filter">
+          <label for="searchFilter">Buscar item</label>
+          <input id="searchFilter" type="search" autocomplete="off">
+        </div>
+        <p id="resultCount" class="result-count" aria-live="polite"></p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Item verificado</th><th>Esperado</th><th>Obtido</th><th>Resultado</th></tr></thead>
+          <tbody id="matrixBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="risks-title">
+      <h2 id="risks-title">Pendências e riscos prioritários</h2>
+      <ol class="risk-list">
+        <li><strong>Falha de integração .NET:</strong> <code>Order_payment_trigger_updates_total_closes_check_and_releases_table</code> recebeu Unauthorized ao criar pedido, em vez de Created. A suíte final teve 55 aprovados e 1 falha; o efeito da trigger e o fechamento/liberação dessa jornada não foram verificados.</li>
+        <li><strong>Dependências:</strong> <code>npm audit</code> encontrou quatro vulnerabilidades low em dependência transitiva <code>deepmerge</code> (cadeia Workbox/Vite PWA). A correção sugerida exige downgrade breaking; não foi aplicada.</li>
+        <li><strong>Fluxos E2E privilegiados:</strong> quatro cenários de backup, SignalR e VLibras foram ignorados porque <code>E2E_ADMIN_EMAIL</code>/<code>E2E_ADMIN_PASSWORD</code> não estavam configuradas. Não houve tentativa com conta real.</li>
+        <li><strong>VLibras remoto:</strong> a prova da disponibilidade funcional do widget e da origem externa continua não verificável nesta execução.</li>
+        <li><strong>Entrega cloud:</strong> o CD publica imagens após CI, mas não houve publicação remota nem deploy; isso foi deliberadamente excluído do trabalho de validação.</li>
+      </ol>
+    </section>
+
+    <section class="panel" aria-labelledby="evidence-title">
+      <h2 id="evidence-title">Evidências e reprodução</h2>
+      <details open>
+        <summary>Execução realizada nesta reavaliação</summary>
+        <ul>
+          <li><code>docker compose down</code>, sem remover volumes; <code>docker compose up -d --build --wait</code> e <code>docker compose ps</code>: SQL Server/API/front-end saudáveis; <code>db-init</code> concluiu.</li>
+          <li>Endpoints: healthcheck, database e info retornaram HTTP 200; POST restore sem login retornou 401. O healthcheck não contém <code>versao</code>; seu objeto <code>dados</code> contém o status.</li>
+          <li>CSP obtida com <code>curl -sSI</code>: nenhum wildcard <code>*</code>; resposta HTTP sem HSTS. A diretiva HSTS permanece apenas no bloco HTTPS comentado do nginx.</li>
+          <li>Catálogo SQL somente leitura: 12 tabelas, 3 triggers habilitadas, 3 procedures, 2 views, 0 funções SQL de usuário e 19 índices. A inicialização dos scripts idempotentes concluiu no Compose reconstruído.</li>
+          <li><code>RUN_INTEGRATION_TESTS=1 dotnet test tests/back-end.Tests.csproj</code>, com connection string apontando para <code>master</code> do SQL Compose local: 55 aprovados, 1 falha, 0 ignorados. Os testes criam bancos com nomes aleatórios e não usam <code>DB_RESTAURANTE</code> como banco de teste.</li>
+          <li><code>npm test -- --coverage --run</code>: 33/33 testes, 9 arquivos; statements 66,29%, branches 46,97%, funções 55,55%, linhas 67,83%.</li>
+          <li><code>npm run lint</code> e <code>npm run build</code>: passaram. O chunk de maior tamanho foi 369,31 kB; a build também gerou service worker e precache de 44 arquivos estáticos (~979 KiB).</li>
+          <li><code>npm audit</code>: terminou com código 1 e 4 vulnerabilidades low. Nenhuma correção forçada foi aplicada.</li>
+          <li><code>npm run test:e2e</code>: 9 testes encontrados; 5 passaram e 4 foram ignorados por ausência das variáveis de conta admin.</li>
+          <li>Gitleaks, histórico inteiro: primeiro identificou um <code>generic-api-key</code> em fixture de teste; comparação SHA-256 local foi diferente para os segredos disponíveis. Após ignore específico comentado, nova varredura: 119 commits, nenhum achado.</li>
+          <li>Lighthouse PWA em HTTP local: score 1,00; <code>installable-manifest</code>, <code>maskable-icon</code>, splash screen e themed omnibox aprovados.</li>
+          <li>Inventário: 13 controllers, 69 atributos de ações HTTP, zero arquivos <code>.vs</code> rastreados. API e front-end locais mantiveram HTTP e responderam 200.</li>
+        </ul>
+      </details>
+      <details>
+        <summary>Uso atual de procedures/views e escopo</summary>
+        <p><code>vw_comandas_abertas</code>, <code>sp_relatorio_faturamento</code> e <code>sp_ajustar_estoque</code> são chamados por <code>DatabaseRoutineQueries</code>; <code>vw_produtos_mais_vendidos</code> continua integrado a <code>FaturamentoService</code>. <code>sp_fechar_comanda</code> continua sem chamada porque substituir o fluxo existente duplicaria validações e alteraria o caminho de fechamento; não foi trocado. Ver <a href="docs/DECISOES_ESCOPO.md">decisões de escopo</a> e <a href="docs/PLANO_NUVEM.md">plano de nuvem</a>.</p>
+      </details>
+      <details>
+        <summary>Limites</summary>
+        <p>O workflow CD não pode ser executado por evento de CI na branch remota sem push; nenhum push foi feito. A conta administrativa de E2E não foi disponibilizada. Inclusão social e artefatos acadêmicos do grupo não são verificáveis apenas pelo repositório. O relatório não substitui deploy, avaliação manual ou teste em navegador/dispositivo externo.</p>
+      </details>
+      <details>
+        <summary>Comandos de reprodução (PowerShell)</summary>
+        <pre><code>docker compose down
+docker compose up -d --build --wait
+docker compose ps
+
+$env:RUN_INTEGRATION_TESTS = "1"
+$env:INTEGRATION_TEST_SQL_CONNECTION_STRING = "&lt;SQL Compose local; Database=master&gt;"
+$env:BACKUP_TEST_CONNECTION_STRING = "&lt;SQL Compose local; Database=master&gt;"
+dotnet test tests\back-end.Tests.csproj
+
+Set-Location front-end
+npm.cmd test -- --coverage --run
+npm.cmd run lint
+npm.cmd run build
+npm.cmd audit
+npm.cmd run test:e2e
+
+curl.exe -sSI http://localhost:8080/
+docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest detect --source /repo --log-opts="--all" --gitleaks-ignore-path /repo/.gitleaksignore --redact=100</code></pre>
+        <p class="meta">O relatório não contém credenciais, valores detectados pelo scanner ou hashes de segredo.</p>
+      </details>
+    </section>
+  </main>
+  <script>
+    const rows = [
+      [1, "Arquitetura em camadas e injeção de dependência (A)", "Separação coerente e DI nos serviços.", "DI está registrada; alguns controllers ainda acessam DbContext diretamente.", "PARCIAL"],
+      [2, "Abstrações de serviço/repositório (A)", "Services específicos do escopo; repository genérico não é requerido.", "Comanda, Pedido e Faturamento usam interfaces/services; repository genérico foi excluído por decisão.", "FORA DE ESCOPO"],
+      [3, "Controllers acessam DbContext diretamente (A)", "Controllers delegam operações aos services.", "Há controllers restantes com acesso direto ao AppDbContext.", "PARCIAL"],
+      [4, "Rotas web protegidas por permissões e papéis (B)", "Rotas e ações protegidas por perfil.", "RBAC do servidor e testes de acesso executados; nenhuma violação observada.", "ATENDE"],
+      [5, "Remover telas duplicadas de estoque e funcionários (B, §7)", "Uma tela por função administrativa.", "Há uma InventoryPage e uma UsersPage no inventário atual.", "ATENDE"],
+      [6, "Integração geral das telas com API, sem persistência falsa (B/C)", "Operações persistidas na API.", "Cliente de API/contexto executam chamadas reais; testes de fluxo cobrem atualizações e falhas.", "ATENDE"],
+      [7, "Remover login offline com senhas em texto puro/localStorage (H.3, §7)", "Autenticação segura, sem senha persistida localmente.", "JWT em cookie HttpOnly; login offline removido e fluxo CSRF testado.", "ATENDE"],
+      [8, "Fluxo de criação/edição de pedidos (K.2)", "Criar/editar pedido autenticado com resposta de sucesso.", "Teste real de integração esperava Created e recebeu Unauthorized; fluxos mockados passam.", "PARCIAL"],
+      [9, "Atualização de status e estoque do pedido (K.2)", "Atualizar status/estoque com rollback confiável.", "Rollback e testes front passam; jornada SQL real não avançou após 401 na criação.", "PARCIAL"],
+      [10, "Comandas, pagamento e “não pago” (K.3)", "Pagamento atualiza trigger, fecha comanda e libera mesa.", "Teste integrado do pedido/pagamento recebeu Unauthorized antes de verificar a trigger.", "PARCIAL"],
+      [11, "Criar e cancelar reservas (K.4)", "Criar, listar e cancelar com login real e SQL isolado.", "Cenário de integração de reservas passou no banco descartável.", "ATENDE"],
+      [12, "Estoque e ajuste rastreável (K.5)", "Ajustar estoque e registrar motivo/usuário.", "Service usa sp_ajustar_estoque; teste da chamada passou.", "ATENDE"],
+      [13, "Cadastro/edição de funcionários (K.6, §7)", "Operações protegidas e verificadas em fluxo real.", "Controle por perfil existe; E2E administrativo não rodou sem credenciais.", "PARCIAL"],
+      [14, "Relatórios e dashboard (B/K)", "Dados financeiros vindos da API/SQL.", "Service chama sp_relatorio_faturamento; telas têm testes, mas não sessão admin real.", "PARCIAL"],
+      [15, "Logs de auditoria (K.7/H.4)", "Operação real gera log consultável por admin.", "Teste de reserva consultou a auditoria após operação real e passou.", "ATENDE"],
+      [16, "Interface de gerar/listar/baixar/restaurar backup (K.7)", "Fluxos privilegiados funcionais no browser.", "BackupPage existe; cenários E2E foram ignorados sem credenciais admin.", "PARCIAL"],
+      [17, "Restauração SQL efetiva (F/H.1, §7)", "Restaurar arquivo válido e rejeitar adulteração.", "Testes integrados de backup válido e adulterado passaram em banco isolado.", "ATENDE"],
+      [18, "SignalR na cozinha sem depender de polling (C, §7)", "Pedido chega por SignalR e reconecta sem polling ativo.", "Contexto/reconexão testados; teste E2E com pedido real foi ignorado sem admin.", "PARCIAL"],
+      [19, "Inventário de controllers e ações HTTP (B/C)", "Inventário atualizado de rotas.", "13 controllers e 69 atributos HTTP encontrados.", "ATENDE"],
+      [20, "Aplicação mobile nativa/híbrida (D)", "Aplicativo Android/iOS nativo.", "Não será desenvolvido; cobertura mobile definida como web responsiva + PWA.", "FORA DE ESCOPO"],
+      [21, "PWA, manifest e service worker (D)", "Instalável; cache estático, sem API, fallback offline.", "Manifesto e ícones instaláveis; E2E offline passou; Lighthouse PWA 1,00.", "ATENDE"],
+      [22, "Interface web responsiva (D/I)", "Interface utilizável em larguras mobile e desktop.", "Breakpoints e hook mobile existem; avaliação visual extensa em dispositivos não executada.", "PARCIAL"],
+      [23, "Tabelas do banco em execução (E)", "Tabelas de aplicação instaladas.", "Catálogo SQL atual retornou 12 tabelas.", "ATENDE"],
+      [24, "Triggers do banco (E)", "Triggers esperadas habilitadas.", "Catálogo SQL retornou 3 triggers habilitadas.", "ATENDE"],
+      [25, "Stored procedures presentes (E)", "Procedures do script instaladas.", "Catálogo SQL confirmou 3 procedures.", "ATENDE"],
+      [26, "Views presentes (E)", "Views do script instaladas.", "Catálogo SQL confirmou 2 views.", "ATENDE"],
+      [27, "Funções SQL (E)", "Nenhuma função de usuário é necessária.", "Zero funções SQL de usuário; decisão explícita de não adicionar.", "FORA DE ESCOPO"],
+      [28, "Índices existentes de fato (E)", "Índices do esquema presentes.", "Catálogo SQL encontrou 19 índices de tabelas de usuário.", "ATENDE"],
+      [29, "Scripts idempotentes (E/F)", "Inicialização pode repetir sem falhar.", "db-init executou novamente após down/up sobre o volume persistido.", "ATENDE"],
+      [30, "Mapeamento C# ↔ SQL (E, §5.5)", "Entidades e esquema SQL compatíveis.", "Build e testes passaram sem divergência observada; scripts versionados iniciaram o banco.", "ATENDE"],
+      [31, "Procedures/views integradas ao código (E)", "Rotinas pertinentes chamadas pelos services.", "Três rotinas integradas; sp_fechar_comanda ficou sem uso para preservar validações existentes.", "PARCIAL"],
+      [32, "Migrations automáticas EF Core (E)", "Evolução de esquema automatizada por EF.", "Evolução é feita por scripts SQL versionados; EF migrations foram excluídas do escopo.", "FORA DE ESCOPO"],
+      [33, "Docker/Compose e inicialização saudável (F, §7)", "Serviços sobem saudáveis do zero.", "Down, build/up --wait e ps: SQL, API e front saudáveis; db-init terminou.", "ATENDE"],
+      [34, "Caminho de backup portátil/configurável (F/H.6, §7)", "BACKUP_PATH e volume configuráveis.", "Serviço usa BACKUP_PATH; Compose monta volume de backup.", "ATENDE"],
+      [35, "Deploy/infraestrutura de nuvem (F)", "Plano e imagens entregáveis em cloud.", "Plano Azure e publicação GHCR existem; IaC e deploy real não foram feitos.", "PARCIAL"],
+      [36, "Integração contínua (F, §7)", "CI roda build, testes, lint e secret scan.", "Workflow CI contém build/testes, lint, build front e Gitleaks; arquivo validado.", "ATENDE"],
+      [37, "Entrega contínua/deploy (F, §7)", "Publicar imagens após CI bem-sucedido na main.", "Workflow CD define smoke Compose e tags SHA/latest no GHCR; sem execução remota por falta de push.", "PARCIAL"],
+      [38, "RBAC no back-end em todos os controllers/ações (H.2)", "Ações administrativas exigem role e as demais autenticam.", "Testes RBAC cobrem autenticação, antiforgery e rotas admin; cobertura de todas as ações não é exaustiva.", "PARCIAL"],
+      [39, "Restore exige papel privilegiado (H.1, §7)", "Restore anônimo retorna Unauthorized.", "POST /api/backup/restore sem login retornou 401.", "ATENDE"],
+      [40, "Validação de ZIP e prevenção de traversal no restore (H.1)", "Validar entrada e impedir caminho fora do backup.", "Serviço valida entrada/caminho; testes de backup válido e adulterado passaram.", "ATENDE"],
+      [41, "Cookie HttpOnly + antiforgery/CSRF (H)", "Cookie protegido e token exigido em operações mutáveis.", "Cookie HttpOnly e testes de token CSRF/unsafe requests passaram.", "ATENDE"],
+      [42, "JWT valida assinatura, issuer, audience, expiração e chave fraca (H)", "Validar claims e recusar chave inadequada.", "Parâmetros JWT e validação de chave configurados; testes .NET relacionados passaram.", "ATENDE"],
+      [43, "Hash de senha seguro (H)", "Hash com salt/iterações e migração segura.", "PBKDF2-SHA-256 versionado; testes de hash passaram.", "ATENDE"],
+      [44, "Bloqueio de login (H)", "Bloquear tentativas repetidas.", "Política de lockout centralizada; testes .NET passaram.", "ATENDE"],
+      [45, "Health check sem vazamento relevante (H)", "Status sem versão ou detalhe sensível.", "Endpoints 200; resposta sem versao e com status em dados; database/info também responderam.", "ATENDE"],
+      [46, "CSP e cabeçalhos de segurança (H/I)", "CSP sem wildcard e HSTS apenas em HTTPS.", "curl HTTP sem wildcard/HSTS; HSTS permanece no bloco HTTPS comentado.", "ATENDE"],
+      [47, "Ausência de segredos versionados, incluindo histórico (H)", "Gitleaks no histórico sem achados reais.", "119 commits; zero achados após ignore comentado de fixture de teste, comparada como diferente.", "ATENDE"],
+      [48, "Confidencialidade/integridade do backup (H/F)", "Integridade HMAC; criptografia AES seria necessária para confidencialidade.", "HMAC-SHA256 e testes de integridade implementados; AES explicitamente excluído do escopo.", "FORA DE ESCOPO"],
+      [49, "Escrita anônima de logs/auditoria (H.4)", "Escrita de log exige identidade autorizada.", "LogController exige role admin/owner no controller.", "ATENDE"],
+      [50, "Testes .NET solicitados (G)", "Suite com RUN_INTEGRATION_TESTS=1 sem falhas.", "55 passaram e 1 falhou: criação do pedido recebeu Unauthorized, não Created.", "NÃO ATENDE"],
+      [51, "Testes front-end e cobertura (G)", "Executar suíte e reportar cobertura.", "33/33 passaram em 9 arquivos; cobertura de linhas 67,83%.", "ATENDE"],
+      [52, "Auditoria de dependências (G)", "npm audit sem vulnerabilidades pendentes.", "npm audit retornou 4 vulnerabilidades low na cadeia deepmerge/Workbox.", "NÃO ATENDE"],
+      [53, "Lint (G)", "Lint sem erros.", "npm run lint concluiu sem erros.", "ATENDE"],
+      [54, "Build/type-check e tamanho do bundle (G)", "Type-check/build completos e bundle limitado.", "Build passou; maior chunk 369,31 kB; service worker e precache gerados.", "ATENDE"],
+      [55, "Higiene Git e binários compilados (H.7, §7)", "Sem .env, .vs, bin/obj ou temporários rastreados.", "Zero .vs rastreados; regras de ignore presentes; artefatos de teste ignorados.", "ATENDE"],
+      [56, "Documentação conta controllers e ações HTTP reais (G/J)", "Contagem coincide com a API atual.", "Inventário recalculado: 13 controllers e 69 ações HTTP; documentação mantém a tabela de rotas.", "ATENDE"],
+      [57, "Documentação do hash de senha (J, §5.4)", "Formato e parâmetros de hash documentados.", "CONFIGURACAO.md descreve PBKDF2-SHA-256 versionado e legado.", "ATENDE"],
+      [58, "Nome do banco na documentação (J, §5.1)", "DB_RESTAURANTE documentado.", "Nome consta na configuração e scripts atuais.", "ATENDE"],
+      [59, "Porta da API na documentação (J, §5.2)", "Porta 5050 documentada.", "API local documentada em localhost:5050.", "ATENDE"],
+      [60, "Campo de senha do login por e-mail (J, §5.3)", "Campo JSON corresponde ao contrato.", "Documentação lista email e password para login.", "ATENDE"],
+      [61, "Expiração JWT documentada (J, §5.7)", "Valor padrão e configuração documentados.", "480 minutos e JWT_EXPIRATION_MINUTES documentados.", "ATENDE"],
+      [62, "Configuração de conexão documentada (J, §5.8)", "Variáveis DB e execução local documentadas.", "DB_SERVER, DB_NAME, DB_USER e DB_PASSWORD descritos.", "ATENDE"],
+      [63, "Identidade do trabalho como PIM IV (J, §5.9)", "Projeto identificado como PIM IV.", "README e documentação mantêm identidade Systemic/PIM IV.", "ATENDE"],
+      [64, "Referências e atualidade da documentação (J)", "Documentação indexada e atualizada.", "README de docs agora referencia nuvem e escopo; README E2E documenta PWA.", "ATENDE"],
+      [65, "Histórico Git e rastreabilidade (J)", "Mudanças organizadas, sem reescrita.", "Fases 8–10 têm commits separados; sem push ou reescrita de histórico.", "ATENDE"],
+      [66, "Artefatos Scrum/Kanban/backlog/sprints (J, §7)", "Processo de equipe e artefatos de Scrum.", "Não adotados por decisão explícita de escopo.", "FORA DE ESCOPO"],
+      [67, "Plano de nuvem/deploy no relatório final (F/J)", "Plano de implantação e variáveis operacionais.", "PLANO_NUVEM.md criado e referenciado; nenhuma implantação real foi feita.", "PARCIAL"],
+      [68, "Inclusão social, responsabilidades e artefatos finais do PIM", "Evidências acadêmicas e responsabilidades do grupo.", "Não verificável apenas por código/ambiente do repositório.", "NÃO VERIFICÁVEL"],
+      [69, "VLibras (I)", "Widget remoto funciona e indisponibilidade é anunciada.", "Teste remoto de carregamento foi ignorado sem credencial admin; disponibilidade não verificada.", "NÃO VERIFICÁVEL"],
+      [70, "Idioma declarado para leitor de tela (I)", "Idioma principal declarado como pt-BR.", "index.html declara lang=pt-BR; testes de acessibilidade passaram.", "ATENDE"],
+      [71, "ARIA, formulários e avisos dinâmicos (I, §7)", "Nomes/labels/erros acessíveis sem violações graves.", "Axe nas oito telas: zero violações serious/critical.", "ATENDE"],
+      [72, "Controle para redimensionar fonte (I, §7)", "Quatro níveis persistentes e anunciados.", "E2E passou nos quatro níveis, anúncio aria-live e persistência.", "ATENDE"],
+      [73, "Tema escuro/alto contraste (I, §7)", "Temas persistidos e alto contraste >=7:1.", "E2E passou claro/escuro/alto contraste; contraste mínimo do teste >=7:1.", "ATENDE"],
+      [74, "Teclado, foco e skip link (I, §7)", "Tab em ordem, foco visível, sem armadilha.", "Teste E2E de menu/tabelas passou com foco visível e skip link.", "ATENDE"],
+      [75, "Texto alternativo/nome acessível de ícones (I)", "Ícones e botões com nome acessível.", "Axe nas oito telas sem violações serious/critical.", "ATENDE"],
+      [76, "Contraste WCAG medido (I)", "Texto normal >=4,5:1; alto contraste >=7:1.", "Axe e testes de tema passaram; teste de alto contraste mede razão >=7:1.", "ATENDE"]
+    ];
+
+    const statusClass = {
+      "ATENDE": "ATENDE",
+      "PARCIAL": "PARCIAL",
+      "NÃO ATENDE": "NÃO-ATENDE",
+      "NÃO VERIFICÁVEL": "NÃO-VERIFICÁVEL",
+      "FORA DE ESCOPO": "FORA-DE-ESCOPO"
+    };
+    const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"
+    })[char]);
+    const inScope = rows.filter((row) => row[4] !== "FORA DE ESCOPO");
+    const counts = Object.fromEntries(
+      ["ATENDE", "PARCIAL", "NÃO ATENDE", "NÃO VERIFICÁVEL", "FORA DE ESCOPO"]
+        .map((status) => [status, rows.filter((row) => row[4] === status).length])
+    );
+    document.getElementById("currentScore").textContent =
+      `${counts.ATENDE}/${inScope.length} · ${(counts.ATENDE / inScope.length * 100).toFixed(1).replace(".", ",")}%`;
+    document.getElementById("currentScope").textContent =
+      `${inScope.length} em escopo · ${counts["FORA DE ESCOPO"]} fora de escopo`;
+    document.getElementById("pendingCount").textContent =
+      `${counts.PARCIAL + counts["NÃO ATENDE"]} de ${inScope.length}`;
+    document.getElementById("unknownCount").textContent = String(counts["NÃO VERIFICÁVEL"]);
+
+    function renderMatrix() {
+      const selected = document.getElementById("statusFilter").value;
+      const search = document.getElementById("searchFilter").value.trim().toLocaleLowerCase("pt-BR");
+      const visible = rows.filter((row) =>
+        (!selected || row[4] === selected) &&
+        (!search || row[1].toLocaleLowerCase("pt-BR").includes(search))
+      );
+      document.getElementById("resultCount").textContent = `${visible.length} de ${rows.length} itens`;
+      document.getElementById("matrixBody").innerHTML = visible.map((row) => {
+        const [id, title, expected, obtained, status] = row;
+        const result = status === "ATENDE" ? "OK"
+          : status === "FORA DE ESCOPO" ? "FORA DE ESCOPO"
+          : status === "NÃO VERIFICÁVEL" ? "NÃO VERIFICÁVEL"
+          : "FALHA";
+        return `<tr>
+          <td>${id}</td>
+          <td>${escapeHtml(title)}</td>
+          <td>${escapeHtml(expected)}</td>
+          <td>${escapeHtml(obtained)}</td>
+          <td><span class="badge ${statusClass[status]}">${result}</span><br><span class="meta">${escapeHtml(status)}</span></td>
+        </tr>`;
+      }).join("");
+    }
+    document.getElementById("statusFilter").addEventListener("change", renderMatrix);
+    document.getElementById("searchFilter").addEventListener("input", renderMatrix);
+    const themeButton = document.getElementById("themeToggle");
+    let dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    function setTheme(isDark) {
+      dark = isDark;
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
+      themeButton.textContent = dark ? "Ativar tema claro" : "Ativar tema escuro";
+      themeButton.setAttribute("aria-pressed", String(dark));
+    }
+    themeButton.addEventListener("click", () => setTheme(!dark));
+    setTheme(dark);
+    renderMatrix();
+  </script>
+</body>
+</html>

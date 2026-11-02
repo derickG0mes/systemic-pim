@@ -1,10 +1,10 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
 using PIM3.API.DTOs;
 using PIM3.API.Models;
+using PIM3.API.Services;
 
 namespace PIM3.API.Controllers;
 
@@ -13,96 +13,34 @@ namespace PIM3.API.Controllers;
 [Authorize(Roles = "admin,owner")]
 public class LogController : ControllerBase
 {
-    private readonly AppDbContext _context;
+    private readonly ILogService _service;
 
-    public LogController(AppDbContext context)
+    public LogController(ILogService service)
     {
-        _context = context;
+        _service = service;
     }
 
-    /// <summary>
-    /// Lista todos os logs de sistema
-    /// GET: api/log/sistema
-    /// </summary>
     [HttpGet("sistema")]
-    public async Task<IActionResult> ListarLogsSistema(
+    public Task<IActionResult> ListarLogsSistema(
         [FromQuery] int pagina = 1,
         [FromQuery] int tamanho = 50,
-        [FromQuery] string? filtro = null)
-    {
-        var query = _context.LogsSistema.AsQueryable();
+        [FromQuery] string? filtro = null) =>
+        _service.ListarLogsSistema(pagina, tamanho, filtro);
 
-        if (!string.IsNullOrEmpty(filtro))
-            query = query.Where(l => l.TipoLog.Contains(filtro) || l.DescricaoLog.Contains(filtro));
-
-        var logs = await query
-            .OrderByDescending(l => l.DataLog)
-            .Skip((pagina - 1) * tamanho)
-            .Take(tamanho)
-            .ToListAsync();
-
-        var total = await query.CountAsync();
-
-        return Ok(new
-        {
-            sucesso = true,
-            total,
-            pagina,
-            dados = logs
-        });
-    }
-
-    /// <summary>
-    /// Registra um log no sistema
-    /// POST: api/log/registrar
-    /// </summary>
     [HttpPost("registrar")]
-    public async Task<IActionResult> RegistrarLog([FromBody] CriarLogDTO logDTO)
+    public Task<IActionResult> RegistrarLog([FromBody] CriarLogDTO logDTO)
     {
-        if (string.IsNullOrEmpty(logDTO.TipoLog) || string.IsNullOrEmpty(logDTO.DescricaoLog))
-            return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Tipo e descrição do log são obrigatórios" });
-
-        // Extrai o nome ou identificador do usuário autenticado através das claims do token JWT
         var usuarioLog = User.Identity?.Name 
             ?? User.FindFirst(ClaimTypes.Name)?.Value 
             ?? User.FindFirst("cpf")?.Value 
             ?? "usuario_autenticado";
 
-        var logSistema = new LogSistema
-        {
-            TipoLog = logDTO.TipoLog,
-            DescricaoLog = logDTO.DescricaoLog,
-            UsuarioLog = usuarioLog,
-            DadoAnterior = logDTO.DadoAnterior,
-            DadoNovo = logDTO.DadoNovo,
-            DataLog = DateTime.UtcNow
-        };
-
-        _context.LogsSistema.Add(logSistema);
-        await _context.SaveChangesAsync();
-
-        return Ok(new RespostaPadraoDTO
-        {
-            Sucesso = true,
-            Mensagem = "Log registrado com sucesso!",
-            Dados = new { id = logSistema.IdLogSistema }
-        });
+        return _service.RegistrarLog(logDTO, usuarioLog);
     }
 
-    /// <summary>
-    /// Lista logs de comandas específicas
-    /// GET: api/log/comanda/{idComanda}
-    /// </summary>
     [HttpGet("comanda/{idComanda}")]
-    public async Task<IActionResult> ListarLogsComanda(int idComanda)
-    {
-        var logs = await _context.LogsComanda
-            .Where(l => l.IdComanda == idComanda)
-            .OrderByDescending(l => l.DataLog)
-            .ToListAsync();
-
-        return Ok(new { sucesso = true, dados = logs });
-    }
+    public Task<IActionResult> ListarLogsComanda(int idComanda) =>
+        _service.ListarLogsComanda(idComanda);
 }
 
 public class CriarLogDTO
