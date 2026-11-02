@@ -9,6 +9,12 @@ No PowerShell, use o valor de `E2E_ADMIN_EMAIL` em `.env.example` ou `.env`.
 Não substitua um `.env` existente. Defina e gere as variáveis E2E na mesma
 janela em que executará os testes:
 
+O script gera uma senha aleatória e seu hash PBKDF2-HMAC-SHA256 com 600.000
+iterações, salt de 16 bytes e chave derivada de 32 bytes. O formato interno é
+`pbkdf2-sha256$v1$600000$<salt-base64>$<chave-base64>`; a variável
+`E2E_ADMIN_PASSWORD_HASH_HEX` contém os bytes ASCII desse formato codificados em
+hexadecimal (186 caracteres). Não salve essa variável nem a senha no `.env`.
+
 ```powershell
 $env:E2E_SEED = "1"
 $env:SQL_SERVER_PORT = "1434"
@@ -46,7 +52,7 @@ try {
   try {
     npm.cmd ci
     npx.cmd playwright install chromium
-    npm.cmd run test:e2e
+    npx.cmd playwright test --config=e2e/playwright.config.ts
   } finally {
     Pop-Location
   }
