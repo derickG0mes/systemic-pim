@@ -181,6 +181,61 @@ test("pedido novo aparece na cozinha via SignalR sem recarregar", async ({ page 
   }
 });
 
+test("admin carrega funcionários e abre o formulário de cadastro", async ({ page }) => {
+  await loginAsAdmin(page);
+  const employeesResponse = page.waitForResponse((response) =>
+    response.request().method() === "GET" &&
+    new URL(response.url()).pathname === "/api/funcionario",
+  );
+  await page.goto("/users");
+
+  const response = await employeesResponse;
+  expect(response.ok(), `API returned ${response.status()}`).toBe(true);
+  const employeesBody = await expectSuccessful(response);
+  const employees = employeesBody.dados ?? employeesBody.Dados;
+  expect(Array.isArray(employees)).toBe(true);
+  await expect(page.getByRole("heading", { name: "Gestão de Usuários" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Funcionários" })).toBeVisible();
+  await expect(page.getByText("Carregando funcionários...")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Novo Usuário" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Novo funcionário" })).toBeVisible();
+});
+
+test("admin carrega os dados de faturamento do dashboard", async ({ page }) => {
+  await loginAsAdmin(page);
+  const financeResponses = [
+    page.waitForResponse((response) =>
+      new URL(response.url()).pathname === "/api/faturamento",
+    ),
+    page.waitForResponse((response) =>
+      new URL(response.url()).pathname === "/api/faturamento/receita-por-forma",
+    ),
+    page.waitForResponse((response) =>
+      new URL(response.url()).pathname === "/api/faturamento/produtos-mais-vendidos",
+    ),
+  ];
+  await page.goto("/dashboard");
+
+  const [summaryResponse, paymentsResponse, productsResponse] = await Promise.all(financeResponses);
+  for (const response of [summaryResponse, paymentsResponse, productsResponse]) {
+    expect(response.ok(), `API returned ${response.status()}`).toBe(true);
+  }
+  const summaryBody = await expectSuccessful(summaryResponse);
+  const summary = asRecord(summaryBody.dados) ?? asRecord(summaryBody.Dados);
+  const revenue = Number(summary?.receita);
+  const expenses = Number(summary?.despesas);
+  const profit = Number(summary?.lucro);
+  expect(Number.isFinite(revenue) && Number.isFinite(expenses) && Number.isFinite(profit)).toBe(true);
+
+  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  await expect(page.getByText("Vendas do Dia")).toBeVisible();
+  await expect(page.getByText(`R$ ${revenue.toFixed(2)}`, { exact: true })).toBeVisible();
+  await expect(page.getByText("Produtos Mais Vendidos")).toBeVisible();
+  await expect(page.getByText("Erro", { exact: true })).toHaveCount(0);
+});
+
 test("widget VLibras carrega no painel de acessibilidade", async ({ page }) => {
   await loginAsAdmin(page);
   await page.goto("/accessibility");
