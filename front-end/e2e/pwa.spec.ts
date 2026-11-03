@@ -20,11 +20,25 @@ test("instala o PWA, não armazena a API e mostra o fallback offline", async ({
       expect.objectContaining({ purpose: "maskable" }),
     ]),
   );
-  await expect
-    .poll(() =>
-      page.evaluate(() => navigator.serviceWorker.controller !== null),
-    )
-    .toBe(true);
+  await page.evaluate(async () => {
+    const serviceWorker = navigator.serviceWorker;
+    if (serviceWorker.controller) return;
+
+    await serviceWorker.ready;
+    if (serviceWorker.controller) return;
+
+    await new Promise<void>((resolve) => {
+      const onControllerChange = () => {
+        if (serviceWorker.controller) {
+          serviceWorker.removeEventListener("controllerchange", onControllerChange);
+          resolve();
+        }
+      };
+
+      serviceWorker.addEventListener("controllerchange", onControllerChange);
+      onControllerChange();
+    });
+  });
 
   const cachedUrls = await page.evaluate(async () => {
     const cacheNames = await caches.keys();
