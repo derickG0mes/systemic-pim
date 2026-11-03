@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
 using PIM3.API.DTOs;
@@ -15,9 +16,20 @@ public sealed class ClienteService : IClienteService
         _context = context;
     }
 
-    public IActionResult GetAll()
+    public IActionResult GetAll(int? pagina, int? tamanho, HttpResponse response)
     {
-        var clientes = _context.Clientes.ToList();
+        if (!ListPagination.TryCreate(pagina, tamanho, out var pagination))
+            return ListPagination.InvalidRequest();
+
+        var query = _context.Clientes.AsQueryable();
+        if (pagination.IsRequested)
+        {
+            var totalCount = query.Count();
+            pagination.SetTotalCount(response, totalCount);
+            query = pagination.Apply(query, cliente => cliente.IdCliente);
+        }
+
+        var clientes = query.ToList();
         return ApiServiceResults.Ok(new RespostaPadraoDTO { Sucesso = true, Dados = clientes });
     }
 

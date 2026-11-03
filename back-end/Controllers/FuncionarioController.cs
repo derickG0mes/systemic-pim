@@ -25,7 +25,8 @@ public class FuncionarioController : ControllerBase
 
     [HttpGet]
     [Authorize(Roles = "admin,owner")]
-    public IActionResult GetAll() => _service.GetAll();
+    public IActionResult GetAll([FromQuery] int? pagina, [FromQuery] int? tamanho) =>
+        _service.GetAll(pagina, tamanho, Response);
 
     [HttpGet("{id}")]
     [Authorize(Roles = "admin,owner")]

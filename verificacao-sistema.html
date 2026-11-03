@@ -208,12 +208,12 @@
     <section class="panel verdict" aria-labelledby="verdict-heading">
       <div class="verdict-title">
         <h2 id="verdict-heading">Veredito: SIM COM RESSALVAS</h2>
-        <span class="badge medium">SIM COM RESSALVAS · pendências de dependências e UX/API móvel</span>
+        <span class="badge medium">SIM COM RESSALVAS · risco de dependências de desenvolvimento (M-05)</span>
       </div>
       <div class="verdict-lines">
-        <p><strong>Back-end — SIM COM RESSALVAS:</strong> build sem warnings e suíte .NET completa com 79/79 testes; o índice filtrado e as regras de concorrência foram exercitados.</p>
-        <p><strong>Front-end — SIM COM RESSALVAS:</strong> 36/36 testes, lint e build passaram; nas duas rodadas Playwright, 12/13 passaram em cada uma. O restore de backup retornou HTTP 500 nas duas.</p>
-        <p><strong>APIs — SIM COM RESSALVAS:</strong> 69 ações foram verificadas nos cenários de contrato aplicáveis; fluxos felizes não foram executados para todas as ações e há endpoints sem uso no front.</p>
+        <p><strong>Back-end — SIM COM RESSALVAS:</strong> build sem warnings e suíte .NET completa com 80/80 testes; paginação opcional foi verificada nas listas previstas.</p>
+        <p><strong>Front-end — SIM COM RESSALVAS:</strong> 36/36 testes, lint e build passaram; duas rodadas Playwright finais passaram 13/13 cada, com restore HTTP 200. O loop focado do PWA passou 10/10 após trocar o polling por espera do evento real.</p>
+        <p><strong>APIs — SIM COM RESSALVAS:</strong> 69 ações foram verificadas nos cenários de contrato aplicáveis; as oito rotas/listas pagináveis mantêm resposta completa quando os parâmetros são omitidos.</p>
       </div>
     </section>
 
@@ -223,9 +223,9 @@
         <div class="metric"><strong id="metric-endpoints">69</strong><span>ações HTTP catalogadas e verificadas no contrato</span></div>
         <div class="metric"><strong id="metric-auth">62 / 62</strong><span>ações protegidas rejeitaram acesso anônimo (401)</span></div>
         <div class="metric"><strong id="metric-findings">15</strong><span>achados: 0 crítico · 2 alto · 5 médio · 6 baixo · 2 info</span></div>
-        <div class="metric"><strong id="metric-open">3 abertos</strong><span>12 resolvidos; pendências abertas por severidade abaixo</span></div>
-        <div class="metric"><strong id="metric-tests">139 / 141</strong><span>suite principal: 79 .NET + 36 front + 24 E2E aprovados; 2 E2E falharam</span></div>
-        <div class="metric"><strong>0</strong><span>warnings e erros no build .NET (79 testes, 0 ignorados)</span></div>
+        <div class="metric"><strong id="metric-open">1 aberto</strong><span>14 resolvidos; pendência aberta por severidade abaixo</span></div>
+        <div class="metric"><strong id="metric-tests">142 / 142</strong><span>suite principal: 80 .NET + 36 front + 26 E2E aprovados; 0 falhas</span></div>
+        <div class="metric"><strong>0</strong><span>warnings e erros no build .NET (80 testes, 0 ignorados)</span></div>
       </div>
       <h3>Latência observada · 20 chamadas seriais por rota autenticada</h3>
       <div class="table-wrap">
@@ -300,7 +300,7 @@
             <tr><td>Pagamento menor que o total</td><td><code>PUT /api/Comanda/{id}/pagar</code> não recebe valor pago; DTO contém forma de pagamento, funcionário opcional e troco.</td><td><span class="status partial">Não aplicável</span> — não foi inventado campo.</td></tr>
             <tr><td>Reserva: sobreposição, data passada e mesa inexistente</td><td>Sobreposição e data passada retornaram 400; mesa inexistente retornou 400; teste de criar/listar/cancelar passou.</td><td><span class="status pass">Passou</span></td></tr>
             <tr><td>Faturamento: procedures/views versus SQL manual</td><td>Não foi repetida nesta validação final uma comparação independente por SQL somente leitura.</td><td><span class="status partial">Não verificado nesta fase</span></td></tr>
-            <tr><td>Lockout e enumeração</td><td>5 falhas bloqueiam; login correto durante bloqueio falha; teste avança 15 min + 1 s para cobrir o arredondamento da coluna SQL Server <code>DATETIME</code>, sem alterar a política real de 15 min. Usuário inexistente e senha incorreta têm mesmo 401, mensagem, código e verificação dummy.</td><td><span class="status pass">Passou nos testes</span></td></tr>
+            <tr><td>Lockout e enumeração</td><td>5 falhas bloqueiam; login correto falha imediatamente e aos 14 min 59 s; funciona aos 15 min 1 s. A margem de 1 s cobre o arredondamento da coluna SQL Server <code>DATETIME</code>, sem alterar a política real de 15 min. Usuário inexistente e senha incorreta têm mesmo 401, mensagem, código e verificação dummy.</td><td><span class="status pass">Passou nos testes</span></td></tr>
             <tr><td>Backup e restore</td><td>Teste .NET com índice filtrado restaurou o estoque original. Em duas rodadas Playwright consecutivas no stack isolado, o ZIP gerado pela API foi restaurado com HTTP 200 e o marcador retornou ao estado original.</td><td><span class="status pass">Passou</span> — 2 × 13/13 E2E.</td></tr>
             <tr><td>SignalR</td><td>E2E verificou evento de pedido na cozinha e acesso anônimo negado; teste unitário do hook simulou desconexão, reconexão e recebimento do evento.</td><td><span class="status pass">Reconexão do hook passou</span>; reinício real da API durante a conexão não foi exercitado.</td></tr>
           </tbody>
@@ -348,14 +348,14 @@
           <ol>
             <li>Adicionar fluxo Bearer sem remover o cookie web: endpoint de token, access token curto, refresh rotativo armazenado com segurança no servidor e logout/revogação.</li>
             <li>Manter CSRF obrigatório em autenticação por cookie; avaliar tratamento explícito para Bearer nas mutações, preservando a proteção CSRF do navegador. Não abrir CORS com wildcard junto de credenciais.</li>
-            <li>Adicionar paginação, ordenação, filtros e limites de payload nas listas; hoje várias respostas materializam listas completas.</li>
+            <li>Completar filtros e avaliar limites de payload; paginação opcional já está disponível nas sete listas solicitadas, sem alterar a resposta legada quando omitida.</li>
             <li>Completar telas e serviços front para Cliente/FormaPagamento, detalhes e operações ausentes; acrescentar estados loading/error em telas como Pedidos e Reservas.</li>
             <li>Repetir JWT adulterado/expirado, SignalR após restart da API e faturamento contra SQL manual sob dados controlados.</li>
           </ol>
           <p><strong>CORS/CSRF:</strong> clientes nativos normalmente não dependem de CORS do navegador; com cookie, devem manter CSRF. A validação antiforgery global também se aplica hoje a chamadas mutáveis com Bearer; qualquer exceção precisa ser explícita e testada. CORS deve continuar restrito a origens web confiáveis.</p>
         </div>
       </div>
-      <p><strong>Paginação/payload:</strong> paginação observada em logs (<code>pagina</code>/<code>tamanho</code>); a maioria das listas principais não tem paginação ou filtros consistentes. Tamanho máximo de payload por tela não foi medido. <strong>Erros/loading:</strong> inspeção estática encontrou pedidos sem estado explícito de erro/loading e reservas sem estado de carregamento; outras telas mostram toasts/indicadores parciais.</p>
+      <p><strong>Paginação/payload:</strong> paginação opcional por <code>pagina</code>/<code>tamanho</code> (padrão 50, máximo 200) foi testada nas listas de Produto, Mesa, Comanda, Comanda abertas, Pedidos, Reserva, Cliente e Funcionario; sem parâmetros, a resposta completa permanece. Filtros e tamanho máximo de payload por tela não foram medidos. <strong>Erros/loading:</strong> inspeção estática encontrou pedidos sem estado explícito de erro/loading e reservas sem estado de carregamento; outras telas mostram toasts/indicadores parciais.</p>
     </section>
 
     <section class="panel" aria-labelledby="quality-heading">
@@ -363,23 +363,23 @@
       <div class="grid-2">
         <div>
           <ul>
-            <li>Branch <code>melhorias-conformidade</code>; Fase 6: commit <code>fc05fff</code>. Ajustes desta rodada: <code>1f26ad4</code> (npm audit), <code>18ce72d</code> (Gitleaks) e <code>ad34d22</code> (precisão DATETIME do lockout).</li>
+            <li>Branch <code>melhorias-conformidade</code>. Commits desta rodada: <code>a180297</code> (I-01), <code>56de359</code> (espera do evento do PWA) e commit da paginação com este relatório. Ajustes anteriores: <code>1f26ad4</code> (npm audit), <code>18ce72d</code> (Gitleaks), <code>ad34d22</code> e <code>67ba99f</code> (fronteira DATETIME do lockout).</li>
             <li>.NET SDK 10.0.402; Node 24.22.1; npm 11.19.1; Docker Desktop 29.9.2.</li>
-            <li><code>dotnet test</code> em container contra SQL isolado 1434: 79 passaram, 0 falharam, 0 ignorados. <code>dotnet build</code>: 0 warnings, 0 erros.</li>
-            <li>Front: 36/36 testes, 11 arquivos; lint e build passaram. Cobertura: 66,15% statements, 47,69% branches, 56,90% funções, 68,02% linhas.</li>
-            <li>Stack E2E isolado: login direto com CSRF HTTP 200; duas rodadas Playwright consecutivas com 13/13 testes cada.</li>
+            <li><code>dotnet test</code> em container contra SQL isolado 1434: 80 passaram, 0 falharam, 0 ignorados. <code>dotnet build</code>: 0 warnings, 0 erros.</li>
+            <li>Front: 36/36 testes, 11 arquivos; lint e build passaram. Cobertura: 66,22% statements, 47,94% branches, 56,90% funções, 68,02% linhas.</li>
+            <li>Stack E2E isolado em volume novo: login CSRF HTTP 200; duas rodadas Playwright consecutivas com 13/13 testes cada; loop focado do <code>pwa.spec.ts</code>: 10/10. Restore retornou HTTP 200 nas duas rodadas completas.</li>
             <li><code>npm audit</code> após <code>npm audit fix</code> sem <code>--force</code>: 25 achados (23 moderados, 2 baixos); <code>npm audit --omit=dev</code>: 0.</li>
             <li>Chunks: BarChart 369,31 kB (98,17 kB gzip); index 287,50 kB (88,93 kB gzip); CSS 46,61 kB (8,79 kB gzip).</li>
-            <li>Gitleaks histórico com <code>--redact</code>: 167 commits, 2 alertas do mesmo fixture de teste; valores redigidos.</li>
+            <li>Gitleaks histórico com <code>--redact</code>: 173 commits, 0 achados não ignorados; os dois fingerprints históricos de fixture estão ignorados de forma exata.</li>
             <li>Busca TODO/FIXME no back-end: sem correspondências.</li>
           </ul>
         </div>
         <div>
           <h3>Fase 1: ressalva de isolamento</h3>
           <p><code>docker compose down</code> sem remoção de volumes; <code>up -d --build --wait</code> e <code>ps</code> passaram. Healthcheck, <code>/database</code> e <code>/info</code> retornaram 200; restore anônimo retornou 401.</p>
-          <p><code>db-init</code> executou no SQL padrão (1433). Uma execução falhou com Msg 1934 por <code>QUOTED_IDENTIFIER</code>; as opções ANSI foram aplicadas também ao script idempotente e ao seed E2E. A repetição padrão passou; não foram enviados testes de escrita manuais ao 1433. As constraints alteram apenas esquema.</p>
+          <p><code>db-init</code> executou no SQL padrão (1433). Uma execução falhou com Msg 1934 por <code>QUOTED_IDENTIFIER</code>; as opções ANSI foram aplicadas também ao script idempotente e ao seed E2E. A validação E2E ocorreu em SQL isolado. Durante a retomada final da API padrão, <code>docker compose start api</code> também reexecutou <code>db-init</code> no 1433 inadvertidamente; <code>E2E_SEED=0</code> e os logs mostraram <code>(0 rows affected)</code>, mas os scripts reaplicam DDL. Não houve requisição de teste mutável ao 1433 e não foram executadas outras ações de ciclo de vida no Compose padrão.</p>
           <p>Os testes .NET rodaram em container com SQL isolado em 1434. Após os comandos, <code>tests/bin</code>, <code>tests/obj</code>, <code>back-end/bin</code> e <code>back-end/obj</code> foram removidos.</p>
-          <p>O volume E2E legado com duplicatas foi preservado; a validação final usou volumes novos e isolados. A reprodução capturou SQL Server Msg 1934 na operação DELETE; após a correção, o teste de restore .NET passou e o restore E2E recuperou o marcador nas duas rodadas completas (13/13 cada). Login direto com CSRF retornou 200. Nenhum segredo, token, hash ou connection string foi incluído neste arquivo.</p>
+          <p>O volume E2E legado com duplicatas foi preservado; as validações usaram volumes novos e isolados. A reprodução capturou SQL Server Msg 1934 na operação DELETE; após a correção, o restore .NET passou e o restore E2E recuperou o marcador nas duas rodadas completas (13/13 cada, HTTP 200). Login direto com CSRF retornou 200. Nenhum segredo, token, hash ou connection string foi incluído neste arquivo.</p>
         </div>
       </div>
     </section>
@@ -389,11 +389,11 @@
       <ul>
         <li>O contrato verificou 401/403/400/404/409/CSRF nos cenários aplicáveis, mas caminho feliz e tipos/campos inválidos não foram exercitados em todas as 69 ações.</li>
         <li>JWT adulterado/expirado não foi repetido nesta validação; faturamento versus SQL manual não foi revalidado; SignalR foi testado por hook, não após restart real da API.</li>
-        <li>Uma rodada intermediária teve falha transitória no PWA: <code>navigator.serviceWorker.controller</code> não ficou disponível no polling de 5 s; nas duas rodadas completas finais, o teste passou (13/13 em cada). O limite do teste não foi aumentado e essa possível flutuação de ativação continua como ressalva.</li>
+        <li>A falha PWA ocorreu porque o teste usava <code>expect.poll</code> com janela padrão de 5 s em vez de aguardar a ativação real: o trace mostrou <code>/sw.js</code> HTTP 200, sem erro do worker; o build pré-armazena 44 arquivos (977,44 KiB). O teste agora aguarda <code>serviceWorker.ready</code> e o evento <code>controllerchange</code>, com checagem race-safe, sem aumentar timeout. Resultado: 10/10 execuções focadas e 2 rodadas completas 13/13.</li>
         <li>O teste de injeção confirmou ausência de 500, não execução de payload XSS em cada tela. Tamanho máximo de payload não foi medido.</li>
-        <li>Paginação, mensagens loading/error e rotas nunca usadas foram inspecionadas estaticamente; a análise não foi exaustiva em todas as telas.</li>
+        <li>Filtros, mensagens loading/error e rotas nunca usadas foram inspecionados estaticamente; a análise não foi exaustiva em todas as telas.</li>
         <li>HSTS/TLS e configuração real de proxy/produção não foram verificados; HSTS foi corretamente ausente em HTTP local.</li>
-        <li>Gitleaks: dois alertas <code>generic-api-key</code> em <code>tests/IntegrationTests/WorkflowIntegrationTests.cs</code>, nos commits <code>9e9980c</code> e <code>b753a2d</code>. A linha é uma chave de assinatura fixa de teste (provável fixture), não identificada como segredo real; não reutilizar fora dos testes.</li>
+        <li>Gitleaks: os achados históricos foram fixtures de teste na linha 157 de <code>tests/IntegrationTests/WorkflowIntegrationTests.cs</code>, regra <code>generic-api-key</code>. Fingerprints exatos: <code>9e9980c2b56b2ae8c29e9a41a8da4227ef8ce002:tests/IntegrationTests/WorkflowIntegrationTests.cs:generic-api-key:157</code> e <code>b753a2d969ff67e8b0aa8045f5dae014c4a02e34:tests/IntegrationTests/WorkflowIntegrationTests.cs:generic-api-key:157</code>. A chave agora é gerada em runtime; apenas esses fingerprints estão ignorados. O scan redigido passou com 0 achados em 173 commits.</li>
         <li>O volume E2E legado contém dados duplicados e permanece intocado; execução final usou um volume novo e isolado.</li>
         <li>O arquivo <code>docs/MATRIZ_API.md</code> foi removido do worktree após ser criado; não foi restaurado. A matriz efetiva está embutida neste relatório HTML.</li>
         <li>Alterações preexistentes no worktree (<code>.gitignore</code>, exclusões em <code>.vscode/</code>, relatórios e documentos) foram preservadas.</li>
@@ -413,14 +413,14 @@
       {id:"M-04",severity:"MÉDIO",status:"RESOLVIDO",phase:"4",summary:"Login distinguia usuário inexistente de senha incorreta.",evidence:"Testes de unidade/com integração comparam corpo/status iguais; código CREDENCIAIS_INVALIDAS e verificação dummy para conta inexistente/bloqueada.",impact:"Reduz enumeração de contas sem alterar lockout.",fix:"Manter respostas uniformes e lockout de 5 tentativas/15 minutos.",confidence:"10/10"},
       {id:"M-05",severity:"MÉDIO",status:"ABERTO",phase:"5",summary:"npm audit reporta vulnerabilidades em dependências, sobretudo de desenvolvimento.",evidence:"Após npm audit fix (sem --force), npm audit ainda reporta 25 (23 moderadas, 2 baixas); npm audit --omit=dev reporta 0. Dependências afetadas incluem deepmerge@4.3.1 (sem versão 4.x corrigida), glob@11.1.0 e minimatch@10.2.6; os patches publicados requerem major fora das faixas do Workbox. O fix automático propõe vite-plugin-pwa@1.1.0, downgrade major; não aplicado.",impact:"Risco residual restrito à cadeia de desenvolvimento/teste; o audit de produção permanece limpo.",fix:"Atualizar as dependências diretas que destravam os patches em uma mudança compatível e validada, sem override major não suportado nem --force.",confidence:"10/10"},
       {id:"L-01",severity:"BAIXO",status:"RESOLVIDO",phase:"4",summary:"API não tinha limites de taxa para login e tráfego global.",evidence:"Testes: política por IP/global retorna 429 com Retry-After; limites são configuráveis por LOGIN_RATE_LIMIT_PER_MINUTE e GLOBAL_RATE_LIMIT_PER_MINUTE.",impact:"Reduz automação de tentativas e abuso de tráfego.",fix:"Manter limites ativos e calibrar valores por ambiente.",confidence:"10/10"},
-      {id:"L-02",severity:"BAIXO",status:"ABERTO",phase:"7",summary:"Listas principais ainda não têm paginação/filtros consistentes.",evidence:"Inspeção de ProdutoService, MesaService, ComandaService, PedidoService e ReservaService: materialização de listas; somente logs recebem paginação.",impact:"Payload e tempo crescem com a base, especialmente em clientes móveis.",fix:"Adicionar paginação server-side, filtros, ordenação estável e limite máximo.",confidence:"9/10"},
+      {id:"L-02",severity:"BAIXO",status:"RESOLVIDO",phase:"7",summary:"Listas principais não ofereciam paginação opcional retrocompatível.",evidence:"Teste de integração nas oito rotas: resposta completa sem parâmetros; páginas estáveis sem repetidos/faltantes; padrão 50, tamanho 2, X-Total-Count exposto no CORS, página inválida e tamanho acima de 200 retornam 400. Suíte final: 80/80.",impact:"Permite limitar payloads sem alterar chamadas existentes que esperam a lista completa.",fix:"Manter os parâmetros opcionais, ordenação por ID e cabeçalho total; clientes podem adotar paginação sem quebra do contrato antigo.",confidence:"10/10"},
       {id:"L-03",severity:"BAIXO",status:"RESOLVIDO",phase:"4",summary:"API não emitia headers HTTP de hardening.",evidence:"Teste em resposta real verificou nosniff, X-Frame-Options DENY, no-referrer e CSP restritiva; HSTS só é aplicado em HTTPS fora de Development.",impact:"Adiciona defesa em profundidade para consumidores da API.",fix:"Manter middleware e validar HSTS em ambiente TLS real.",confidence:"10/10"},
       {id:"L-04",severity:"BAIXO",status:"RESOLVIDO",phase:"4",summary:"Cookie antiforgery não tinha política Secure de produção.",evidence:"Teste de produção simulada confirmou Secure; Compose mantém SameAsRequest. Variável ANTIFORGERY_COOKIE_SECURE_POLICY documentada/configurável.",impact:"Protege cookies de antiforgery quando há HTTPS.",fix:"Manter Secure obrigatório fora de Development e Compose local compatível com HTTP.",confidence:"9/10"},
       {id:"L-05",severity:"BAIXO",status:"RESOLVIDO",phase:"5",summary:"O cliente front registrava payloads e dados pessoais no console.",evidence:"Removidos console.log/debug/warn de front-end/src; os erros remanescentes registram apenas mensagens genéricas e status HTTP, sem respostas, IDs, payloads, emails ou tokens.",impact:"Reduz a exposição de pedidos, dados de funcionários/produtos e respostas da API no console e em telemetria.",fix:"Manter logs de erro sem objetos, corpos de resposta, dados pessoais ou credenciais.",confidence:"10/10"},
       {id:"L-06",severity:"BAIXO",status:"RESOLVIDO",phase:"7",summary:"O teste de contraste amostrava o tema durante a transição CSS.",evidence:"E2E registrou 2,418:1 e 1,737:1 durante a transição; o teste agora faz polling do contraste final sem reduzir o limite de 7:1. Execução focada: 1/1 passou.",impact:"Falsas falhas do teste podiam mascarar o resultado final da verificação de acessibilidade.",fix:"Manter o polling do estado calculado e a exigência mínima 7:1.",confidence:"9/10"},
-      {id:"I-01",severity:"INFO",status:"ABERTO",phase:"6",summary:"Gitleaks detecta duas ocorrências históricas de chave de teste.",evidence:"gitleaks detect --source=. --redact -v --no-banner --exit-code 0: 167 commits; regra generic-api-key em tests/IntegrationTests/WorkflowIntegrationTests.cs nos commits 9e9980c e b753a2d. Código atual usa a constante somente no ambiente de integração; valores nunca foram exibidos.",impact:"Risco baixo se a chave permanecer exclusiva dos testes; não há evidência de segredo de produção.",fix:"Não reutilizar a constante fora dos testes; rotacionar somente se houver prova de reutilização externa.",confidence:"9/10"},
+      {id:"I-01",severity:"INFO",status:"RESOLVIDO",phase:"6",summary:"Gitleaks detectou duas ocorrências históricas de chave de teste.",evidence:"Achados originais: tests/IntegrationTests/WorkflowIntegrationTests.cs, linha 157, regra generic-api-key, commits 9e9980c2b56b2ae8c29e9a41a8da4227ef8ce002 e b753a2d969ff67e8b0aa8045f5dae014c4a02e34. Fingerprints: 9e9980c2b56b2ae8c29e9a41a8da4227ef8ce002:tests/IntegrationTests/WorkflowIntegrationTests.cs:generic-api-key:157; b753a2d969ff67e8b0aa8045f5dae014c4a02e34:tests/IntegrationTests/WorkflowIntegrationTests.cs:generic-api-key:157. A chave JWT de teste agora é aleatória (32 bytes, uma vez por execução); .gitleaksignore contém somente os dois fingerprints exatos para esses achados. Scan redigido: 0 achados em 173 commits.",impact:"Remove a chave fixa do código atual e restringe a supressão aos dois commits-fixture históricos, sem ignorar regra ou caminho.",fix:"Manter chave de teste aleatória e ignores por fingerprint; rotacionar somente se houver evidência de reutilização fora dos testes.",confidence:"10/10"},
       {id:"I-02",severity:"INFO",status:"RESOLVIDO",phase:"6",summary:"Falhas ao gravar log de reserva eram suprimidas.",evidence:"ReservaService agora injeta ILogger e registra a exceção nos dois catches com ID da reserva/mesa, sem nome, email ou outros dados do cliente; o fluxo principal continua sem propagar a falha de auditoria.",impact:"Falhas da trilha de auditoria ficam visíveis no log do servidor sem interromper a reserva/cancelamento.",fix:"Manter o LogError contextual e sem dados pessoais nos dois caminhos.",confidence:"10/10"},
-      {id:"H-02",severity:"ALTO",status:"RESOLVIDO",phase:"7",summary:"Restore falhava com SQL Server Msg 1934 durante o DELETE do backup.",evidence:"Playwright no stack pré-correção: HTTP 500, CorrelationId 0HNPPBPJ4LGTG:00000022; docker compose logs da API mostrou SqlException 1934: DELETE falhou por QUOTED_IDENTIFIER. A consulta sys.sql_modules também encontrou procedures/views do app com uses_quoted_identifier=0. Após correção: query sem módulos do app OFF, teste de integração com índice filtrado passou e Playwright focado passou 1/1 com marcador restaurado.",impact:"Impediria a recuperação pela própria API em banco com índice filtrado.",fix:"Gerar DELETE/constraints por tabela sem sp_MSforeachtable, definir opções ANSI antes dos módulos SQL e invocar sqlcmd com -I.",confidence:"10/10"}
+      {id:"H-02",severity:"ALTO",status:"RESOLVIDO",phase:"7",summary:"Restore falhava com SQL Server Msg 1934 durante o DELETE do backup.",evidence:"Playwright no stack pré-correção: HTTP 500, CorrelationId 0HNPPBPJ4LGTG:00000022; docker compose logs da API mostrou SqlException 1934: DELETE falhou por QUOTED_IDENTIFIER. A consulta sys.sql_modules também encontrou procedures/views do app com uses_quoted_identifier=0. Após correção, o teste .NET passou e duas suítes E2E restauraram o marcador com HTTP 200 (13/13 cada).",impact:"Impediria a recuperação pela própria API em banco com índice filtrado.",fix:"Gerar DELETE/constraints por tabela sem sp_MSforeachtable, definir opções ANSI antes dos módulos SQL e invocar sqlcmd com -I.",confidence:"10/10"}
     ];
 
     const apiActions = [
@@ -499,19 +499,26 @@
       "POST /api/Autenticacao/logout":"200 com CSRF",
       "POST /api/Autenticacao/login":"login após lockout passou",
       "POST /api/Backup/gerar":"backup de integração",
-      "POST /api/Backup/restore":"teste .NET passou; E2E 500",
+      "POST /api/Backup/restore":"2 rodadas E2E: HTTP 200; marcador restaurado",
       "POST /api/Comanda":"1 sucesso / 10 concorrentes",
       "POST /api/Comanda/{id}/itens":"produto ativo aceito",
       "PUT /api/Comanda/{id}/pagar":"primeiro pagamento",
       "PUT /api/Comanda/{id}/fechar":"primeiro fechamento",
+      "GET /api/Comanda":"lista completa + paginação testadas",
+      "GET /api/Comanda/abertas/todas":"lista completa + paginação testadas",
       "POST /api/Cliente":"criação + teste 409",
+      "GET /api/Cliente":"lista completa + paginação testadas",
       "POST /api/Funcionario":"criação + teste 409",
+      "GET /api/Funcionario":"lista completa + paginação testadas",
       "POST /api/FormaPagamento":"criação + teste 409",
       "POST /api/Mesa":"criação + teste 409",
+      "GET /api/Mesa":"lista completa + paginação testadas",
       "POST /api/Pedidos":"1 sucesso / estoque final 0",
-      "GET /api/Reserva":"listar no teste de integração",
+      "GET /api/Pedidos":"lista completa + paginação testadas",
+      "GET /api/Reserva":"lista completa + paginação testadas",
       "POST /api/Reserva":"criar reserva no teste de integração",
       "DELETE /api/Reserva/{id}":"cancelar reserva no teste de integração",
+      "GET /api/Produto":"lista completa + paginação testadas",
       "GET /api/HealthCheck":"200",
       "GET /api/HealthCheck/database":"200",
       "GET /api/HealthCheck/info":"200"

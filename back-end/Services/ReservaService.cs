@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using PIM3.API.Controllers;
 using PIM3.API.Data;
@@ -18,11 +19,23 @@ public sealed class ReservaService : IReservaService
         _logger = logger;
     }
 
-    public async Task<IActionResult> ListarReservas()
+    public async Task<IActionResult> ListarReservas(int? pagina, int? tamanho, HttpResponse response)
     {
-        var reservas = await _context.Reservas
+        if (!ListPagination.TryCreate(pagina, tamanho, out var pagination))
+            return ListPagination.InvalidRequest();
+
+        IQueryable<Reserva> query = _context.Reservas
             .Include(r => r.Cliente)
-            .Include(r => r.Mesa)
+            .Include(r => r.Mesa);
+
+        if (pagination.IsRequested)
+        {
+            var totalCount = await query.CountAsync();
+            pagination.SetTotalCount(response, totalCount);
+            query = pagination.Apply(query, reserva => reserva.IdReserva);
+        }
+
+        var reservas = await query
             .Select(r => new
             {
                 r.IdReserva,

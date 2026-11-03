@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
 using PIM3.API.DTOs;
 using PIM3.API.Models;
 
@@ -6,9 +7,9 @@ namespace PIM3.API.Services;
 
 public interface IComandaService
 {
-    IActionResult GetAll();
+    IActionResult GetAll(int? pagina, int? tamanho, HttpResponse response);
     IActionResult GetById(int id);
-    IActionResult GetAbertasComTotais();
+    IActionResult GetAbertasComTotais(int? pagina, int? tamanho, HttpResponse response);
     IActionResult GetComandasByTable(int tableNumber);
     Task<IActionResult> Update(int id, Comanda comandaAtualizada);
     Task<IActionResult> Create(Comanda comanda);

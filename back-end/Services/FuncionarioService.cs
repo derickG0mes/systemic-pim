@@ -81,9 +81,20 @@ public sealed class FuncionarioService : IFuncionarioService
         });
     }
 
-    public IActionResult GetAll()
+    public IActionResult GetAll(int? pagina, int? tamanho, HttpResponse response)
     {
-        var funcionarios = _context.Funcionarios.ToList().Select(f => new FuncionarioDto
+        if (!ListPagination.TryCreate(pagina, tamanho, out var pagination))
+            return ListPagination.InvalidRequest();
+
+        var query = _context.Funcionarios.AsQueryable();
+        if (pagination.IsRequested)
+        {
+            var totalCount = query.Count();
+            pagination.SetTotalCount(response, totalCount);
+            query = pagination.Apply(query, funcionario => funcionario.IdFuncionario);
+        }
+
+        var funcionarios = query.ToList().Select(f => new FuncionarioDto
         {
             IdFuncionario = f.IdFuncionario,
             NomeFuncionario = f.NomeFuncionario,

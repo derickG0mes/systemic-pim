@@ -756,6 +756,158 @@ public sealed class WorkflowIntegrationTests
     }
 
     [IsolatedSqlServerFact]
+    public async Task Lists_support_opt_in_database_pagination_with_stable_ids_and_totals()
+    {
+        await using var environment = await WorkflowTestEnvironment.CreateAsync();
+        await environment.LoginAsAdminAsync();
+
+        var now = DateTime.UtcNow;
+        await using (var context = environment.CreateContextForTest())
+        {
+            var customers = Enumerable.Range(0, 3)
+                .Select(index => new Cliente { NomeCliente = $"PaginationCustomer-{index}-{Guid.NewGuid():N}" })
+                .ToArray();
+            var defaultPageCustomers = Enumerable.Range(0, 51)
+                .Select(_ => new Cliente { NomeCliente = $"PaginationDefault-{Guid.NewGuid():N}" })
+                .ToArray();
+            var tables = Enumerable.Range(0, 3)
+                .Select(index => new Mesa
+                {
+                    NumeroMesa = 300_000 + index,
+                    CapacidadeMesa = 4,
+                    StatusMesa = "DISPONIVEL",
+                })
+                .ToArray();
+            var products = Enumerable.Range(0, 3)
+                .Select(index => new Produto
+                {
+                    NomeProduto = $"PaginationProduct-{index}-{Guid.NewGuid():N}"[..45],
+                    PrecoProduto = 1m,
+                    QtdEstoque = 10,
+                    EstoqueMinimo = 1,
+                    StatusProduto = "DISPONIVEL",
+                    CategoriaProduto = "PRINCIPAL",
+                })
+                .ToArray();
+            var employees = Enumerable.Range(0, 3)
+                .Select(index => new Funcionario
+                {
+                    NomeFuncionario = $"PaginationEmployee-{index}",
+                    EmailFuncionario = $"pagination-{Guid.NewGuid():N}@systemic.test",
+                    CargoFuncionario = "Teste",
+                    CpfFuncionario = CreateCpf(),
+                    TelefoneFuncionario = "11999999999",
+                    PasswordFuncionario = "not-used-by-this-test",
+                    Role = "employee",
+                    StatusFuncionario = "ATIVO",
+                })
+                .ToArray();
+
+            context.AddRange(customers);
+            context.AddRange(defaultPageCustomers);
+            context.AddRange(tables);
+            context.AddRange(products);
+            context.AddRange(employees);
+            await context.SaveChangesAsync();
+
+            context.AddRange(Enumerable.Range(0, 3).Select(index => new Comanda
+            {
+                IdMesa = tables[index].IdMesa,
+                IdCliente = customers[index].IdCliente,
+                DataAberta = now.AddSeconds(index),
+                StatusComanda = "ABERTA",
+                ValorTotal = 0m,
+            }));
+            context.AddRange(Enumerable.Range(0, 3).Select(index => new Reserva
+            {
+                IdMesa = tables[index].IdMesa,
+                IdCliente = customers[index].IdCliente,
+                DataReserva = now.AddDays(index + 1),
+                StatusReserva = "DISPONIVEL",
+            }));
+            await context.SaveChangesAsync();
+        }
+
+        var lists = new[]
+        {
+            (Path: "/api/Produto", IdProperty: "idProduto"),
+            (Path: "/api/Mesa", IdProperty: "idMesa"),
+            (Path: "/api/Comanda", IdProperty: "idComanda"),
+            (Path: "/api/Comanda/abertas/todas", IdProperty: "idComanda"),
+            (Path: "/api/Pedidos", IdProperty: "idComanda"),
+            (Path: "/api/Reserva", IdProperty: "idReserva"),
+            (Path: "/api/Cliente", IdProperty: "idCliente"),
+            (Path: "/api/Funcionario", IdProperty: "idFuncionario"),
+        };
+
+        foreach (var list in lists)
+        {
+            using var fullResponse = await environment.Client.GetAsync(list.Path);
+            Assert.Equal(HttpStatusCode.OK, fullResponse.StatusCode);
+            Assert.False(
+                fullResponse.Headers.Contains("X-Total-Count"),
+                $"{list.Path}: unpaginated response unexpectedly included X-Total-Count.");
+            var fullIds = await ReadListIdsAsync(fullResponse, list.IdProperty);
+            var expectedIds = fullIds.Order().ToArray();
+            Assert.True(expectedIds.Length >= 3, $"{list.Path}: pagination fixture did not create enough rows.");
+            if (list.Path == "/api/Cliente")
+                Assert.True(expectedIds.Length > 50, "Cliente fixture did not create enough rows to test the default page size.");
+
+            var actualIds = new List<int>();
+            for (var page = 1; actualIds.Count < expectedIds.Length; page++)
+            {
+                using var request = new HttpRequestMessage(
+                    HttpMethod.Get,
+                    $"{list.Path}?pagina={page}&tamanho=2");
+                request.Headers.Add("Origin", "http://localhost:8080");
+                using var response = await environment.Client.SendAsync(request);
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                Assert.Equal(
+                    expectedIds.Length.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    Assert.Single(response.Headers.GetValues("X-Total-Count")));
+                Assert.Contains(
+                    "X-Total-Count",
+                    Assert.Single(response.Headers.GetValues("Access-Control-Expose-Headers")),
+                    StringComparison.OrdinalIgnoreCase);
+                actualIds.AddRange(await ReadListIdsAsync(response, list.IdProperty));
+            }
+
+            Assert.Equal(expectedIds, actualIds);
+            Assert.Equal(actualIds.Count, actualIds.Distinct().Count());
+
+            using var pageOnly = await environment.Client.GetAsync($"{list.Path}?pagina=1");
+            Assert.Equal(HttpStatusCode.OK, pageOnly.StatusCode);
+            Assert.Equal(expectedIds.Length.ToString(), Assert.Single(pageOnly.Headers.GetValues("X-Total-Count")));
+            Assert.Equal(Math.Min(50, expectedIds.Length), (await ReadListIdsAsync(pageOnly, list.IdProperty)).Length);
+
+            using var sizeOnly = await environment.Client.GetAsync($"{list.Path}?tamanho=2");
+            Assert.Equal(HttpStatusCode.OK, sizeOnly.StatusCode);
+            Assert.Equal(expectedIds.Length.ToString(), Assert.Single(sizeOnly.Headers.GetValues("X-Total-Count")));
+            Assert.Equal(2, (await ReadListIdsAsync(sizeOnly, list.IdProperty)).Length);
+
+            using var invalidPage = await environment.Client.GetAsync($"{list.Path}?pagina=0");
+            Assert.Equal(HttpStatusCode.BadRequest, invalidPage.StatusCode);
+
+            using var invalidSize = await environment.Client.GetAsync($"{list.Path}?tamanho=201");
+            Assert.Equal(HttpStatusCode.BadRequest, invalidSize.StatusCode);
+
+            using var overflowingOffset = await environment.Client.GetAsync(
+                $"{list.Path}?pagina=2147483647&tamanho=200");
+            Assert.Equal(HttpStatusCode.BadRequest, overflowingOffset.StatusCode);
+        }
+    }
+
+    private static async Task<int[]> ReadListIdsAsync(HttpResponseMessage response, string idProperty)
+    {
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return document.RootElement
+            .GetProperty("dados")
+            .EnumerateArray()
+            .Select(item => item.GetProperty(idProperty).GetInt32())
+            .ToArray();
+    }
+
+    [IsolatedSqlServerFact]
     public async Task Main_api_routes_report_latency_with_two_hundred_isolated_rows_per_table()
     {
         await using var environment = await WorkflowTestEnvironment.CreateAsync();

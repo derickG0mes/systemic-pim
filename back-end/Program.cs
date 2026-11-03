@@ -147,6 +147,7 @@ builder.Services.AddCors(options =>
                 "http://127.0.0.1:5173")
               .AllowAnyMethod()
               .AllowAnyHeader()
+              .WithExposedHeaders("X-Total-Count")
               .AllowCredentials();
     });
 
@@ -155,6 +156,7 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(productionCorsOrigins)
               .AllowAnyMethod()
               .AllowAnyHeader()
+              .WithExposedHeaders("X-Total-Count")
               .AllowCredentials();
     });
 });

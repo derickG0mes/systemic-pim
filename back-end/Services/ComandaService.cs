@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
@@ -23,16 +24,27 @@ public sealed class ComandaService : IComandaService
         _logger = logger;
     }
 
-    public IActionResult GetAll()
+    public IActionResult GetAll(int? pagina, int? tamanho, HttpResponse response)
     {
-        var comandas = _context.Comandas
+        if (!ListPagination.TryCreate(pagina, tamanho, out var pagination))
+            return ListPagination.InvalidRequest();
+
+        IQueryable<Comanda> query = _context.Comandas
             .Include(c => c.ItensComanda)
             .ThenInclude(i => i.Produto)
             .Include(c => c.Cliente)
             .Include(c => c.Mesa)
             .Include(c => c.DetalhesPagamento)
-            .ThenInclude(dp => dp.FormaPagamento)
-            .ToList();
+            .ThenInclude(dp => dp.FormaPagamento);
+
+        if (pagination.IsRequested)
+        {
+            var totalCount = query.Count();
+            pagination.SetTotalCount(response, totalCount);
+            query = pagination.Apply(query, comanda => comanda.IdComanda);
+        }
+
+        var comandas = query.ToList();
 
         return ApiServiceResults.Ok(new { sucesso = true, dados = comandas });
     }
@@ -56,18 +68,39 @@ public sealed class ComandaService : IComandaService
     /// Lista apenas as comandas abertas (ativas)
     /// Endpoint específico para o frontend atualizar a UI
     /// </summary>
-    public IActionResult GetAbertasComTotais()
+    public IActionResult GetAbertasComTotais(int? pagina, int? tamanho, HttpResponse response)
     {
+        if (!ListPagination.TryCreate(pagina, tamanho, out var pagination))
+            return ListPagination.InvalidRequest();
+
         try
         {
-            var abertasNaView = DatabaseRoutineQueries.GetComandasAbertas(_context);
+            List<ComandaAbertaSqlResultDto> abertasNaView;
+            if (pagination.IsRequested)
+            {
+                var abertasQuery = _context.Database
+                    .SqlQueryRaw<ComandaAbertaSqlResultDto>(
+                        "SELECT IdComanda, NumeroMesa, ValorTotal FROM dbo.vw_comandas_abertas");
+                var totalCount = abertasQuery.Count();
+                pagination.SetTotalCount(response, totalCount);
+                abertasNaView = pagination.Apply(abertasQuery, comanda => comanda.IdComanda).ToList();
+            }
+            else
+            {
+                abertasNaView = DatabaseRoutineQueries.GetComandasAbertas(_context);
+            }
+
             if (abertasNaView.Count == 0)
                 return ApiServiceResults.Ok(new RespostaPadraoDTO { Sucesso = true, Dados = Array.Empty<object>() });
 
             var abertasPorId = abertasNaView.ToDictionary(comanda => comanda.IdComanda);
             var idsComandasAbertas = abertasPorId.Keys.ToArray();
-            var comandasAbertas = _context.Comandas
-                .Where(c => c.StatusComanda == "ABERTA" && idsComandasAbertas.Contains(c.IdComanda))
+            IQueryable<Comanda> comandasQuery = _context.Comandas
+                .Where(c => c.StatusComanda == "ABERTA" && idsComandasAbertas.Contains(c.IdComanda));
+            if (pagination.IsRequested)
+                comandasQuery = comandasQuery.OrderBy(c => c.IdComanda);
+
+            var comandasAbertas = comandasQuery
                 .Include(c => c.Mesa)
                 .Include(c => c.ItensComanda)
                 .ThenInclude(i => i.Produto)

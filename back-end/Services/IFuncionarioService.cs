@@ -8,7 +8,7 @@ namespace PIM3.API.Services;
 public interface IFuncionarioService
 {
     Task<IActionResult> Login(LoginRequest request, HttpResponse response);
-    IActionResult GetAll();
+    IActionResult GetAll(int? pagina, int? tamanho, HttpResponse response);
     IActionResult GetById(int id);
     Task<IActionResult> Create(CreateFuncionarioRequest request, ClaimsPrincipal user);
     Task<IActionResult> Update(int id, CreateFuncionarioRequest request, ClaimsPrincipal user);
