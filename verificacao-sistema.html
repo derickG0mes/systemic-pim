@@ -300,8 +300,8 @@
             <tr><td>Pagamento menor que o total</td><td><code>PUT /api/Comanda/{id}/pagar</code> não recebe valor pago; DTO contém forma de pagamento, funcionário opcional e troco.</td><td><span class="status partial">Não aplicável</span> — não foi inventado campo.</td></tr>
             <tr><td>Reserva: sobreposição, data passada e mesa inexistente</td><td>Sobreposição e data passada retornaram 400; mesa inexistente retornou 400; teste de criar/listar/cancelar passou.</td><td><span class="status pass">Passou</span></td></tr>
             <tr><td>Faturamento: procedures/views versus SQL manual</td><td>Não foi repetida nesta validação final uma comparação independente por SQL somente leitura.</td><td><span class="status partial">Não verificado nesta fase</span></td></tr>
-            <tr><td>Lockout e enumeração</td><td>5 falhas bloqueiam; login correto durante bloqueio falha; relógio de teste avança 15 min e login volta a funcionar. Usuário inexistente e senha incorreta têm mesmo 401, mensagem, código e verificação dummy.</td><td><span class="status pass">Passou nos testes</span></td></tr>
-            <tr><td>Backup e restore</td><td>Teste .NET com índice filtrado restaurou o estoque original. Playwright no stack isolado gerou o ZIP pela API, restaurou com HTTP 200 e confirmou que o marcador voltou ao estado original.</td><td><span class="status pass">Passou</span> — correção ainda será revalidada nas duas rodadas E2E completas.</td></tr>
+            <tr><td>Lockout e enumeração</td><td>5 falhas bloqueiam; login correto durante bloqueio falha; teste avança 15 min + 1 s para cobrir o arredondamento da coluna SQL Server <code>DATETIME</code>, sem alterar a política real de 15 min. Usuário inexistente e senha incorreta têm mesmo 401, mensagem, código e verificação dummy.</td><td><span class="status pass">Passou nos testes</span></td></tr>
+            <tr><td>Backup e restore</td><td>Teste .NET com índice filtrado restaurou o estoque original. Em duas rodadas Playwright consecutivas no stack isolado, o ZIP gerado pela API foi restaurado com HTTP 200 e o marcador retornou ao estado original.</td><td><span class="status pass">Passou</span> — 2 × 13/13 E2E.</td></tr>
             <tr><td>SignalR</td><td>E2E verificou evento de pedido na cozinha e acesso anônimo negado; teste unitário do hook simulou desconexão, reconexão e recebimento do evento.</td><td><span class="status pass">Reconexão do hook passou</span>; reinício real da API durante a conexão não foi exercitado.</td></tr>
           </tbody>
         </table>
@@ -363,10 +363,11 @@
       <div class="grid-2">
         <div>
           <ul>
-            <li>Branch <code>melhorias-conformidade</code>; Fase 6: commit <code>fc05fff</code>. Fase 7: alterações e relatório incluídos no commit desta fase.</li>
+            <li>Branch <code>melhorias-conformidade</code>; Fase 6: commit <code>fc05fff</code>. Ajustes desta rodada: <code>1f26ad4</code> (npm audit), <code>18ce72d</code> (Gitleaks) e <code>ad34d22</code> (precisão DATETIME do lockout).</li>
             <li>.NET SDK 10.0.402; Node 24.22.1; npm 11.19.1; Docker Desktop 29.9.2.</li>
             <li><code>dotnet test</code> em container contra SQL isolado 1434: 79 passaram, 0 falharam, 0 ignorados. <code>dotnet build</code>: 0 warnings, 0 erros.</li>
             <li>Front: 36/36 testes, 11 arquivos; lint e build passaram. Cobertura: 66,15% statements, 47,69% branches, 56,90% funções, 68,02% linhas.</li>
+            <li>Stack E2E isolado: login direto com CSRF HTTP 200; duas rodadas Playwright consecutivas com 13/13 testes cada.</li>
             <li><code>npm audit</code> após <code>npm audit fix</code> sem <code>--force</code>: 25 achados (23 moderados, 2 baixos); <code>npm audit --omit=dev</code>: 0.</li>
             <li>Chunks: BarChart 369,31 kB (98,17 kB gzip); index 287,50 kB (88,93 kB gzip); CSS 46,61 kB (8,79 kB gzip).</li>
             <li>Gitleaks histórico com <code>--redact</code>: 167 commits, 2 alertas do mesmo fixture de teste; valores redigidos.</li>
@@ -378,7 +379,7 @@
           <p><code>docker compose down</code> sem remoção de volumes; <code>up -d --build --wait</code> e <code>ps</code> passaram. Healthcheck, <code>/database</code> e <code>/info</code> retornaram 200; restore anônimo retornou 401.</p>
           <p><code>db-init</code> executou no SQL padrão (1433). Uma execução falhou com Msg 1934 por <code>QUOTED_IDENTIFIER</code>; as opções ANSI foram aplicadas também ao script idempotente e ao seed E2E. A repetição padrão passou; não foram enviados testes de escrita manuais ao 1433. As constraints alteram apenas esquema.</p>
           <p>Os testes .NET rodaram em container com SQL isolado em 1434. Após os comandos, <code>tests/bin</code>, <code>tests/obj</code>, <code>back-end/bin</code> e <code>back-end/obj</code> foram removidos.</p>
-          <p>O volume E2E legado com duplicatas foi preservado; a reprodução e validação usaram volumes novos e isolados. A reprodução capturou SQL Server Msg 1934 na operação DELETE; após a correção, o teste focado de restore passou 1/1. As duas rodadas completas ainda serão repetidas no fechamento. Nenhum segredo, token, hash ou connection string foi incluído neste arquivo.</p>
+          <p>O volume E2E legado com duplicatas foi preservado; a validação final usou volumes novos e isolados. A reprodução capturou SQL Server Msg 1934 na operação DELETE; após a correção, o teste de restore .NET passou e o restore E2E recuperou o marcador nas duas rodadas completas (13/13 cada). Login direto com CSRF retornou 200. Nenhum segredo, token, hash ou connection string foi incluído neste arquivo.</p>
         </div>
       </div>
     </section>
@@ -388,7 +389,7 @@
       <ul>
         <li>O contrato verificou 401/403/400/404/409/CSRF nos cenários aplicáveis, mas caminho feliz e tipos/campos inválidos não foram exercitados em todas as 69 ações.</li>
         <li>JWT adulterado/expirado não foi repetido nesta validação; faturamento versus SQL manual não foi revalidado; SignalR foi testado por hook, não após restart real da API.</li>
-        <li>O restore foi corrigido e o teste focado no stack confirmou HTTP 200 e recuperação do marcador; as duas rodadas Playwright completas ainda precisam ser repetidas para o fechamento final.</li>
+        <li>Uma rodada intermediária teve falha transitória no PWA: <code>navigator.serviceWorker.controller</code> não ficou disponível no polling de 5 s; nas duas rodadas completas finais, o teste passou (13/13 em cada). O limite do teste não foi aumentado e essa possível flutuação de ativação continua como ressalva.</li>
         <li>O teste de injeção confirmou ausência de 500, não execução de payload XSS em cada tela. Tamanho máximo de payload não foi medido.</li>
         <li>Paginação, mensagens loading/error e rotas nunca usadas foram inspecionadas estaticamente; a análise não foi exaustiva em todas as telas.</li>
         <li>HSTS/TLS e configuração real de proxy/produção não foram verificados; HSTS foi corretamente ausente em HTTP local.</li>
