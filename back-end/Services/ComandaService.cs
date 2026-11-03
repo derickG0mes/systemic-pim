@@ -247,6 +247,9 @@ public sealed class ComandaService : IComandaService
         if (produto == null)
             return ApiServiceResults.NotFound(new { message = "Produto não encontrado" });
 
+        if (!string.Equals(produto.StatusProduto, "DISPONIVEL", StringComparison.OrdinalIgnoreCase))
+            return ApiServiceResults.BadRequest(new { message = $"Produto indisponível: {produto.NomeProduto}" });
+
         // Validar estoque
         if (produto.QtdEstoque < item.QtdProduto)
             return ApiServiceResults.BadRequest(new { message = $"Estoque insuficiente. Disponível: {produto.QtdEstoque}" });

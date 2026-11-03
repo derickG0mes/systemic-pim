@@ -171,6 +171,141 @@ public sealed class WorkflowIntegrationTests
     }
 
     [IsolatedSqlServerFact]
+    public async Task Comanda_service_accepts_available_product()
+    {
+        await using var environment = await WorkflowTestEnvironment.CreateAsync();
+        await environment.LoginAsAdminAsync();
+        var orderData = await environment.CreateOrderDataAsync();
+        var comandaId = await environment.CreateComandaAsync(orderData.Mesa, orderData.Cliente);
+
+        using var response = await environment.SendUnsafeAsync(
+            HttpMethod.Post,
+            $"/api/comanda/{comandaId}/itens",
+            new
+            {
+                idProduto = orderData.Produto.IdProduto,
+                qtdProduto = 1,
+                precoUnitarioPago = orderData.Produto.PrecoProduto,
+            });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(9, await environment.ReadProductStockAsync(orderData.Produto.IdProduto));
+    }
+
+    [IsolatedSqlServerFact]
+    public async Task Comanda_service_rejects_unavailable_product_without_changing_stock()
+    {
+        await using var environment = await WorkflowTestEnvironment.CreateAsync();
+        await environment.LoginAsAdminAsync();
+        var orderData = await environment.CreateOrderDataAsync("INDISPONIVEL");
+        var comandaId = await environment.CreateComandaAsync(orderData.Mesa, orderData.Cliente);
+
+        using var response = await environment.SendUnsafeAsync(
+            HttpMethod.Post,
+            $"/api/comanda/{comandaId}/itens",
+            new
+            {
+                idProduto = orderData.Produto.IdProduto,
+                qtdProduto = 1,
+                precoUnitarioPago = orderData.Produto.PrecoProduto,
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("Produto indisponível", await response.Content.ReadAsStringAsync());
+        Assert.Equal(10, await environment.ReadProductStockAsync(orderData.Produto.IdProduto));
+    }
+
+    [IsolatedSqlServerFact]
+    public async Task Pedido_service_accepts_available_product()
+    {
+        await using var environment = await WorkflowTestEnvironment.CreateAsync();
+        await environment.LoginAsAdminAsync();
+        var orderData = await environment.CreateOrderDataAsync();
+
+        using var response = await environment.SendUnsafeAsync(
+            HttpMethod.Post,
+            "/api/pedidos",
+            CreatePedidoBody(orderData));
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.Equal(8, await environment.ReadProductStockAsync(orderData.Produto.IdProduto));
+    }
+
+    [IsolatedSqlServerFact]
+    public async Task Pedido_service_rejects_unavailable_product_when_creating_order()
+    {
+        await using var environment = await WorkflowTestEnvironment.CreateAsync();
+        await environment.LoginAsAdminAsync();
+        var orderData = await environment.CreateOrderDataAsync("INDISPONIVEL");
+
+        using var response = await environment.SendUnsafeAsync(
+            HttpMethod.Post,
+            "/api/pedidos",
+            CreatePedidoBody(orderData));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("Produto indisponível", await response.Content.ReadAsStringAsync());
+        Assert.Equal(10, await environment.ReadProductStockAsync(orderData.Produto.IdProduto));
+    }
+
+    [IsolatedSqlServerFact]
+    public async Task Pedido_service_rejects_unavailable_product_for_existing_order_and_update()
+    {
+        await using var environment = await WorkflowTestEnvironment.CreateAsync();
+        await environment.LoginAsAdminAsync();
+        var activeOrder = await environment.CreateOrderDataAsync();
+        using var createdResponse = await environment.SendUnsafeAsync(
+            HttpMethod.Post,
+            "/api/pedidos",
+            CreatePedidoBody(activeOrder));
+        Assert.Equal(HttpStatusCode.Created, createdResponse.StatusCode);
+        using var created = JsonDocument.Parse(await createdResponse.Content.ReadAsStringAsync());
+        var comandaId = created.RootElement.GetProperty("dados").GetProperty("idComanda").GetInt32();
+
+        var unavailable = await environment.CreateProductAsync("INDISPONIVEL");
+        using var existingResponse = await environment.SendUnsafeAsync(
+            HttpMethod.Post,
+            "/api/pedidos",
+            new
+            {
+                idMesa = activeOrder.Mesa.IdMesa,
+                idCliente = activeOrder.Cliente.IdCliente,
+                itens = new[]
+                {
+                    new
+                    {
+                        idProduto = unavailable.IdProduto,
+                        qtdProduto = 1,
+                        precoUnitarioPago = unavailable.PrecoProduto,
+                    },
+                },
+            });
+        Assert.Equal(HttpStatusCode.BadRequest, existingResponse.StatusCode);
+        Assert.Equal(10, await environment.ReadProductStockAsync(unavailable.IdProduto));
+
+        using var updateResponse = await environment.SendUnsafeAsync(
+            HttpMethod.Put,
+            $"/api/pedidos/{comandaId}",
+            new
+            {
+                idMesa = activeOrder.Mesa.IdMesa,
+                idCliente = activeOrder.Cliente.IdCliente,
+                itens = new[]
+                {
+                    new
+                    {
+                        idProduto = unavailable.IdProduto,
+                        qtdProduto = 1,
+                        precoUnitarioPago = unavailable.PrecoProduto,
+                    },
+                },
+            });
+        Assert.Equal(HttpStatusCode.BadRequest, updateResponse.StatusCode);
+        Assert.Equal(10, await environment.ReadProductStockAsync(unavailable.IdProduto));
+        Assert.Equal(8, await environment.ReadProductStockAsync(activeOrder.Produto.IdProduto));
+    }
+
+    [IsolatedSqlServerFact]
     public async Task Reservation_operation_is_visible_in_admin_audit_log()
     {
         await using var environment = await WorkflowTestEnvironment.CreateAsync();
@@ -197,6 +332,21 @@ public sealed class WorkflowIntegrationTests
             logs.RootElement.GetProperty("dados").EnumerateArray(),
             entry => entry.GetProperty("descricaoLog").GetString()?.Contains(marker) == true);
     }
+
+    private static object CreatePedidoBody(WorkflowTestEnvironment.OrderData orderData) => new
+    {
+        idMesa = orderData.Mesa.IdMesa,
+        idCliente = orderData.Cliente.IdCliente,
+        itens = new[]
+        {
+            new
+            {
+                idProduto = orderData.Produto.IdProduto,
+                qtdProduto = 2,
+                precoUnitarioPago = orderData.Produto.PrecoProduto,
+            },
+        },
+    };
 
     private sealed class WorkflowTestEnvironment : IAsyncDisposable
     {
@@ -386,7 +536,7 @@ public sealed class WorkflowIntegrationTests
 
         internal Task<string> GetCsrfTokenForTestAsync() => GetCsrfTokenAsync();
 
-        internal async Task<OrderData> CreateOrderDataAsync()
+        internal async Task<OrderData> CreateOrderDataAsync(string productStatus = "DISPONIVEL")
         {
             await using var context = CreateContext();
             var mesa = new Mesa
@@ -402,7 +552,7 @@ public sealed class WorkflowIntegrationTests
                 PrecoProduto = 17.50m,
                 QtdEstoque = 10,
                 EstoqueMinimo = 1,
-                StatusProduto = "DISPONIVEL",
+                StatusProduto = productStatus,
                 CategoriaProduto = "PRINCIPAL",
             };
             context.AddRange(mesa, cliente, produto);
@@ -411,6 +561,37 @@ public sealed class WorkflowIntegrationTests
                 .AsNoTracking()
                 .FirstAsync(forma => forma.NomeFormaPagamento == "PIX");
             return new OrderData(mesa, cliente, produto, formaPagamento);
+        }
+
+        internal async Task<Produto> CreateProductAsync(string status)
+        {
+            var produto = new Produto
+            {
+                NomeProduto = $"Produto-{Guid.NewGuid():N}"[..40],
+                PrecoProduto = 17.50m,
+                QtdEstoque = 10,
+                EstoqueMinimo = 1,
+                StatusProduto = status,
+                CategoriaProduto = "PRINCIPAL",
+            };
+            await using var context = CreateContext();
+            context.Produtos.Add(produto);
+            await context.SaveChangesAsync();
+            return produto;
+        }
+
+        internal Task<int> CreateComandaAsync(Mesa mesa, Cliente cliente) =>
+            CreateComandaAsyncCore(mesa.IdMesa, cliente.IdCliente);
+
+        private async Task<int> CreateComandaAsyncCore(int mesaId, int clienteId)
+        {
+            using var response = await SendUnsafeAsync(
+                HttpMethod.Post,
+                "/api/comanda",
+                new { idMesa = mesaId, idCliente = clienteId });
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            return json.RootElement.GetProperty("idComanda").GetInt32();
         }
 
         internal async Task<decimal> ReadComandaTotalAsync(int comandaId)

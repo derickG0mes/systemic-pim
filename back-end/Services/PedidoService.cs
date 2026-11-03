@@ -128,6 +128,16 @@ public sealed class PedidoService : IPedidoService
                     });
                 }
 
+                if (!string.Equals(produto.StatusProduto, "DISPONIVEL", StringComparison.OrdinalIgnoreCase))
+                {
+                    return ApiServiceResults.BadRequest(new RespostaPadraoDTO
+                    {
+                        Sucesso = false,
+                        Mensagem = $"Produto indisponível: {produto.NomeProduto}",
+                        CodigoErro = "PRODUTO_INDISPONIVEL"
+                    });
+                }
+
                 // Validar estoque
                 if (produto.QtdEstoque < itemDTO.QtdProduto)
                 {
@@ -219,6 +229,16 @@ public sealed class PedidoService : IPedidoService
                 });
             }
 
+            if (!string.Equals(produto.StatusProduto, "DISPONIVEL", StringComparison.OrdinalIgnoreCase))
+            {
+                return ApiServiceResults.BadRequest(new RespostaPadraoDTO
+                {
+                    Sucesso = false,
+                    Mensagem = $"Produto indisponível: {produto.NomeProduto}",
+                    CodigoErro = "PRODUTO_INDISPONIVEL"
+                });
+            }
+
             // Validar estoque
             if (produto.QtdEstoque < itemDTO.QtdProduto)
             {
@@ -298,6 +318,9 @@ public sealed class PedidoService : IPedidoService
             var produto = await _context.Produtos.FindAsync(itemDTO.IdProduto);
             if (produto == null)
                 return ApiServiceResults.BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = $"Produto {itemDTO.IdProduto} não encontrado" });
+
+            if (!string.Equals(produto.StatusProduto, "DISPONIVEL", StringComparison.OrdinalIgnoreCase))
+                return ApiServiceResults.BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = $"Produto indisponível: {produto.NomeProduto}", CodigoErro = "PRODUTO_INDISPONIVEL" });
 
             if (produto.QtdEstoque < itemDTO.QtdProduto)
                 return ApiServiceResults.BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = $"Estoque insuficiente para {produto.NomeProduto}" });
