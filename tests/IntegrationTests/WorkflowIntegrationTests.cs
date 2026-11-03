@@ -1184,7 +1184,7 @@ public sealed class WorkflowIntegrationTests
 
     private sealed class WorkflowTestEnvironment : IAsyncDisposable
     {
-        private const string JwtSecret = "integration-test-jwt-signing-key-with-at-least-32-characters";
+        private static readonly string JwtSecret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
         private readonly string _databaseName;
         private readonly string _adminEmail;
         private readonly string _adminPassword;
