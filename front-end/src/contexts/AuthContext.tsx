@@ -37,8 +37,8 @@ function getStoredUserDetails(): Pick<User, "email" | "position"> {
       position:
         typeof user?.position === "string" ? user.position : "Funcionário",
     };
-  } catch (error) {
-    console.error("Não foi possível ler os dados locais do perfil:", error);
+  } catch {
+    console.error("Não foi possível ler os dados locais do perfil.");
     localStorage.removeItem("restaurant_user");
     return { email: "", position: "Funcionário" };
   }
@@ -81,9 +81,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem("restaurant_user", JSON.stringify(userData));
         window.dispatchEvent(new Event("authSessionChanged"));
       })
-      .catch((error: unknown) => {
+      .catch(() => {
         if (!active || validationVersion !== sessionVersion.current) return;
-        console.error("Não foi possível validar a sessão no servidor:", error);
+        console.error("Não foi possível validar a sessão no servidor.");
         setUser(null);
         localStorage.removeItem("restaurant_user");
         window.dispatchEvent(new Event("authSessionChanged"));
@@ -104,8 +104,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setAuthReady(true);
     localStorage.removeItem("restaurant_user");
-    void logoutAPI().catch((error: unknown) => {
-      console.error("Não foi possível encerrar a sessão no servidor:", error);
+    void logoutAPI().catch(() => {
+      console.error("Não foi possível encerrar a sessão no servidor.");
     });
     window.dispatchEvent(new Event("authSessionChanged"));
   }, []);

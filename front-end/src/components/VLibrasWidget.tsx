@@ -98,13 +98,13 @@ export default function VLibrasWidget() {
           new window.VLibras.Widget("https://vlibras.gov.br/app");
           initializedRef.current = true;
           window.__systemicVLibrasInitialized = true;
-        } catch (error) {
-          console.error("[VLibras] Falha ao inicializar:", error);
+        } catch {
+          console.error("[VLibras] Falha ao inicializar.");
           if (active) setUnavailable(true);
         }
       })
-      .catch((error: unknown) => {
-        console.error("[VLibras] Falha ao carregar o serviço:", error);
+      .catch(() => {
+        console.error("[VLibras] Falha ao carregar o serviço.");
         if (active) setUnavailable(true);
       });
 

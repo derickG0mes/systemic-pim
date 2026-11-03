@@ -113,7 +113,7 @@ async function apiCall(endpoint: string, options: RequestInit = {}) {
     const err = new Error(
       `[API] ${endpoint} → ${response.status} ${response.statusText}${detail ? `: ${detail}` : ""}`,
     );
-    console.error(err.message);
+    console.error("[API] Request failed.", response.status);
     throw err;
   }
 
@@ -123,7 +123,7 @@ async function apiCall(endpoint: string, options: RequestInit = {}) {
     return JSON.parse(text);
   } catch {
     const err = new Error(`[API] ${endpoint} — resposta inválida (JSON)`);
-    console.error(err.message, text);
+    console.error("[API] Response was not valid JSON.", response.status);
     throw err;
   }
 }
@@ -265,13 +265,10 @@ export async function ajustarEstoque(
 // ============================================
 
 export async function createPedido<T extends object>(data: T) {
-  console.log("[API] POST /pedidos - Enviando:", data);
-  const response = await apiCall("/pedidos", {
+  return apiCall("/pedidos", {
     method: "POST",
     body: JSON.stringify(data),
   });
-  console.log("[API] POST /pedidos - Resposta:", response);
-  return response;
 }
 
 export async function updatePedido<T extends object>(id: string, data: T) {
@@ -305,10 +302,7 @@ export async function getMesas() {
 // ============================================
 
 export async function getComandas() {
-  console.log("[API] GET /comanda");
-  const response = await apiCall("/comanda");
-  console.log("[API] GET /comanda - Resposta:", response);
-  return response;
+  return apiCall("/comanda");
 }
 
 export async function getLogSistema(pagina = 1, tamanho = 100, filtro = "") {

@@ -64,9 +64,9 @@ export function useSignalR(
           return;
         }
         setConnected(true);
-      } catch (error) {
+      } catch {
         setConnected(false);
-        console.error("Erro ao conectar SignalR:", error);
+        console.error("Erro ao conectar SignalR.");
         scheduleRetry();
       }
     };
