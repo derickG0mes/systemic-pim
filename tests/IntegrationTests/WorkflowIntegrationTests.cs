@@ -377,6 +377,65 @@ public sealed class WorkflowIntegrationTests
     }
 
     [IsolatedSqlServerFact]
+    public async Task Api_responses_include_security_headers()
+    {
+        await using var environment = await WorkflowTestEnvironment.CreateAsync();
+        using var response = await environment.Client.GetAsync("/api/healthcheck");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("nosniff", response.Headers.GetValues("X-Content-Type-Options").Single());
+        Assert.Equal("DENY", response.Headers.GetValues("X-Frame-Options").Single());
+        Assert.Equal("no-referrer", response.Headers.GetValues("Referrer-Policy").Single());
+        Assert.Equal(
+            "default-src 'none'; frame-ancestors 'none'",
+            response.Headers.GetValues("Content-Security-Policy").Single());
+        Assert.False(response.Headers.Contains("Strict-Transport-Security"));
+    }
+
+    [IsolatedSqlServerFact]
+    public async Task Login_rate_limit_returns_429_and_retry_after()
+    {
+        await using var environment = await WorkflowTestEnvironment.CreateAsync(loginPermitLimit: 2);
+        Assert.Equal("2", environment.GetConfigurationValueForTest("LOGIN_RATE_LIMIT_PER_MINUTE"));
+        var csrfToken = await environment.GetCsrfTokenForTestAsync();
+
+        using var first = await environment.SendLoginAsync(
+            csrfToken,
+            $"missing-{Guid.NewGuid():N}@systemic.test",
+            "senha-incorreta");
+        using var second = await environment.SendLoginAsync(
+            csrfToken,
+            $"missing-{Guid.NewGuid():N}@systemic.test",
+            "senha-incorreta");
+        using var limited = await environment.SendLoginAsync(
+            csrfToken,
+            $"missing-{Guid.NewGuid():N}@systemic.test",
+            "senha-incorreta");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, second.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.True(limited.Headers.TryGetValues("Retry-After", out var retryValues));
+        Assert.True(int.TryParse(retryValues.Single(), out var retryAfter));
+        Assert.True(retryAfter > 0);
+    }
+
+    [IsolatedSqlServerFact]
+    public async Task Production_antiforgery_cookie_is_secure()
+    {
+        await using var environment = await WorkflowTestEnvironment.CreateAsync(
+            environmentName: "Production",
+            antiforgeryCookieSecurePolicy: "Always",
+            useHttps: true);
+        using var response = await environment.Client.GetAsync("/api/autenticacao/csrf");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var csrfCookie = response.Headers.GetValues("Set-Cookie")
+            .Single(value => value.StartsWith("systemic_csrf=", StringComparison.Ordinal));
+        Assert.Contains("secure", csrfCookie, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [IsolatedSqlServerFact]
     public async Task Oversized_name_fields_return_400_with_field_specific_validation()
     {
         await using var environment = await WorkflowTestEnvironment.CreateAsync();
@@ -504,6 +563,7 @@ public sealed class WorkflowIntegrationTests
         private readonly string _adminEmail;
         private readonly string _adminPassword;
         private readonly string? _previousJwtSecret;
+        private readonly string? _previousLoginRateLimit;
         private string? _adminToken;
         private readonly SqlConnectionStringBuilder _serverConnectionString;
         private readonly string _databaseConnectionString;
@@ -514,28 +574,38 @@ public sealed class WorkflowIntegrationTests
             string adminEmail,
             string adminPassword,
             string? previousJwtSecret,
+            string? previousLoginRateLimit,
             SqlConnectionStringBuilder serverConnectionString,
             string databaseConnectionString,
-            WebApplicationFactory<Program> factory)
+            WebApplicationFactory<Program> factory,
+            bool useHttps)
         {
             _databaseName = databaseName;
             _adminEmail = adminEmail;
             _adminPassword = adminPassword;
             _previousJwtSecret = previousJwtSecret;
+            _previousLoginRateLimit = previousLoginRateLimit;
             _serverConnectionString = serverConnectionString;
             _databaseConnectionString = databaseConnectionString;
             _factory = factory;
             Client = factory.CreateClient(new WebApplicationFactoryClientOptions
             {
                 HandleCookies = true,
+                BaseAddress = new Uri(useHttps ? "https://localhost" : "http://localhost"),
             });
         }
 
         internal HttpClient Client { get; }
+        internal string? GetConfigurationValueForTest(string key) =>
+            _factory.Services.GetRequiredService<IConfiguration>()[key];
         internal string AdminEmailForTest => _adminEmail;
         internal string AdminPasswordForTest => _adminPassword;
 
-        internal static async Task<WorkflowTestEnvironment> CreateAsync()
+        internal static async Task<WorkflowTestEnvironment> CreateAsync(
+            int? loginPermitLimit = null,
+            string environmentName = "Development",
+            string? antiforgeryCookieSecurePolicy = null,
+            bool useHttps = false)
         {
             var configuredConnectionString = Environment.GetEnvironmentVariable(
                 "INTEGRATION_TEST_SQL_CONNECTION_STRING");
@@ -561,6 +631,7 @@ public sealed class WorkflowIntegrationTests
             var adminEmail = $"admin-{Guid.NewGuid():N}@systemic.test";
             var adminPassword = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
             var previousJwtSecret = Environment.GetEnvironmentVariable("JWT_SECRET_KEY");
+            var previousLoginRateLimit = Environment.GetEnvironmentVariable("LOGIN_RATE_LIMIT_PER_MINUTE");
 
             await using (var connection = new SqlConnection(serverConnectionString.ConnectionString))
             {
@@ -575,15 +646,26 @@ public sealed class WorkflowIntegrationTests
             {
                 await ApplyDatabaseScriptsAsync(serverConnectionString, databaseName);
                 Environment.SetEnvironmentVariable("JWT_SECRET_KEY", JwtSecret);
+                if (loginPermitLimit.HasValue)
+                    Environment.SetEnvironmentVariable(
+                        "LOGIN_RATE_LIMIT_PER_MINUTE",
+                        loginPermitLimit.Value.ToString());
 
                 var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
                 {
-                    builder.UseEnvironment("Development");
+                    builder.UseEnvironment(environmentName);
                     builder.ConfigureAppConfiguration((_, configuration) =>
-                        configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        var settings = new Dictionary<string, string?>
                         {
                             ["Jwt:SecretKey"] = JwtSecret,
-                        }));
+                        };
+                        if (loginPermitLimit.HasValue)
+                            settings["LOGIN_RATE_LIMIT_PER_MINUTE"] = loginPermitLimit.Value.ToString();
+                        if (antiforgeryCookieSecurePolicy is not null)
+                            settings["ANTIFORGERY_COOKIE_SECURE_POLICY"] = antiforgeryCookieSecurePolicy;
+                        configuration.AddInMemoryCollection(settings);
+                    });
                     builder.ConfigureServices(services =>
                     {
                         services.RemoveAll<DbContextOptions<AppDbContext>>();
@@ -598,9 +680,11 @@ public sealed class WorkflowIntegrationTests
                     adminEmail,
                     adminPassword,
                     previousJwtSecret,
+                    previousLoginRateLimit,
                     serverConnectionString,
                     databaseConnectionString,
-                    factory);
+                    factory,
+                    useHttps);
                 await environment.CreateAdminAsync();
                 return environment;
             }
@@ -613,6 +697,7 @@ public sealed class WorkflowIntegrationTests
                 else
                 {
                     Environment.SetEnvironmentVariable("JWT_SECRET_KEY", previousJwtSecret);
+                    Environment.SetEnvironmentVariable("LOGIN_RATE_LIMIT_PER_MINUTE", previousLoginRateLimit);
                     await DropDatabaseAsync(serverConnectionString, databaseName);
                 }
                 throw;
@@ -806,6 +891,7 @@ public sealed class WorkflowIntegrationTests
             await _factory.DisposeAsync();
             await DropDatabaseAsync(_serverConnectionString, _databaseName);
             Environment.SetEnvironmentVariable("JWT_SECRET_KEY", _previousJwtSecret);
+            Environment.SetEnvironmentVariable("LOGIN_RATE_LIMIT_PER_MINUTE", _previousLoginRateLimit);
         }
 
         private async Task CreateAdminAsync()

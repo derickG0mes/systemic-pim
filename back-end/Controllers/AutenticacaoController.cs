@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.RateLimiting;
 using PIM3.API.DTOs;
 using PIM3.API.Services;
 
@@ -50,6 +51,7 @@ public class AutenticacaoController : ControllerBase
     /// </summary>
     [HttpPost("login")]
     [AllowAnonymous]
+    [EnableRateLimiting("login")]
     public Task<IActionResult> Login([FromBody] LoginDTO loginDTO) =>
         _autenticacaoService.Login(loginDTO, Response);
 

@@ -23,8 +23,8 @@ docker compose up --build
 ```
 
 O Compose executa SQL Server, `db-init`, API e front-end. `db-init` aguarda o
-SQL Server e executa `01-create-database-idempotent.sql` e
-`02-procedures-views.sql` antes da API. Os volumes `sqlserver_data` e
+SQL Server e executa `01-create-database-idempotent.sql`,
+`02-procedures-views.sql` e `03-constraints.sql` antes da API. Os volumes `sqlserver_data` e
 `backup_data` persistem o banco e os arquivos de backup, respectivamente.
 `BACKUP_PATH` usa `/app/backups` por padrão; se substituído, deve apontar para
 um caminho absoluto dentro do container.
@@ -137,6 +137,21 @@ protocolo encaminhado. A API processa um salto de `X-Forwarded-For` e
 Development, a inicialização termina com código 1 e mensagem explícita se
 `JWT_SECRET_KEY` estiver ausente, tiver menos de 32 caracteres ou for um
 placeholder conhecido.
+
+O cookie antiforgery usa `ANTIFORGERY_COOKIE_SECURE_POLICY=SameAsRequest` no
+Compose local para funcionar com HTTP; fora do Compose, o padrão é `Always`
+quando o ambiente não é Development e `SameAsRequest` em Development.
+Em produção, defina explicitamente `ANTIFORGERY_COOKIE_SECURE_POLICY=Always`.
+Valores diferentes de `Always` e `SameAsRequest` impedem a inicialização.
+
+A API limita cada IP a 60 requisições de login por minuto e a 600 requisições
+globais por minuto por padrão. Ajuste `LOGIN_RATE_LIMIT_PER_MINUTE` e
+`GLOBAL_RATE_LIMIT_PER_MINUTE` para inteiros positivos conforme a carga; zero
+ou valor inválido impede a inicialização. Rejeições retornam HTTP 429 e
+`Retry-After`. A política de login também limita `POST /api/funcionario/login`.
+Os headers de hardening são aplicados às respostas; CSP estrita limita-se a
+`/api` para não bloquear a interface Swagger em Development, e HSTS só é
+enviado em HTTPS fora de Development.
 
 O Nginx define CSP com conexão para a API na porta 5050 e WebSocket do
 SignalR, e permite scripts, frames e recursos do VLibras. Também envia
