@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Headers;
@@ -39,7 +40,7 @@ public sealed class BackupIntegrityIntegrationTests
     }
 
     [SqlServerFact]
-    public async Task Restore_rejects_tampered_backup_without_changing_database()
+    public async Task Restore_rejects_single_byte_tampered_backup_without_changing_database()
     {
         await using var environment = await BackupTestEnvironment.CreateAsync();
         await environment.InitializeDatabaseAsync();
@@ -47,46 +48,115 @@ public sealed class BackupIntegrityIntegrationTests
 
         var archive = await environment.GenerateAndDownloadBackupAsync();
         await environment.SetProductStockAsync(stock: 1);
-        var tamperedArchive = TamperSqlEntry(archive);
+        var tamperedArchive = TamperSingleArchiveByte(archive);
 
         using var response = await environment.RestoreAsync(tamperedArchive);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await environment.ReadProductStockAsync()).Should().Be(1);
+        archive.Zip(tamperedArchive)
+            .Count(pair => pair.First != pair.Second)
+            .Should().Be(1);
     }
 
-    private static byte[] TamperSqlEntry(byte[] archiveBytes)
+    private static byte[] TamperSingleArchiveByte(byte[] archiveBytes)
     {
-        using var input = new MemoryStream(archiveBytes);
-        using var sourceArchive = new ZipArchive(input, ZipArchiveMode.Read);
-        using var output = new MemoryStream();
-        using (var targetArchive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
+        const string signatureEntryName = "backup_hmac.sha256";
+        var originalSignature = ReadArchiveEntry(archiveBytes, signatureEntryName);
+        var endOfCentralDirectoryOffset = FindEndOfCentralDirectory(archiveBytes);
+        var entryCount = BinaryPrimitives.ReadUInt16LittleEndian(
+            archiveBytes.AsSpan(endOfCentralDirectoryOffset + 10, sizeof(ushort)));
+        var centralDirectoryOffset = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(
+            archiveBytes.AsSpan(endOfCentralDirectoryOffset + 16, sizeof(uint))));
+        var entryOffset = centralDirectoryOffset;
+        var signatureDataOffset = -1;
+        var signatureCompressedLength = 0;
+
+        for (var entryIndex = 0; entryIndex < entryCount; entryIndex++)
         {
-            foreach (var sourceEntry in sourceArchive.Entries)
+            if (BinaryPrimitives.ReadUInt32LittleEndian(archiveBytes.AsSpan(entryOffset, sizeof(uint)))
+                != 0x02014b50)
             {
-                var targetEntry = targetArchive.CreateEntry(
-                    sourceEntry.FullName,
-                    CompressionLevel.Optimal);
-                if (sourceEntry.FullName.EndsWith('/') || sourceEntry.FullName.EndsWith('\\'))
-                    continue;
+                throw new InvalidDataException("The generated ZIP has an invalid central directory.");
+            }
 
-                using var source = sourceEntry.Open();
-                using var content = new MemoryStream();
-                source.CopyTo(content);
-                if (Path.GetExtension(sourceEntry.FullName).Equals(
-                        ".sql",
-                        StringComparison.OrdinalIgnoreCase))
+            var compressedLength = BinaryPrimitives.ReadUInt32LittleEndian(
+                archiveBytes.AsSpan(entryOffset + 20, sizeof(uint)));
+            var fileNameLength = BinaryPrimitives.ReadUInt16LittleEndian(
+                archiveBytes.AsSpan(entryOffset + 28, sizeof(ushort)));
+            var extraFieldLength = BinaryPrimitives.ReadUInt16LittleEndian(
+                archiveBytes.AsSpan(entryOffset + 30, sizeof(ushort)));
+            var commentLength = BinaryPrimitives.ReadUInt16LittleEndian(
+                archiveBytes.AsSpan(entryOffset + 32, sizeof(ushort)));
+            var fileName = Encoding.UTF8.GetString(archiveBytes, entryOffset + 46, fileNameLength);
+
+            if (string.Equals(fileName, signatureEntryName, StringComparison.Ordinal)
+                && compressedLength > 0)
+            {
+                var localHeaderOffset = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(
+                    archiveBytes.AsSpan(entryOffset + 42, sizeof(uint))));
+                var localFileNameLength = BinaryPrimitives.ReadUInt16LittleEndian(
+                    archiveBytes.AsSpan(localHeaderOffset + 26, sizeof(ushort)));
+                var localExtraFieldLength = BinaryPrimitives.ReadUInt16LittleEndian(
+                    archiveBytes.AsSpan(localHeaderOffset + 28, sizeof(ushort)));
+                signatureDataOffset = checked(localHeaderOffset + 30 + localFileNameLength + localExtraFieldLength);
+                signatureCompressedLength = checked((int)compressedLength);
+                break;
+            }
+
+            entryOffset = checked(entryOffset + 46 + fileNameLength + extraFieldLength + commentLength);
+        }
+
+        if (signatureDataOffset < 0)
+            throw new InvalidOperationException("The generated ZIP contains no non-empty signature entry.");
+
+        for (var offset = signatureDataOffset + signatureCompressedLength - 1;
+             offset >= signatureDataOffset;
+             offset--)
+        {
+            for (var bit = 1; bit <= 0x80; bit <<= 1)
+            {
+                var candidate = archiveBytes.ToArray();
+                candidate[offset] ^= (byte)bit;
+                try
                 {
-                    content.Write(Encoding.UTF8.GetBytes("\n-- adulterado"));
+                    if (!ReadArchiveEntry(candidate, signatureEntryName).SequenceEqual(originalSignature))
+                        return candidate;
                 }
-
-                content.Position = 0;
-                using var target = targetEntry.Open();
-                content.CopyTo(target);
+                catch (InvalidDataException)
+                {
+                    return candidate;
+                }
             }
         }
 
-        return output.ToArray();
+        throw new InvalidOperationException("Could not find a one-byte mutation that changes the signature entry.");
+    }
+
+    private static byte[] ReadArchiveEntry(byte[] archiveBytes, string entryName)
+    {
+        using var input = new MemoryStream(archiveBytes, writable: false);
+        using var archive = new ZipArchive(input, ZipArchiveMode.Read);
+        using var entryStream = archive.GetEntry(entryName)?.Open()
+            ?? throw new InvalidDataException($"The generated ZIP is missing {entryName}.");
+        using var content = new MemoryStream();
+        entryStream.CopyTo(content);
+        return content.ToArray();
+    }
+
+    private static int FindEndOfCentralDirectory(byte[] archiveBytes)
+    {
+        var earliestOffset = Math.Max(0, archiveBytes.Length - 65_557);
+        for (var offset = archiveBytes.Length - 22; offset >= earliestOffset; offset--)
+        {
+            if (BinaryPrimitives.ReadUInt32LittleEndian(archiveBytes.AsSpan(offset, sizeof(uint)))
+                == 0x06054b50)
+            {
+                return offset;
+            }
+        }
+
+        throw new InvalidDataException("The generated ZIP has no end-of-central-directory record.");
     }
 
     private sealed class BackupTestEnvironment : IAsyncDisposable

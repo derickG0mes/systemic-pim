@@ -41,17 +41,12 @@ public sealed class ReservaService : IReservaService
         if (string.IsNullOrWhiteSpace(dto.NomeCliente))
             return ApiServiceResults.BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Nome do cliente é obrigatório." });
 
+        if (dto.DataReserva <= DateTime.UtcNow)
+            return ApiServiceResults.BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "A data da reserva deve ser futura." });
+
         var mesa = await _context.Mesas.FirstOrDefaultAsync(m => m.NumeroMesa == dto.NumeroMesa || m.IdMesa == dto.NumeroMesa);
         if (mesa == null)
             return ApiServiceResults.BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = $"Mesa {dto.NumeroMesa} não existe." });
-
-        var cliente = await _context.Clientes.FirstOrDefaultAsync(c => c.NomeCliente == dto.NomeCliente.Trim());
-        if (cliente == null)
-        {
-            cliente = new Cliente { NomeCliente = dto.NomeCliente.Trim() };
-            _context.Clientes.Add(cliente);
-            await _context.SaveChangesAsync();
-        }
 
         var conflito = await _context.Reservas.AnyAsync(r =>
             r.IdMesa == mesa.IdMesa &&
@@ -61,6 +56,14 @@ public sealed class ReservaService : IReservaService
 
         if (conflito)
             return ApiServiceResults.BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "A mesa já está reservada para este horário." });
+
+        var cliente = await _context.Clientes.FirstOrDefaultAsync(c => c.NomeCliente == dto.NomeCliente.Trim());
+        if (cliente == null)
+        {
+            cliente = new Cliente { NomeCliente = dto.NomeCliente.Trim() };
+            _context.Clientes.Add(cliente);
+            await _context.SaveChangesAsync();
+        }
 
         var reserva = new Reserva
         {

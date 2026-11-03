@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
 using PIM3.API.DTOs;
 using PIM3.API.Models;
@@ -34,8 +35,18 @@ public sealed class ClienteService : IClienteService
         if (string.IsNullOrEmpty(cliente.NomeCliente))
             return ApiServiceResults.BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Nome do cliente é obrigatório" });
 
+        if (HasDuplicatePhone(cliente.TelefoneCliente))
+            return DuplicatePhoneResult();
+
         _context.Clientes.Add(cliente);
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException exception) when (SqlServerExceptionHelper.IsUniqueConstraintViolation(exception))
+        {
+            return DuplicatePhoneResult();
+        }
 
         return ApiServiceResults.CreatedAtAction("GetById", new { id = cliente.IdCliente }, new RespostaPadraoDTO { Sucesso = true, Mensagem = "Cliente criado com sucesso", Dados = cliente });
     }
@@ -46,12 +57,27 @@ public sealed class ClienteService : IClienteService
         if (cliente == null)
             return ApiServiceResults.NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Cliente não encontrado" });
 
+        if (!string.IsNullOrWhiteSpace(clienteAtualizado.TelefoneCliente)
+            && _context.Clientes.Any(c =>
+                c.IdCliente != id
+                && c.TelefoneCliente == clienteAtualizado.TelefoneCliente))
+        {
+            return DuplicatePhoneResult();
+        }
+
         cliente.NomeCliente = clienteAtualizado.NomeCliente;
         cliente.TelefoneCliente = clienteAtualizado.TelefoneCliente;
         cliente.Feedback = clienteAtualizado.Feedback;
 
         _context.Clientes.Update(cliente);
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException exception) when (SqlServerExceptionHelper.IsUniqueConstraintViolation(exception))
+        {
+            return DuplicatePhoneResult();
+        }
 
         return ApiServiceResults.Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Cliente atualizado", Dados = cliente });
     }
@@ -67,4 +93,15 @@ public sealed class ClienteService : IClienteService
 
         return ApiServiceResults.Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Cliente deletado com sucesso" });
     }
+
+    private bool HasDuplicatePhone(string? phone) =>
+        !string.IsNullOrWhiteSpace(phone)
+        && _context.Clientes.Any(cliente => cliente.TelefoneCliente == phone);
+
+    private static IActionResult DuplicatePhoneResult() =>
+        ApiServiceResults.Conflict(new RespostaPadraoDTO
+        {
+            Sucesso = false,
+            Mensagem = "Telefone do cliente já cadastrado."
+        });
 }

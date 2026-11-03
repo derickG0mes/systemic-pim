@@ -11,15 +11,18 @@ public sealed class AutenticacaoService : IAutenticacaoService
     private readonly AppDbContext _context;
     private readonly JwtService _jwtService;
     private readonly ILogger<AutenticacaoService> _logger;
+    private readonly TimeProvider _timeProvider;
 
     public AutenticacaoService(
         AppDbContext context,
         JwtService jwtService,
-        ILogger<AutenticacaoService> logger)
+        ILogger<AutenticacaoService> logger,
+        TimeProvider timeProvider)
     {
         _context = context;
         _jwtService = jwtService;
         _logger = logger;
+        _timeProvider = timeProvider;
     }
 
     internal static IActionResult InvalidCredentialsResult() =>
@@ -32,6 +35,7 @@ public sealed class AutenticacaoService : IAutenticacaoService
 
     public async Task<IActionResult> Login(LoginDTO loginDTO, HttpResponse response)
     {
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
         if (string.IsNullOrWhiteSpace(loginDTO.Email) || string.IsNullOrWhiteSpace(loginDTO.Senha))
         {
             return ApiServiceResults.BadRequest(new RespostaPadraoDTO
@@ -52,7 +56,7 @@ public sealed class AutenticacaoService : IAutenticacaoService
             return InvalidCredentialsResult();
         }
 
-        if (funcionario.LockedUntil.HasValue && funcionario.LockedUntil > DateTime.UtcNow)
+        if (funcionario.LockedUntil.HasValue && funcionario.LockedUntil > now)
         {
             PasswordHashService.VerifyDummyPassword(loginDTO.Senha);
             _logger.LogWarning("Login rejected because the account is locked.");
@@ -69,7 +73,7 @@ public sealed class AutenticacaoService : IAutenticacaoService
 
             if (funcionario.LoginAttempts >= LoginLockoutPolicy.MaxAttempts)
             {
-                funcionario.LockedUntil = DateTime.UtcNow.AddMinutes(LoginLockoutPolicy.DurationMinutes);
+                funcionario.LockedUntil = now.AddMinutes(LoginLockoutPolicy.DurationMinutes);
             }
 
             await _context.SaveChangesAsync();
