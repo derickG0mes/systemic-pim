@@ -42,6 +42,38 @@ async function openAccessibilityPage(page: Page) {
   await expect(page.getByRole("heading", { name: "Acessibilidade" })).toBeVisible();
 }
 
+async function getContrastRatios(page: Page) {
+  return page.evaluate(() => {
+    const luminance = (color: string) => {
+      const channels = color.match(/[\d.]+/g)?.slice(0, 3).map(Number);
+      if (!channels || channels.length !== 3) throw new Error("Expected an RGB color.");
+      const linear = channels.map((channel) => {
+        const value = channel / 255;
+        return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+      });
+      return linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
+    };
+    const contrast = (foreground: string, background: string) => {
+      const foregroundLuminance = luminance(foreground);
+      const backgroundLuminance = luminance(background);
+      return (Math.max(foregroundLuminance, backgroundLuminance) + 0.05) /
+        (Math.min(foregroundLuminance, backgroundLuminance) + 0.05);
+    };
+    const body = getComputedStyle(document.body);
+    const highContrastButton = document.querySelector(
+      'button[aria-label="Tema alto contraste"]',
+    );
+    if (!(highContrastButton instanceof HTMLElement)) {
+      throw new Error("High contrast theme control was not found.");
+    }
+    const buttonStyle = getComputedStyle(highContrastButton);
+    return {
+      bodyText: contrast(body.color, body.backgroundColor),
+      primaryButton: contrast(buttonStyle.color, buttonStyle.backgroundColor),
+    };
+  });
+}
+
 test("controle de fonte percorre quatro níveis, anuncia e persiste", async ({ page }) => {
   await openAccessibilityPage(page);
   const currentSize = page.getByLabel("Tamanho atual da fonte");
@@ -90,37 +122,10 @@ test("seletor de tema persiste claro, escuro e alto contraste com razão mínima
   await expect(highContrastTheme).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator('p[role="status"]')).toHaveText("Tema alto contraste ativado.");
 
-  const ratios = await page.evaluate(() => {
-    const luminance = (color: string) => {
-      const channels = color.match(/[\d.]+/g)?.slice(0, 3).map(Number);
-      if (!channels || channels.length !== 3) throw new Error("Expected an RGB color.");
-      const linear = channels.map((channel) => {
-        const value = channel / 255;
-        return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
-      });
-      return linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
-    };
-    const contrast = (foreground: string, background: string) => {
-      const foregroundLuminance = luminance(foreground);
-      const backgroundLuminance = luminance(background);
-      return (Math.max(foregroundLuminance, backgroundLuminance) + 0.05) /
-        (Math.min(foregroundLuminance, backgroundLuminance) + 0.05);
-    };
-    const body = getComputedStyle(document.body);
-    const highContrastButton = document.querySelector(
-      'button[aria-label="Tema alto contraste"]',
-    );
-    if (!(highContrastButton instanceof HTMLElement)) {
-      throw new Error("High contrast theme control was not found.");
-    }
-    const buttonStyle = getComputedStyle(highContrastButton);
-    return {
-      bodyText: contrast(body.color, body.backgroundColor),
-      primaryButton: contrast(buttonStyle.color, buttonStyle.backgroundColor),
-    };
-  });
+  await expect.poll(async () => (await getContrastRatios(page)).primaryButton)
+    .toBeGreaterThanOrEqual(7);
+  const ratios = await getContrastRatios(page);
   expect(ratios.bodyText).toBeGreaterThanOrEqual(7);
-  expect(ratios.primaryButton).toBeGreaterThanOrEqual(7);
 
   await expect.poll(() => page.evaluate(() => localStorage.getItem("systemic:accessibility:theme")))
     .toBe("high-contrast");

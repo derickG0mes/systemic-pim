@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using PIM3.API.Controllers;
@@ -16,6 +17,10 @@ public class HealthCheckControllerTests
         var controller = new HealthCheckController(
             databaseHealthService,
             NullLogger<HealthCheckController>.Instance);
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext(),
+        };
 
         var result = Assert.IsType<OkObjectResult>(controller.HealthCheck());
         var response = Assert.IsType<RespostaPadraoDTO>(result.Value);

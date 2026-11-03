@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Verificação adversarial do Systemic PIM</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f3f6fa;
+      --panel: #fff;
+      --panel-2: #f8fafc;
+      --text: #192333;
+      --muted: #566579;
+      --line: #d7e0eb;
+      --accent: #155eef;
+      --accent-soft: #e8efff;
+      --critical: #b42318;
+      --high: #c4320a;
+      --medium: #9a6700;
+      --low: #175cd3;
+      --info: #475467;
+      --good: #087443;
+      --bad: #b42318;
+      --shadow: 0 8px 28px rgba(30, 48, 75, .07);
+    }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #0e1623;
+      --panel: #172232;
+      --panel-2: #1d2b3e;
+      --text: #e7edf5;
+      --muted: #a7b5c8;
+      --line: #33445b;
+      --accent: #8ab4ff;
+      --accent-soft: #203656;
+      --critical: #ff8e86;
+      --high: #ff9a76;
+      --medium: #f5ca67;
+      --low: #8ab4ff;
+      --info: #bdc7d5;
+      --good: #5bd49a;
+      --bad: #ff8e86;
+      --shadow: 0 8px 28px rgba(0, 0, 0, .2);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    a { color: var(--accent); }
+    code, pre, .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    code { font-size: .92em; overflow-wrap: anywhere; }
+    .wrap { max-width: 1440px; margin: auto; padding: 24px clamp(14px, 3vw, 40px) 60px; }
+    header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    h1 { font-size: clamp(1.7rem, 3vw, 2.6rem); line-height: 1.15; margin: 0 0 8px; }
+    h2 { font-size: 1.35rem; margin: 0 0 14px; }
+    h3 { font-size: 1rem; margin: 18px 0 8px; }
+    p { margin: 8px 0; }
+    .eyebrow { color: var(--muted); font-size: .78rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+    .subtitle { color: var(--muted); max-width: 900px; margin: 0; }
+    button, select, input {
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      color: var(--text);
+      background: var(--panel);
+      font: inherit;
+    }
+    button { cursor: pointer; padding: 9px 13px; font-weight: 700; }
+    button:hover { border-color: var(--accent); }
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      padding: clamp(16px, 2vw, 24px);
+      margin: 16px 0;
+    }
+    .verdict {
+      border-left: 5px solid var(--medium);
+      background: linear-gradient(110deg, var(--panel), var(--panel-2));
+    }
+    .verdict-title { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 3px 9px;
+      font-size: .75rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .badge.critical { color: var(--critical); }
+    .badge.high { color: var(--high); }
+    .badge.medium { color: var(--medium); }
+    .badge.low { color: var(--low); }
+    .badge.info { color: var(--info); }
+    .badge.good { color: var(--good); }
+    .verdict-lines { display: grid; gap: 5px; margin-top: 12px; }
+    .verdict-lines p { margin: 0; }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+    }
+    .metric {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 15px;
+      min-height: 104px;
+    }
+    .metric strong { display: block; font-size: 1.65rem; line-height: 1.15; }
+    .metric span { display: block; color: var(--muted); font-size: .83rem; margin-top: 8px; }
+    .filters { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin: 12px 0; }
+    .filters label { color: var(--muted); font-size: .85rem; font-weight: 700; }
+    .filters select, .filters input { padding: 8px 10px; min-height: 40px; }
+    .filters input { min-width: min(320px, 100%); }
+    .count { color: var(--muted); font-size: .85rem; margin-left: auto; }
+    .table-wrap {
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      max-height: 72vh;
+    }
+    table { border-collapse: collapse; width: 100%; min-width: 850px; }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 9px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      color: var(--muted);
+      background: var(--panel-2);
+      font-size: .77rem;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    td { font-size: .88rem; }
+    tbody tr:last-child td { border-bottom: 0; }
+    .severity-cell { min-width: 110px; }
+    .id-cell { white-space: nowrap; font-weight: 800; }
+    .status { font-weight: 750; white-space: nowrap; }
+    .status.pass { color: var(--good); }
+    .status.fail { color: var(--bad); }
+    .status.partial { color: var(--medium); }
+    .muted { color: var(--muted); }
+    .callout {
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--accent);
+      border-radius: 9px;
+      padding: 11px 14px;
+      background: var(--panel-2);
+      margin: 12px 0;
+    }
+    .callout.warn { border-left-color: var(--medium); }
+    .callout.danger { border-left-color: var(--bad); }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    ul { padding-left: 21px; }
+    li { margin: 6px 0; }
+    .small { font-size: .84rem; }
+    .nowrap { white-space: nowrap; }
+    footer { border-top: 1px solid var(--line); padding-top: 14px; color: var(--muted); font-size: .82rem; }
+    @media (max-width: 760px) {
+      .wrap { padding-top: 16px; }
+      header { align-items: flex-start; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .panel { border-radius: 12px; }
+      .count { margin-left: 0; width: 100%; }
+    }
+    @media print {
+      :root { color-scheme: light; }
+      body { background: white; color: #17202e; }
+      .wrap { max-width: none; padding: 0; }
+      .panel { box-shadow: none; break-inside: avoid; }
+      button, .filters { display: none; }
+      .table-wrap { max-height: none; overflow: visible; }
+      th { position: static; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <div>
+        <div class="eyebrow">Auditoria adversarial · evidência executada</div>
+        <h1>Verificação do Systemic PIM</h1>
+        <p class="subtitle">Relatório de execução no repositório e stacks Docker locais. Escopo, evidências e lacunas estão separados; “não executado” não é contado como aprovado.</p>
+      </div>
+      <button id="theme-toggle" type="button" aria-label="Alternar tema claro e escuro">Alternar tema</button>
+    </header>
+
+    <section class="panel verdict" aria-labelledby="verdict-heading">
+      <div class="verdict-title">
+        <h2 id="verdict-heading">Veredito: SIM COM RESSALVAS</h2>
+        <span class="badge medium">SIM COM RESSALVAS · pendências de dependências e UX/API móvel</span>
+      </div>
+      <div class="verdict-lines">
+        <p><strong>Back-end — SIM COM RESSALVAS:</strong> build sem warnings e suíte .NET completa com 79/79 testes; o índice filtrado e as regras de concorrência foram exercitados.</p>
+        <p><strong>Front-end — SIM COM RESSALVAS:</strong> 36/36 testes, lint e build passaram; nas duas rodadas Playwright, 12/13 passaram em cada uma. O restore de backup retornou HTTP 500 nas duas.</p>
+        <p><strong>APIs — SIM COM RESSALVAS:</strong> 69 ações foram verificadas nos cenários de contrato aplicáveis; fluxos felizes não foram executados para todas as ações e há endpoints sem uso no front.</p>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="numbers-heading">
+      <h2 id="numbers-heading">Painel de números</h2>
+      <div class="metrics">
+        <div class="metric"><strong id="metric-endpoints">69</strong><span>ações HTTP catalogadas e verificadas no contrato</span></div>
+        <div class="metric"><strong id="metric-auth">62 / 62</strong><span>ações protegidas rejeitaram acesso anônimo (401)</span></div>
+        <div class="metric"><strong id="metric-findings">15</strong><span>achados: 0 crítico · 2 alto · 5 médio · 6 baixo · 2 info</span></div>
+        <div class="metric"><strong id="metric-open">6 abertos</strong><span>9 resolvidos; pendências abertas por severidade abaixo</span></div>
+        <div class="metric"><strong id="metric-tests">139 / 141</strong><span>suite principal: 79 .NET + 36 front + 24 E2E aprovados; 2 E2E falharam</span></div>
+        <div class="metric"><strong>0</strong><span>warnings e erros no build .NET (79 testes, 0 ignorados)</span></div>
+      </div>
+      <h3>Latência observada · 20 chamadas seriais por rota autenticada</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Rota</th><th>Status</th><th>p50</th><th>p95</th><th>Interpretação</th></tr></thead>
+          <tbody>
+            <tr><td><code>GET /api/Mesa</code></td><td>20 × 200</td><td>7,25 ms</td><td>11,71 ms</td><td>Base isolada com pelo menos 200 registros por tabela usada</td></tr>
+            <tr><td><code>GET /api/Comanda</code></td><td>20 × 200</td><td>124,45 ms</td><td>249,83 ms</td><td>Maior p50/p95 observado entre as rotas medidas</td></tr>
+            <tr><td><code>GET /api/Comanda/abertas/todas</code></td><td>20 × 200</td><td>47,56 ms</td><td>165,24 ms</td><td>Uma amostra local, sem carga concorrente</td></tr>
+            <tr><td><code>GET /api/Pedidos</code></td><td>20 × 200</td><td>46,23 ms</td><td>76,11 ms</td><td>Uma amostra local, sem carga concorrente</td></tr>
+            <tr><td><code>GET /api/Produto</code></td><td>20 × 200</td><td>7,85 ms</td><td>17,28 ms</td><td>Uma amostra local, sem carga concorrente</td></tr>
+            <tr><td><code>GET /api/Reserva</code></td><td>20 × 200</td><td>6,04 ms</td><td>12,43 ms</td><td>Uma amostra local, sem carga concorrente</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small muted">Medição em teste .NET, SQL isolado, 20 chamadas consecutivas por rota. Foram inseridas pelo menos 200 linhas em Mesa, Cliente, Produto, Comanda, ItemComanda e Reserva; os valores não são SLA nem medição sob carga concorrente.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="findings-heading">
+      <h2 id="findings-heading">Achados</h2>
+      <p class="muted small">Ordenados por severidade. Status RESOLVIDO significa correção implementada e validada no escopo descrito; ABERTO requer acompanhamento. Evidências não incluem valores secretos.</p>
+      <div class="filters">
+        <label for="finding-severity">Severidade</label>
+        <select id="finding-severity">
+          <option value="">Todas</option><option value="CRÍTICO">CRÍTICO</option><option value="ALTO">ALTO</option>
+          <option value="MÉDIO">MÉDIO</option><option value="BAIXO">BAIXO</option><option value="INFO">INFO</option>
+        </select>
+        <label for="finding-phase">Fase</label>
+        <select id="finding-phase">
+          <option value="">Todas</option><option value="2">Fase 2 · API</option><option value="3">Fase 3 · negócio</option>
+          <option value="4">Fase 4 · segurança</option><option value="5">Fase 5 · front</option>
+          <option value="6">Fase 6 · qualidade</option><option value="7">Fase 7 · mobile</option>
+        </select>
+        <span class="count" id="finding-count" aria-live="polite"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ID</th><th>Severidade</th><th>Status</th><th>Fase</th><th>Descrição e evidência</th><th>Impacto</th><th>Correção mínima sugerida</th><th>Confiança</th></tr></thead>
+          <tbody id="findings-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="api-heading">
+      <h2 id="api-heading">Matriz de contrato da API · Fase 2</h2>
+      <div class="callout warn"><strong>Leitura correta:</strong> cada coluna mostra apenas o cenário executado; “—” significa não aplicável/não executado, não sucesso. Nenhuma afirma que as 69 ações tiveram caminho feliz completo.</div>
+      <div class="filters">
+        <label for="api-search">Buscar</label><input id="api-search" type="search" placeholder="rota, verbo ou observação">
+        <label for="api-controller">Controller</label><select id="api-controller"><option value="">Todos</option></select>
+        <label for="api-scenario">Cenário</label><select id="api-scenario"><option value="">Todos</option><option value="happy">Feliz</option><option value="401">401</option><option value="403">403</option><option value="400">400</option><option value="404">404</option><option value="409">409</option><option value="CSRF">CSRF</option></select>
+        <span class="count" id="api-count" aria-live="polite"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Controller</th><th>Método</th><th>Rota</th><th>Feliz</th><th>401</th><th>403</th><th>400</th><th>404 / 409</th><th>CSRF</th><th>Tempo p50/p95</th></tr></thead>
+          <tbody id="api-body"></tbody>
+        </table>
+      </div>
+      <p class="small muted" id="api-summary">Contrato: 62 respostas 401; 34 verificações 403; 24 bodies inválidos 400; 30 IDs/arquivos inexistentes 404; 4 duplicidades 409; 37 mutações sem CSRF rejeitadas. Duplicidades focadas: Cliente, Funcionário, FormaPagamento e Mesa.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="business-heading">
+      <h2 id="business-heading">Regras de negócio, banco e concorrência · Fase 3</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Cenário</th><th>Resultado executado</th><th>Conclusão</th></tr></thead>
+          <tbody>
+            <tr><td>Pedido: 10 criações concorrentes, produto com estoque 1</td><td>1 criação aceita; 9 retornaram 400 por estoque insuficiente; estoque final 0, sem valor negativo.</td><td><span class="status pass">Passou</span> — teste .NET isolado confirmou estoque final.</td></tr>
+            <tr><td>Comanda: 10 aberturas concorrentes para a mesma mesa</td><td>1 sucesso, 9 conflitos 409; consulta confirmou exatamente 1 comanda aberta.</td><td><span class="status pass">Passou</span> — índice único filtrado aplicado e trigger de abertura preservado.</td></tr>
+            <tr><td>Produto ativo/inativo em Pedido e Comanda</td><td>Ativo aceito; produto indisponível rejeitado com 400 nos dois serviços antes de alterar item/estoque.</td><td><span class="status pass">Passou</span></td></tr>
+            <tr><td>Quantidade zero/negativa; segundo pagamento/fechamento; rollback</td><td>Casos inválidos retornaram 400. Falha injetada entre item, estoque e total não deixou gravações parciais.</td><td><span class="status pass">Passou nos testes de integração</span></td></tr>
+            <tr><td>Pagamento menor que o total</td><td><code>PUT /api/Comanda/{id}/pagar</code> não recebe valor pago; DTO contém forma de pagamento, funcionário opcional e troco.</td><td><span class="status partial">Não aplicável</span> — não foi inventado campo.</td></tr>
+            <tr><td>Reserva: sobreposição, data passada e mesa inexistente</td><td>Sobreposição e data passada retornaram 400; mesa inexistente retornou 400; teste de criar/listar/cancelar passou.</td><td><span class="status pass">Passou</span></td></tr>
+            <tr><td>Faturamento: procedures/views versus SQL manual</td><td>Não foi repetida nesta validação final uma comparação independente por SQL somente leitura.</td><td><span class="status partial">Não verificado nesta fase</span></td></tr>
+            <tr><td>Lockout e enumeração</td><td>5 falhas bloqueiam; login correto durante bloqueio falha; relógio de teste avança 15 min e login volta a funcionar. Usuário inexistente e senha incorreta têm mesmo 401, mensagem, código e verificação dummy.</td><td><span class="status pass">Passou nos testes</span></td></tr>
+            <tr><td>Backup e restore</td><td>Teste .NET restaurou backup válido e rejeitou ZIP malformado, path traversal e adulteração de um byte com 400. No E2E do stack, backup gerado pela própria API retornou 500 ao restaurar; corpo genérico “Falha ao restaurar o backup.” com correlationId.</td><td><span class="status fail">Falhou no E2E</span> — recuperação completa não está comprovada no stack implantado.</td></tr>
+            <tr><td>SignalR</td><td>E2E verificou evento de pedido na cozinha e acesso anônimo negado; teste unitário do hook simulou desconexão, reconexão e recebimento do evento.</td><td><span class="status pass">Reconexão do hook passou</span>; reinício real da API durante a conexão não foi exercitado.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="security-heading">
+      <h2 id="security-heading">Segurança observada · Fase 4</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Controle</th><th>Evidência observada</th><th>Resultado</th></tr></thead>
+          <tbody>
+            <tr><td>Headers de segurança</td><td>Teste HTTP confirmou nosniff, DENY, no-referrer e CSP <code>default-src 'none'; frame-ancestors 'none'</code>. HSTS ausente no HTTP; produção simulada incluiu cookie Secure.</td><td><span class="status pass">Headers passaram</span>; HSTS só é aplicável em HTTPS fora de Development.</td></tr>
+            <tr><td>CORS</td><td>Origem não permitida não recebeu <code>Access-Control-Allow-Origin</code>; resposta HTTP pode continuar 200, mas navegador bloqueia leitura cross-origin.</td><td><span class="status pass">Política de origem restrita</span></td></tr>
+            <tr><td>Cookies e CSRF</td><td>Antiforgery usa HttpOnly e SameSite=Strict; Secure é SameAsRequest no Compose local e Always em produção simulada. Cookie JWT é HttpOnly, Secure fora de Development e SameSite=Lax.</td><td><span class="status pass">Configuração e teste de produção passaram</span></td></tr>
+            <tr><td>JWT adulterado/expirado</td><td>O middleware aceita JWT Bearer, mas a validação final não repetiu chamadas autenticadas com token adulterado e expirado.</td><td><span class="status partial">Não revalidado nesta fase</span></td></tr>
+            <tr><td>Rate limit</td><td>Política global e política de login por IP presentes; teste com limite baixo retornou 429 e <code>Retry-After</code>. Variável permanece configurável e ativa.</td><td><span class="status pass">Passou</span></td></tr>
+            <tr><td>Exceções e enumeração</td><td>Respostas genéricas com identificador de correlação; exceção completa é registrada no servidor. Respostas de credenciais inválidas são idênticas e verificam hash dummy.</td><td><span class="status pass">Passou em código e testes</span></td></tr>
+            <tr><td>Injeção em Cliente, Produto, Mesa, FormaPagamento, Funcionário e Despesa</td><td><code>' OR 1=1 --</code>, texto semelhante a script e Unicode não produziram HTTP 500 nos testes isolados. Dados são exibidos como texto; não houve certificação de execução XSS em navegador para cada tela.</td><td><span class="status partial">Sem 500; execução de script no browser não certificada</span></td></tr>
+            <tr><td>Upload ZIP malformado e adulterado</td><td>ZIP malformado e alteração de um byte no conteúdo assinado foram rejeitados com 400.</td><td><span class="status pass">Passou</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="mobile-heading">
+      <h2 id="mobile-heading">Prontidão para app Android/iOS · Fase 7</h2>
+      <div class="callout"><strong>Estado atual:</strong> a API aceita JWT Bearer, mas o login observado entrega o token somente em cookie HttpOnly. Não há fluxo móvel de emissão de token, refresh ou revogação identificado.</div>
+      <div class="grid-2">
+        <div>
+          <h3>Rotas existentes por tela</h3>
+          <ul>
+            <li><strong>Login:</strong> <code>GET /api/Autenticacao/csrf</code>, <code>POST /api/Autenticacao/login</code>, <code>GET /api/Autenticacao/validar</code>, <code>POST /api/Autenticacao/logout</code>.</li>
+            <li><strong>Mesas:</strong> <code>/api/Mesa</code> (listar, obter por ID, CRUD; escrita restrita).</li>
+            <li><strong>Comandas:</strong> <code>/api/Comanda</code>, <code>/abertas/todas</code>, <code>/mesa/{tableNumber}</code>, itens, pagamento, fechamento e inadimplência.</li>
+            <li><strong>Pedidos:</strong> <code>/api/Pedidos</code>, detalhe, criação, atualização, status e exclusão.</li>
+            <li><strong>Produtos:</strong> <code>/api/Produto</code>, detalhe, CRUD e ajuste de estoque.</li>
+            <li><strong>Reservas:</strong> <code>/api/Reserva</code> (listar, criar, cancelar).</li>
+          </ul>
+          <p>As rotas principais de mesas, comandas, pedidos, produtos e reservas existem. O front não usa APIs de Cliente e FormaPagamento, operações de escrita/detalhe de Mesa, vários endpoints de detalhe/itens/fechamento de Comanda, listagem/detalhe/exclusão de Pedidos e operações de despesas. O contrato não foi certificado com fluxo feliz em todas as ações.</p>
+        </div>
+        <div>
+          <h3>Ordem de trabalho de menor risco</h3>
+          <ol>
+            <li>Adicionar fluxo Bearer sem remover o cookie web: endpoint de token, access token curto, refresh rotativo armazenado com segurança no servidor e logout/revogação.</li>
+            <li>Manter CSRF obrigatório em autenticação por cookie; avaliar tratamento explícito para Bearer nas mutações, preservando a proteção CSRF do navegador. Não abrir CORS com wildcard junto de credenciais.</li>
+            <li>Adicionar paginação, ordenação, filtros e limites de payload nas listas; hoje várias respostas materializam listas completas.</li>
+            <li>Completar telas e serviços front para Cliente/FormaPagamento, detalhes e operações ausentes; acrescentar estados loading/error em telas como Pedidos e Reservas.</li>
+            <li>Remover logs de payload/retorno de pedidos do console do navegador e revisar dados pessoais expostos em logs.</li>
+            <li>Repetir JWT adulterado/expirado, SignalR após restart da API e faturamento contra SQL manual sob dados controlados.</li>
+          </ol>
+          <p><strong>CORS/CSRF:</strong> clientes nativos normalmente não dependem de CORS do navegador; com cookie, devem manter CSRF. A validação antiforgery global também se aplica hoje a chamadas mutáveis com Bearer; qualquer exceção precisa ser explícita e testada. CORS deve continuar restrito a origens web confiáveis.</p>
+        </div>
+      </div>
+      <p><strong>Paginação/payload:</strong> paginação observada em logs (<code>pagina</code>/<code>tamanho</code>); a maioria das listas principais não tem paginação ou filtros consistentes. Tamanho máximo de payload por tela não foi medido. <strong>Erros/loading:</strong> inspeção estática encontrou pedidos sem estado explícito de erro/loading e reservas sem estado de carregamento; outras telas mostram toasts/indicadores parciais.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="quality-heading">
+      <h2 id="quality-heading">Qualidade e execução · Fases 1, 5, 6 e 7</h2>
+      <div class="grid-2">
+        <div>
+          <ul>
+            <li>Branch <code>melhorias-conformidade</code>; Fase 6: commit <code>fc05fff</code>. Fase 7: alterações e relatório incluídos no commit desta fase.</li>
+            <li>.NET SDK 10.0.402; Node 24.22.1; npm 11.19.1; Docker Desktop 29.9.2.</li>
+            <li><code>dotnet test</code> em container contra SQL isolado 1434: 79 passaram, 0 falharam, 0 ignorados. <code>dotnet build</code>: 0 warnings, 0 erros.</li>
+            <li>Front: 36/36 testes, 11 arquivos; lint e build passaram. Cobertura: 66,64% statements, 47,95% branches, 56,90% funções, 68,42% linhas.</li>
+            <li>npm audit: 25 achados no total (23 moderados, 2 baixos); <code>npm audit --omit=dev</code>: 0.</li>
+            <li>Chunks: BarChart 369,31 kB (98,17 kB gzip); index 288,98 kB (89,34 kB gzip); CSS 46,61 kB (8,79 kB gzip).</li>
+            <li>Gitleaks histórico com <code>--redact</code>: 162 commits, 2 alertas; nenhum valor foi impresso.</li>
+            <li>Busca TODO/FIXME no back-end: sem correspondências.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Fase 1: ressalva de isolamento</h3>
+          <p><code>docker compose down</code> sem remoção de volumes; <code>up -d --build --wait</code> e <code>ps</code> passaram. Healthcheck, <code>/database</code> e <code>/info</code> retornaram 200; restore anônimo retornou 401.</p>
+          <p><code>db-init</code> executou no SQL padrão (1433). Uma execução falhou com Msg 1934 por <code>QUOTED_IDENTIFIER</code>; as opções ANSI foram aplicadas também ao script idempotente e ao seed E2E. A repetição padrão passou; não foram enviados testes de escrita manuais ao 1433. As constraints alteram apenas esquema.</p>
+          <p>Os testes .NET rodaram em container com SQL isolado em 1434. Após os comandos, <code>tests/bin</code>, <code>tests/obj</code>, <code>back-end/bin</code> e <code>back-end/obj</code> foram removidos.</p>
+          <p>O volume E2E legado com duplicatas foi preservado; a validação usou volume novo e isolado. Duas rodadas Playwright completas terminaram em 12/13 cada; a falha de restore persistiu. Nenhum segredo, token, hash ou connection string foi incluído neste arquivo.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="limits-heading">
+      <h2 id="limits-heading">Limitações explícitas</h2>
+      <ul>
+        <li>O contrato verificou 401/403/400/404/409/CSRF nos cenários aplicáveis, mas caminho feliz e tipos/campos inválidos não foram exercitados em todas as 69 ações.</li>
+        <li>JWT adulterado/expirado não foi repetido nesta validação; faturamento versus SQL manual não foi revalidado; SignalR foi testado por hook, não após restart real da API.</li>
+        <li>O restore gerado pela própria API respondeu 500 nas duas rodadas E2E e em duas reproduções focadas; não foi possível correlacionar a exceção interna a logs do contêiner, então a causa raiz permanece aberta.</li>
+        <li>O teste de injeção confirmou ausência de 500, não execução de payload XSS em cada tela. Tamanho máximo de payload não foi medido.</li>
+        <li>Paginação, mensagens loading/error e rotas nunca usadas foram inspecionadas estaticamente; a análise não foi exaustiva em todas as telas.</li>
+        <li>HSTS/TLS e configuração real de proxy/produção não foram verificados; HSTS foi corretamente ausente em HTTP local.</li>
+        <li>Gitleaks mantém 2 achados redigidos que exigem revisão humana; o conteúdo não foi exposto.</li>
+        <li>O volume E2E legado contém dados duplicados e permanece intocado; execução final usou um volume novo e isolado.</li>
+        <li>O arquivo <code>docs/MATRIZ_API.md</code> foi removido do worktree após ser criado; não foi restaurado. A matriz efetiva está embutida neste relatório HTML.</li>
+        <li>Alterações preexistentes no worktree (<code>.gitignore</code>, exclusões em <code>.vscode/</code>, relatórios e documentos) foram preservadas.</li>
+      </ul>
+    </section>
+
+    <footer>
+      Evidências coletadas no stack local; testes mutáveis foram direcionados a bancos/volumes isolados. Relatório autocontido, responsivo e sem dependências externas.
+    </footer>
+  </main>
+  <script>
+    const findings = [
+      {id:"H-01",severity:"ALTO",status:"RESOLVIDO",phase:"3",summary:"Comandas abertas duplicadas para a mesma mesa.",evidence:"10 aberturas concorrentes: 1 sucesso, 9 HTTP 409 e exatamente 1 aberta. Índice filtrado idempotente em back-end/Scripts/03-constraints.sql; teste concorrente .NET.",impact:"Evita duas cobranças/atendimentos concorrentes na mesma mesa.",fix:"Manter o índice e o teste de concorrência em futuras alterações.",confidence:"10/10"},
+      {id:"M-01",severity:"MÉDIO",status:"RESOLVIDO",phase:"3",summary:"Produto indisponível era aceito em itens de pedido/comanda.",evidence:"Testes de integração: ativo aceito; indisponível retorna 400 nos serviços Pedido e Comanda antes de mudar estoque/item.",impact:"Impede vendas de produtos fora de disponibilidade.",fix:"Manter validação de STATUS_PRODUTO e os testes ativo/inativo.",confidence:"10/10"},
+      {id:"M-02",severity:"MÉDIO",status:"RESOLVIDO",phase:"2",summary:"Duplicidades e strings excessivas geravam respostas 500.",evidence:"Testes: duplicidade de e-mail/nome/telefone/número responde 409; DTOs com campos longos respondem 400. Front extrai mensagem do body em api.ts.",impact:"Falhas de entrada previsíveis agora têm contratos tratáveis pela UI.",fix:"Manter limites de DTO alinhados às colunas e mapeamento SQL 2601/2627.",confidence:"10/10"},
+      {id:"M-03",severity:"MÉDIO",status:"RESOLVIDO",phase:"4",summary:"Respostas incluíam mensagem interna de exceção.",evidence:"Busca ex.Message em Controllers/Services sem ocorrência após correção; falhas registradas no servidor com correlationId e resposta genérica.",impact:"Reduz vazamento de SQL/infraestrutura para clientes.",fix:"Manter logs internos com correlação e não devolver Exception.Message.",confidence:"9/10"},
+      {id:"M-04",severity:"MÉDIO",status:"RESOLVIDO",phase:"4",summary:"Login distinguia usuário inexistente de senha incorreta.",evidence:"Testes de unidade/com integração comparam corpo/status iguais; código CREDENCIAIS_INVALIDAS e verificação dummy para conta inexistente/bloqueada.",impact:"Reduz enumeração de contas sem alterar lockout.",fix:"Manter respostas uniformes e lockout de 5 tentativas/15 minutos.",confidence:"10/10"},
+      {id:"M-05",severity:"MÉDIO",status:"ABERTO",phase:"5",summary:"npm audit reporta vulnerabilidades em dependências, sobretudo de desenvolvimento.",evidence:"npm audit: 25 vulnerabilidades (23 moderadas, 2 baixas); npm audit --omit=dev: 0. O fix sugerido exigiria downgrade breaking de vite-plugin-pwa.",impact:"Risco residual na cadeia de desenvolvimento/teste; não foi reportada vulnerabilidade em dependências de produção.",fix:"Revisar advisories e atualizar dependências de forma compatível, sem aplicar --force automaticamente.",confidence:"10/10"},
+      {id:"L-01",severity:"BAIXO",status:"RESOLVIDO",phase:"4",summary:"API não tinha limites de taxa para login e tráfego global.",evidence:"Testes: política por IP/global retorna 429 com Retry-After; limites são configuráveis por LOGIN_RATE_LIMIT_PER_MINUTE e GLOBAL_RATE_LIMIT_PER_MINUTE.",impact:"Reduz automação de tentativas e abuso de tráfego.",fix:"Manter limites ativos e calibrar valores por ambiente.",confidence:"10/10"},
+      {id:"L-02",severity:"BAIXO",status:"ABERTO",phase:"7",summary:"Listas principais ainda não têm paginação/filtros consistentes.",evidence:"Inspeção de ProdutoService, MesaService, ComandaService, PedidoService e ReservaService: materialização de listas; somente logs recebem paginação.",impact:"Payload e tempo crescem com a base, especialmente em clientes móveis.",fix:"Adicionar paginação server-side, filtros, ordenação estável e limite máximo.",confidence:"9/10"},
+      {id:"L-03",severity:"BAIXO",status:"RESOLVIDO",phase:"4",summary:"API não emitia headers HTTP de hardening.",evidence:"Teste em resposta real verificou nosniff, X-Frame-Options DENY, no-referrer e CSP restritiva; HSTS só é aplicado em HTTPS fora de Development.",impact:"Adiciona defesa em profundidade para consumidores da API.",fix:"Manter middleware e validar HSTS em ambiente TLS real.",confidence:"10/10"},
+      {id:"L-04",severity:"BAIXO",status:"RESOLVIDO",phase:"4",summary:"Cookie antiforgery não tinha política Secure de produção.",evidence:"Teste de produção simulada confirmou Secure; Compose mantém SameAsRequest. Variável ANTIFORGERY_COOKIE_SECURE_POLICY documentada/configurável.",impact:"Protege cookies de antiforgery quando há HTTPS.",fix:"Manter Secure obrigatório fora de Development e Compose local compatível com HTTP.",confidence:"9/10"},
+      {id:"L-05",severity:"BAIXO",status:"ABERTO",phase:"5",summary:"O cliente front registra payload e resposta de pedidos no console.",evidence:"front-end/src/services/api.ts:263–274 contém console.log do body e da resposta de POST /pedidos.",impact:"Dados de operação/cliente podem permanecer acessíveis no console do navegador ou em telemetria.",fix:"Remover logs de payload/retorno ou registrar somente metadados não sensíveis em desenvolvimento.",confidence:"9/10"},
+      {id:"L-06",severity:"BAIXO",status:"RESOLVIDO",phase:"7",summary:"O teste de contraste amostrava o tema durante a transição CSS.",evidence:"E2E registrou 2,418:1 e 1,737:1 durante a transição; o teste agora faz polling do contraste final sem reduzir o limite de 7:1. Execução focada: 1/1 passou.",impact:"Falsas falhas do teste podiam mascarar o resultado final da verificação de acessibilidade.",fix:"Manter o polling do estado calculado e a exigência mínima 7:1.",confidence:"9/10"},
+      {id:"I-01",severity:"INFO",status:"ABERTO",phase:"6",summary:"Gitleaks mantém dois alertas redigidos no histórico.",evidence:"gitleaks detect --source=. --redact --no-banner --exit-code 0: 162 commits, 2 leaks; os valores não foram exibidos.",impact:"Requer confirmação humana de que os valores históricos são somente fixtures.",fix:"Revisar os dois achados redigidos localmente e rotacionar qualquer segredo real.",confidence:"8/10"},
+      {id:"I-02",severity:"INFO",status:"ABERTO",phase:"6",summary:"Falhas ao gravar log de reserva são suprimidas.",evidence:"back-end/Services/ReservaService.cs:81,107: catches não propagam nem registram falha de log.",impact:"A reserva segue, mas falhas do trilho de auditoria podem passar despercebidas.",fix:"Registrar a falha em logger alternativo sem impedir a operação principal.",confidence:"9/10"},
+      {id:"H-02",severity:"ALTO",status:"ABERTO",phase:"7",summary:"Restore do backup gerado falha no E2E do stack.",evidence:"Playwright em e2e/systemic.spec.ts:212: esperado HTTP 200, recebido 500; resposta genérica “Falha ao restaurar o backup.” com correlationId. Falhou nas duas rodadas completas e em duas reproduções focadas.",impact:"A recuperação de dados por um backup produzido pela própria API não está comprovada e pode ficar indisponível.",fix:"Investigar a exceção correlacionada no servidor e corrigir o restore; repetir a restauração ponta a ponta e as duas rodadas Playwright.",confidence:"9/10"}
+    ];
+
+    const apiActions = [
+      ["Autenticacao","GET","/api/Autenticacao/csrf",""],
+      ["Autenticacao","POST","/api/Autenticacao/logout",""],
+      ["Autenticacao","POST","/api/Autenticacao/login","b"],
+      ["Autenticacao","GET","/api/Autenticacao/validar","x"],
+      ["Backup","POST","/api/Backup/gerar","xa"],
+      ["Backup","GET","/api/Backup/baixar/{nomeArquivo}","xai"],
+      ["Backup","GET","/api/Backup/listar","xa"],
+      ["Backup","POST","/api/Backup/restore","xab"],
+      ["Comanda","GET","/api/Comanda","x"],
+      ["Comanda","GET","/api/Comanda/{id}","xi"],
+      ["Comanda","GET","/api/Comanda/abertas/todas","x"],
+      ["Comanda","GET","/api/Comanda/mesa/{tableNumber}","x"],
+      ["Comanda","PUT","/api/Comanda/{id}","xbi"],
+      ["Comanda","POST","/api/Comanda","xb"],
+      ["Comanda","POST","/api/Comanda/{id}/itens","xbi"],
+      ["Comanda","PUT","/api/Comanda/{id}/pagar","xbi"],
+      ["Comanda","PUT","/api/Comanda/{id}/fechar","xi"],
+      ["Comanda","DELETE","/api/Comanda/{id}/itens/{itemId}","xi"],
+      ["Comanda","PUT","/api/Comanda/{id}/inadimplente","xi"],
+      ["Comanda","DELETE","/api/Comanda/{id}","xi"],
+      ["Cliente","GET","/api/Cliente","xa"],
+      ["Cliente","GET","/api/Cliente/{id}","xai"],
+      ["Cliente","POST","/api/Cliente","xabd"],
+      ["Cliente","PUT","/api/Cliente/{id}","xabi"],
+      ["Cliente","DELETE","/api/Cliente/{id}","xai"],
+      ["Faturamento","GET","/api/Faturamento","xa"],
+      ["Faturamento","GET","/api/Faturamento/relatorio","xa"],
+      ["Faturamento","GET","/api/Faturamento/produtos-mais-vendidos","xa"],
+      ["Faturamento","GET","/api/Faturamento/receita-por-forma","xa"],
+      ["Faturamento","GET","/api/Faturamento/despesa-por-categoria","xa"],
+      ["Faturamento","POST","/api/Faturamento/despesa","xab"],
+      ["Faturamento","GET","/api/Faturamento/despesas","xa"],
+      ["Log","GET","/api/Log/sistema","xa"],
+      ["Log","POST","/api/Log/registrar","xab"],
+      ["Log","GET","/api/Log/comanda/{idComanda}","xa"],
+      ["Funcionario","POST","/api/Funcionario/login","b"],
+      ["Funcionario","GET","/api/Funcionario","xa"],
+      ["Funcionario","GET","/api/Funcionario/{id}","xai"],
+      ["Funcionario","POST","/api/Funcionario","xabd"],
+      ["Funcionario","PUT","/api/Funcionario/{id}","xabi"],
+      ["Funcionario","DELETE","/api/Funcionario/{id}","xai"],
+      ["Mesa","GET","/api/Mesa","x"],
+      ["Mesa","GET","/api/Mesa/{id}","xi"],
+      ["Mesa","POST","/api/Mesa","xabd"],
+      ["Mesa","PUT","/api/Mesa/{id}","xabi"],
+      ["Mesa","DELETE","/api/Mesa/{id}","xai"],
+      ["HealthCheck","GET","/api/HealthCheck",""],
+      ["HealthCheck","GET","/api/HealthCheck/database",""],
+      ["HealthCheck","GET","/api/HealthCheck/info",""],
+      ["Pedidos","GET","/api/Pedidos","x"],
+      ["Pedidos","GET","/api/Pedidos/{id}","xi"],
+      ["Pedidos","POST","/api/Pedidos","xb"],
+      ["Pedidos","PUT","/api/Pedidos/{id}","xbi"],
+      ["Pedidos","PUT","/api/Pedidos/{id}/status","xbi"],
+      ["Pedidos","DELETE","/api/Pedidos/{id}","xi"],
+      ["FormaPagamento","GET","/api/FormaPagamento","x"],
+      ["FormaPagamento","GET","/api/FormaPagamento/{id}","xi"],
+      ["FormaPagamento","POST","/api/FormaPagamento","xabd"],
+      ["FormaPagamento","PUT","/api/FormaPagamento/{id}","xabi"],
+      ["FormaPagamento","DELETE","/api/FormaPagamento/{id}","xai"],
+      ["Reserva","GET","/api/Reserva","x"],
+      ["Reserva","POST","/api/Reserva","xb"],
+      ["Reserva","DELETE","/api/Reserva/{id}","xi"],
+      ["Produto","GET","/api/Produto","x"],
+      ["Produto","GET","/api/Produto/{id}","xi"],
+      ["Produto","POST","/api/Produto","xab"],
+      ["Produto","PUT","/api/Produto/{id}","xabi"],
+      ["Produto","DELETE","/api/Produto/{id}","xai"],
+      ["Produto","PUT","/api/Produto/{id}/ajustar-estoque","xabi"]
+    ];
+    const happyEvidence = {
+      "GET /api/Autenticacao/csrf":"200",
+      "POST /api/Autenticacao/logout":"200 com CSRF",
+      "POST /api/Autenticacao/login":"login após lockout passou",
+      "POST /api/Backup/gerar":"backup de integração",
+      "POST /api/Backup/restore":"teste .NET passou; E2E 500",
+      "POST /api/Comanda":"1 sucesso / 10 concorrentes",
+      "POST /api/Comanda/{id}/itens":"produto ativo aceito",
+      "PUT /api/Comanda/{id}/pagar":"primeiro pagamento",
+      "PUT /api/Comanda/{id}/fechar":"primeiro fechamento",
+      "POST /api/Cliente":"criação + teste 409",
+      "POST /api/Funcionario":"criação + teste 409",
+      "POST /api/FormaPagamento":"criação + teste 409",
+      "POST /api/Mesa":"criação + teste 409",
+      "POST /api/Pedidos":"1 sucesso / estoque final 0",
+      "GET /api/Reserva":"listar no teste de integração",
+      "POST /api/Reserva":"criar reserva no teste de integração",
+      "DELETE /api/Reserva/{id}":"cancelar reserva no teste de integração",
+      "GET /api/HealthCheck":"200",
+      "GET /api/HealthCheck/database":"200",
+      "GET /api/HealthCheck/info":"200"
+    };
+    const latencyByRoute = {
+      "/api/Mesa":"7,25 / 11,71 ms",
+      "/api/Comanda":"124,45 / 249,83 ms",
+      "/api/Comanda/abertas/todas":"47,56 / 165,24 ms",
+      "/api/Pedidos":"46,23 / 76,11 ms",
+      "/api/Produto":"7,85 / 17,28 ms",
+      "/api/Reserva":"6,04 / 12,43 ms"
+    };
+    const routeData = apiActions.map(([controller, method, path, flags]) => {
+      const mutating = ["POST","PUT","PATCH","DELETE"].includes(method);
+      const missing = flags.includes("i") ? "404" : "";
+      const duplicate = flags.includes("d") ? "409" : "";
+      return [
+        controller,
+        method,
+        path,
+        happyEvidence[`${method} ${path}`] ?? "—",
+        flags.includes("x") ? "Passou" : "—",
+        flags.includes("a") ? "Passou" : "—",
+        flags.includes("b") ? "Passou" : "—",
+        [missing, duplicate].filter(Boolean).join(" / ") || "—",
+        mutating ? "Passou" : "—",
+        latencyByRoute[path] ?? "—"
+      ];
+    });
+
+    const severityRank = {"CRÍTICO":0,"ALTO":1,"MÉDIO":2,"BAIXO":3,"INFO":4};
+    const findingsBody = document.getElementById("findings-body");
+    const severityClass = {"CRÍTICO":"critical","ALTO":"high","MÉDIO":"medium","BAIXO":"low","INFO":"info"};
+    for (const item of findings) {
+      const row = document.createElement("tr");
+      row.dataset.severity = item.severity;
+      row.dataset.phase = item.phase;
+      const cells = [
+        item.id,
+        item.severity,
+        item.status,
+        `Fase ${item.phase}`,
+        `${item.summary} Evidência: ${item.evidence}`,
+        item.impact,
+        item.fix,
+        item.confidence
+      ];
+      cells.forEach((value, index) => {
+        const cell = document.createElement("td");
+        cell.textContent = value;
+        if (index === 0) cell.className = "id-cell";
+        if (index === 1) {
+          cell.className = "severity-cell";
+          const badge = document.createElement("span");
+          badge.className = `badge ${severityClass[item.severity]}`;
+          badge.textContent = item.severity;
+          cell.replaceChildren(badge);
+        }
+        row.appendChild(cell);
+      });
+      findingsBody.appendChild(row);
+    }
+    findings.sort((a,b) => severityRank[a.severity] - severityRank[b.severity] || a.id.localeCompare(b.id));
+    const renderedFindings = [...findingsBody.children];
+    renderedFindings.sort((a,b) => {
+      const rank = severityRank[a.dataset.severity] - severityRank[b.dataset.severity];
+      return rank || a.cells[0].textContent.localeCompare(b.cells[0].textContent);
+    }).forEach(row => findingsBody.appendChild(row));
+
+    const apiBody = document.getElementById("api-body");
+    const controllerSelect = document.getElementById("api-controller");
+    [...new Set(routeData.map(r => r[0]))].sort().forEach(name => {
+      const option = document.createElement("option");
+      option.value = name;
+      option.textContent = name;
+      controllerSelect.appendChild(option);
+    });
+    for (const route of routeData) {
+      const row = document.createElement("tr");
+      row.dataset.controller = route[0];
+      row.dataset.scenarios = [
+        route[3] !== "—" ? "happy" : "",
+        route[4] !== "—" ? "401" : "",
+        route[5] !== "—" ? "403" : "",
+        route[6] !== "—" ? "400" : "",
+        route[7].includes("404") ? "404" : "",
+        route[7].includes("409") ? "409" : "",
+        route[8] !== "—" ? "CSRF" : ""
+      ].filter(Boolean).join(" ");
+      route.forEach((value, index) => {
+        const cell = document.createElement("td");
+        cell.textContent = value;
+        if (index === 3) cell.className = "status";
+        if (index === 2) {
+          const code = document.createElement("code");
+          code.textContent = value;
+          cell.replaceChildren(code);
+        }
+        row.appendChild(cell);
+      });
+      apiBody.appendChild(row);
+    }
+
+    function updateFindings() {
+      const severity = document.getElementById("finding-severity").value;
+      const phase = document.getElementById("finding-phase").value;
+      const rows = [...findingsBody.rows];
+      let visible = 0;
+      rows.forEach(row => {
+        const show = (!severity || row.dataset.severity === severity) && (!phase || row.dataset.phase === phase);
+        row.hidden = !show;
+        if (show) visible++;
+      });
+      document.getElementById("finding-count").textContent = `${visible} de ${findings.length} achados`;
+    }
+    function updateApi() {
+      const search = document.getElementById("api-search").value.trim().toLocaleLowerCase("pt-BR");
+      const controller = controllerSelect.value;
+      const scenario = document.getElementById("api-scenario").value;
+      const rows = [...apiBody.rows];
+      let visible = 0;
+      rows.forEach(row => {
+        const show = (!search || row.textContent.toLocaleLowerCase("pt-BR").includes(search))
+          && (!controller || row.dataset.controller === controller)
+          && (!scenario || row.dataset.scenarios.split(" ").includes(scenario));
+        row.hidden = !show;
+        if (show) visible++;
+      });
+      document.getElementById("api-count").textContent = `${visible} de ${routeData.length} ações`;
+    }
+    document.getElementById("finding-severity").addEventListener("change", updateFindings);
+    document.getElementById("finding-phase").addEventListener("change", updateFindings);
+    document.getElementById("api-search").addEventListener("input", updateApi);
+    controllerSelect.addEventListener("change", updateApi);
+    document.getElementById("api-scenario").addEventListener("change", updateApi);
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+      const root = document.documentElement;
+      root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark";
+    });
+    if (matchMedia("(prefers-color-scheme: dark)").matches) document.documentElement.dataset.theme = "dark";
+    updateFindings();
+    updateApi();
+  </script>
+</body>
+</html>
