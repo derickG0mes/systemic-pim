@@ -223,7 +223,7 @@
         <div class="metric"><strong id="metric-endpoints">69</strong><span>ações HTTP catalogadas e verificadas no contrato</span></div>
         <div class="metric"><strong id="metric-auth">62 / 62</strong><span>ações protegidas rejeitaram acesso anônimo (401)</span></div>
         <div class="metric"><strong id="metric-findings">15</strong><span>achados: 0 crítico · 2 alto · 5 médio · 6 baixo · 2 info</span></div>
-        <div class="metric"><strong id="metric-open">6 abertos</strong><span>9 resolvidos; pendências abertas por severidade abaixo</span></div>
+        <div class="metric"><strong id="metric-open">5 abertos</strong><span>10 resolvidos; pendências abertas por severidade abaixo</span></div>
         <div class="metric"><strong id="metric-tests">139 / 141</strong><span>suite principal: 79 .NET + 36 front + 24 E2E aprovados; 2 E2E falharam</span></div>
         <div class="metric"><strong>0</strong><span>warnings e erros no build .NET (79 testes, 0 ignorados)</span></div>
       </div>
@@ -301,7 +301,7 @@
             <tr><td>Reserva: sobreposição, data passada e mesa inexistente</td><td>Sobreposição e data passada retornaram 400; mesa inexistente retornou 400; teste de criar/listar/cancelar passou.</td><td><span class="status pass">Passou</span></td></tr>
             <tr><td>Faturamento: procedures/views versus SQL manual</td><td>Não foi repetida nesta validação final uma comparação independente por SQL somente leitura.</td><td><span class="status partial">Não verificado nesta fase</span></td></tr>
             <tr><td>Lockout e enumeração</td><td>5 falhas bloqueiam; login correto durante bloqueio falha; relógio de teste avança 15 min e login volta a funcionar. Usuário inexistente e senha incorreta têm mesmo 401, mensagem, código e verificação dummy.</td><td><span class="status pass">Passou nos testes</span></td></tr>
-            <tr><td>Backup e restore</td><td>Teste .NET restaurou backup válido e rejeitou ZIP malformado, path traversal e adulteração de um byte com 400. No E2E do stack, backup gerado pela própria API retornou 500 ao restaurar; corpo genérico “Falha ao restaurar o backup.” com correlationId.</td><td><span class="status fail">Falhou no E2E</span> — recuperação completa não está comprovada no stack implantado.</td></tr>
+            <tr><td>Backup e restore</td><td>Teste .NET com índice filtrado restaurou o estoque original. Playwright no stack isolado gerou o ZIP pela API, restaurou com HTTP 200 e confirmou que o marcador voltou ao estado original.</td><td><span class="status pass">Passou</span> — correção ainda será revalidada nas duas rodadas E2E completas.</td></tr>
             <tr><td>SignalR</td><td>E2E verificou evento de pedido na cozinha e acesso anônimo negado; teste unitário do hook simulou desconexão, reconexão e recebimento do evento.</td><td><span class="status pass">Reconexão do hook passou</span>; reinício real da API durante a conexão não foi exercitado.</td></tr>
           </tbody>
         </table>
@@ -379,7 +379,7 @@
           <p><code>docker compose down</code> sem remoção de volumes; <code>up -d --build --wait</code> e <code>ps</code> passaram. Healthcheck, <code>/database</code> e <code>/info</code> retornaram 200; restore anônimo retornou 401.</p>
           <p><code>db-init</code> executou no SQL padrão (1433). Uma execução falhou com Msg 1934 por <code>QUOTED_IDENTIFIER</code>; as opções ANSI foram aplicadas também ao script idempotente e ao seed E2E. A repetição padrão passou; não foram enviados testes de escrita manuais ao 1433. As constraints alteram apenas esquema.</p>
           <p>Os testes .NET rodaram em container com SQL isolado em 1434. Após os comandos, <code>tests/bin</code>, <code>tests/obj</code>, <code>back-end/bin</code> e <code>back-end/obj</code> foram removidos.</p>
-          <p>O volume E2E legado com duplicatas foi preservado; a validação usou volume novo e isolado. Duas rodadas Playwright completas terminaram em 12/13 cada; a falha de restore persistiu. Nenhum segredo, token, hash ou connection string foi incluído neste arquivo.</p>
+          <p>O volume E2E legado com duplicatas foi preservado; a reprodução e validação usaram volumes novos e isolados. A reprodução capturou SQL Server Msg 1934 na operação DELETE; após a correção, o teste focado de restore passou 1/1. As duas rodadas completas ainda serão repetidas no fechamento. Nenhum segredo, token, hash ou connection string foi incluído neste arquivo.</p>
         </div>
       </div>
     </section>
@@ -389,7 +389,7 @@
       <ul>
         <li>O contrato verificou 401/403/400/404/409/CSRF nos cenários aplicáveis, mas caminho feliz e tipos/campos inválidos não foram exercitados em todas as 69 ações.</li>
         <li>JWT adulterado/expirado não foi repetido nesta validação; faturamento versus SQL manual não foi revalidado; SignalR foi testado por hook, não após restart real da API.</li>
-        <li>O restore gerado pela própria API respondeu 500 nas duas rodadas E2E e em duas reproduções focadas; não foi possível correlacionar a exceção interna a logs do contêiner, então a causa raiz permanece aberta.</li>
+        <li>O restore foi corrigido e o teste focado no stack confirmou HTTP 200 e recuperação do marcador; as duas rodadas Playwright completas ainda precisam ser repetidas para o fechamento final.</li>
         <li>O teste de injeção confirmou ausência de 500, não execução de payload XSS em cada tela. Tamanho máximo de payload não foi medido.</li>
         <li>Paginação, mensagens loading/error e rotas nunca usadas foram inspecionadas estaticamente; a análise não foi exaustiva em todas as telas.</li>
         <li>HSTS/TLS e configuração real de proxy/produção não foram verificados; HSTS foi corretamente ausente em HTTP local.</li>
@@ -420,7 +420,7 @@
       {id:"L-06",severity:"BAIXO",status:"RESOLVIDO",phase:"7",summary:"O teste de contraste amostrava o tema durante a transição CSS.",evidence:"E2E registrou 2,418:1 e 1,737:1 durante a transição; o teste agora faz polling do contraste final sem reduzir o limite de 7:1. Execução focada: 1/1 passou.",impact:"Falsas falhas do teste podiam mascarar o resultado final da verificação de acessibilidade.",fix:"Manter o polling do estado calculado e a exigência mínima 7:1.",confidence:"9/10"},
       {id:"I-01",severity:"INFO",status:"ABERTO",phase:"6",summary:"Gitleaks mantém dois alertas redigidos no histórico.",evidence:"gitleaks detect --source=. --redact --no-banner --exit-code 0: 162 commits, 2 leaks; os valores não foram exibidos.",impact:"Requer confirmação humana de que os valores históricos são somente fixtures.",fix:"Revisar os dois achados redigidos localmente e rotacionar qualquer segredo real.",confidence:"8/10"},
       {id:"I-02",severity:"INFO",status:"ABERTO",phase:"6",summary:"Falhas ao gravar log de reserva são suprimidas.",evidence:"back-end/Services/ReservaService.cs:81,107: catches não propagam nem registram falha de log.",impact:"A reserva segue, mas falhas do trilho de auditoria podem passar despercebidas.",fix:"Registrar a falha em logger alternativo sem impedir a operação principal.",confidence:"9/10"},
-      {id:"H-02",severity:"ALTO",status:"ABERTO",phase:"7",summary:"Restore do backup gerado falha no E2E do stack.",evidence:"Playwright em e2e/systemic.spec.ts:212: esperado HTTP 200, recebido 500; resposta genérica “Falha ao restaurar o backup.” com correlationId. Falhou nas duas rodadas completas e em duas reproduções focadas.",impact:"A recuperação de dados por um backup produzido pela própria API não está comprovada e pode ficar indisponível.",fix:"Investigar a exceção correlacionada no servidor e corrigir o restore; repetir a restauração ponta a ponta e as duas rodadas Playwright.",confidence:"9/10"}
+      {id:"H-02",severity:"ALTO",status:"RESOLVIDO",phase:"7",summary:"Restore falhava com SQL Server Msg 1934 durante o DELETE do backup.",evidence:"Playwright no stack pré-correção: HTTP 500, CorrelationId 0HNPPBPJ4LGTG:00000022; docker compose logs da API mostrou SqlException 1934: DELETE falhou por QUOTED_IDENTIFIER. A consulta sys.sql_modules também encontrou procedures/views do app com uses_quoted_identifier=0. Após correção: query sem módulos do app OFF, teste de integração com índice filtrado passou e Playwright focado passou 1/1 com marcador restaurado.",impact:"Impediria a recuperação pela própria API em banco com índice filtrado.",fix:"Gerar DELETE/constraints por tabela sem sp_MSforeachtable, definir opções ANSI antes dos módulos SQL e invocar sqlcmd com -I.",confidence:"10/10"}
     ];
 
     const apiActions = [

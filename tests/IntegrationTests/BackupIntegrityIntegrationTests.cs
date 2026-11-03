@@ -28,6 +28,7 @@ public sealed class BackupIntegrityIntegrationTests
     {
         await using var environment = await BackupTestEnvironment.CreateAsync();
         await environment.InitializeDatabaseAsync();
+        await environment.AddFilteredComandaIndexAsync();
         await environment.AddProductAsync(stock: 7);
 
         var archive = await environment.GenerateAndDownloadBackupAsync();
@@ -268,6 +269,14 @@ public sealed class BackupIntegrityIntegrationTests
                 StatusProduto = "DISPONIVEL",
             });
             await context.SaveChangesAsync();
+        }
+
+        internal async Task AddFilteredComandaIndexAsync()
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await context.Database.ExecuteSqlRawAsync(
+                "CREATE UNIQUE INDEX UX_COMANDA_MESA_ABERTA ON dbo.COMANDA(ID_MESA) WHERE STATUS_COMANDA = 'ABERTA';");
         }
 
         internal async Task SetProductStockAsync(int stock)

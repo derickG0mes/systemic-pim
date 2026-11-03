@@ -34,13 +34,13 @@ services:
     command:
       - |
         set -eo pipefail
-        until /opt/mssql-tools/bin/sqlcmd -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -Q "SELECT 1" >/dev/null 2>&1; do
+        until /opt/mssql-tools/bin/sqlcmd -I -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -Q "SELECT 1" >/dev/null 2>&1; do
           echo "Aguardando SQL Server..."
           sleep 2
         done
-        /opt/mssql-tools/bin/sqlcmd -b -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -i /scripts/01-create-database-idempotent.sql
-        /opt/mssql-tools/bin/sqlcmd -b -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -i /scripts/02-procedures-views.sql
-        /opt/mssql-tools/bin/sqlcmd -b -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -i /scripts/03-constraints.sql
+        /opt/mssql-tools/bin/sqlcmd -I -b -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -i /scripts/01-create-database-idempotent.sql
+        /opt/mssql-tools/bin/sqlcmd -I -b -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -i /scripts/02-procedures-views.sql
+        /opt/mssql-tools/bin/sqlcmd -I -b -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -i /scripts/03-constraints.sql
         if [ "$${E2E_SEED}" = "1" ]; then
           if [[ ! "$${E2E_ADMIN_EMAIL}" =~ ^[A-Za-z0-9._+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
             echo "E2E_ADMIN_EMAIL inválido."
@@ -57,7 +57,7 @@ services:
             -e "s|__E2E_ADMIN_EMAIL__|$${E2E_ADMIN_EMAIL}|g" \
             -e "s|__E2E_ADMIN_PASSWORD_HASH_HEX__|$${E2E_ADMIN_PASSWORD_HASH_HEX}|g" \
             /scripts/seed-admin-e2e.sql > "$${seed_file}"
-          /opt/mssql-tools/bin/sqlcmd -b -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -i "$${seed_file}"
+          /opt/mssql-tools/bin/sqlcmd -I -b -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -i "$${seed_file}"
         elif [ "$${E2E_SEED}" != "0" ]; then
           echo "E2E_SEED deve ser 0 ou 1."
           exit 1
