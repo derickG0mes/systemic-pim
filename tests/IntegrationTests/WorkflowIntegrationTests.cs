@@ -628,7 +628,14 @@ public sealed class WorkflowIntegrationTests
             environment.AdminPasswordForTest);
         Assert.Equal(HttpStatusCode.Unauthorized, locked.StatusCode);
 
-        clock.Advance(TimeSpan.FromMinutes(LoginLockoutPolicy.DurationMinutes) + TimeSpan.FromSeconds(1));
+        clock.Advance(TimeSpan.FromMinutes(LoginLockoutPolicy.DurationMinutes) - TimeSpan.FromSeconds(1));
+        using var stillLocked = await environment.SendLoginAsync(
+            csrfToken,
+            environment.AdminEmailForTest,
+            environment.AdminPasswordForTest);
+        Assert.Equal(HttpStatusCode.Unauthorized, stillLocked.StatusCode);
+
+        clock.Advance(TimeSpan.FromSeconds(2));
         using var unlocked = await environment.SendLoginAsync(
             csrfToken,
             environment.AdminEmailForTest,
