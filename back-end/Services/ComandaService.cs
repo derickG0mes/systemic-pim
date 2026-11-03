@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
 using PIM3.API.Controllers;
@@ -156,42 +157,70 @@ public sealed class ComandaService : IComandaService
         if (comanda.IdMesa <= 0)
             return ApiServiceResults.BadRequest(new { message = "Mesa é obrigatória" });
 
-        // Se nenhum cliente foi informado (idCliente = 0), usa o cliente padrão "Consumidor"
-        if (comanda.IdCliente <= 0)
-        {
-            var consumidor = _context.Clientes.FirstOrDefault(c => c.NomeCliente == "Consumidor");
-            if (consumidor == null)
-                return ApiServiceResults.BadRequest(new { message = "Cliente padrão 'Consumidor' não encontrado. Execute a migration-cliente-consumidor.sql." });
-            comanda.IdCliente = consumidor.IdCliente;
-        }
-
-        var mesa = _context.Mesas.FirstOrDefault(m => m.IdMesa == comanda.IdMesa)
-            ?? _context.Mesas.FirstOrDefault(m => m.NumeroMesa == comanda.IdMesa);
+        var mesa = await _context.Mesas.FirstOrDefaultAsync(m => m.IdMesa == comanda.IdMesa)
+            ?? await _context.Mesas.FirstOrDefaultAsync(m => m.NumeroMesa == comanda.IdMesa);
         if (mesa == null)
             return ApiServiceResults.BadRequest(new { message = "Mesa não encontrada" });
 
-        comanda.IdMesa = mesa.IdMesa;
+        await using var transaction = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+        try
+        {
+            var mesaBloqueada = await _context.Mesas
+                .FromSqlInterpolated($"SELECT * FROM dbo.MESA WITH (UPDLOCK, HOLDLOCK) WHERE ID_MESA = {mesa.IdMesa}")
+                .AsNoTracking()
+                .FirstOrDefaultAsync();
+            if (mesaBloqueada == null)
+                return ApiServiceResults.BadRequest(new { message = "Mesa não encontrada" });
 
-        // Verificar se cliente existe
-        var cliente = _context.Clientes.FirstOrDefault(c => c.IdCliente == comanda.IdCliente);
-        if (cliente == null)
-            return ApiServiceResults.BadRequest(new { message = "Cliente não encontrado" });
+            if (comanda.IdCliente <= 0)
+            {
+                var consumidor = await _context.Clientes.FirstOrDefaultAsync(c => c.NomeCliente == "Consumidor");
+                if (consumidor == null)
+                    return ApiServiceResults.BadRequest(new { message = "Cliente padrão 'Consumidor' não encontrado. Execute a migration-cliente-consumidor.sql." });
+                comanda.IdCliente = consumidor.IdCliente;
+            }
 
-        // Verificar se já existe comanda aberta para esta mesa
-        var comandaAberta = _context.Comandas
-            .FirstOrDefault(c => c.IdMesa == comanda.IdMesa && c.StatusComanda == "ABERTA");
-        if (comandaAberta != null)
-            return ApiServiceResults.BadRequest(new { message = "Já existe uma comanda aberta para esta mesa" });
+            comanda.IdMesa = mesaBloqueada.IdMesa;
 
-        comanda.DataAberta = DateTime.UtcNow;
-        comanda.StatusComanda = "ABERTA";
-        comanda.ValorTotal = 0m;
+            var clienteExiste = await _context.Clientes.AnyAsync(c => c.IdCliente == comanda.IdCliente);
+            if (!clienteExiste)
+                return ApiServiceResults.BadRequest(new { message = "Cliente não encontrado" });
 
-        _context.Comandas.Add(comanda);
-        await _context.SaveChangesAsync();
+            var comandaAberta = await _context.Comandas
+                .AnyAsync(c => c.IdMesa == comanda.IdMesa && c.StatusComanda == "ABERTA");
+            if (comandaAberta)
+                return ApiServiceResults.Conflict(new { message = "Já existe uma comanda aberta para esta mesa." });
+
+            comanda.DataAberta = DateTime.UtcNow;
+            comanda.StatusComanda = "ABERTA";
+            comanda.ValorTotal = 0m;
+
+            _context.Comandas.Add(comanda);
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+        catch (DbUpdateException exception) when (IsUniqueIndexViolation(exception))
+        {
+            return ApiServiceResults.Conflict(new { message = "Já existe uma comanda aberta para esta mesa." });
+        }
+
         await NotificarComandaAtualizada(comanda.IdComanda, comanda.IdMesa, comanda.StatusComanda);
 
         return ApiServiceResults.CreatedAtAction(nameof(GetById), new { id = comanda.IdComanda }, comanda);
+    }
+
+    private static bool IsUniqueIndexViolation(DbUpdateException exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is SqlException sqlException
+                && sqlException.Errors.Cast<SqlError>().Any(error => error.Number is 2601 or 2627))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

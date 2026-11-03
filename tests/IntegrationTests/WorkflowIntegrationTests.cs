@@ -125,6 +125,52 @@ public sealed class WorkflowIntegrationTests
     }
 
     [IsolatedSqlServerFact]
+    public async Task Concurrent_comanda_creation_on_same_table_returns_one_created_and_nine_conflicts()
+    {
+        await using var environment = await WorkflowTestEnvironment.CreateAsync();
+        await environment.LoginAsAdminAsync();
+        var mesa = await environment.CreateMesaAsync();
+        var customer = await environment.CreateCustomerAsync();
+        var csrfToken = await environment.GetCsrfTokenForTestAsync();
+        var start = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var requests = Enumerable.Range(0, 10)
+            .Select(async _ =>
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Post, "/api/comanda")
+                {
+                    Content = JsonContent.Create(new
+                    {
+                        idMesa = mesa.IdMesa,
+                        idCliente = customer.IdCliente,
+                    }),
+                };
+                request.Headers.Add("X-CSRF-TOKEN", csrfToken);
+                await start.Task;
+                return await environment.Client.SendAsync(request);
+            })
+            .ToArray();
+
+        start.SetResult(true);
+        var responses = await Task.WhenAll(requests);
+        try
+        {
+            Assert.Equal(1, responses.Count(response => response.StatusCode == HttpStatusCode.Created));
+            Assert.Equal(9, responses.Count(response => response.StatusCode == HttpStatusCode.Conflict));
+
+            await using var context = environment.CreateContextForTest();
+            Assert.Equal(1, await context.Comandas.CountAsync(comanda =>
+                comanda.IdMesa == mesa.IdMesa && comanda.StatusComanda == "ABERTA"));
+            Assert.Equal("OCUPADA", await environment.ReadMesaStatusAsync(mesa.IdMesa));
+        }
+        finally
+        {
+            foreach (var response in responses)
+                response.Dispose();
+        }
+    }
+
+    [IsolatedSqlServerFact]
     public async Task Reservation_operation_is_visible_in_admin_audit_log()
     {
         await using var environment = await WorkflowTestEnvironment.CreateAsync();
@@ -327,6 +373,19 @@ public sealed class WorkflowIntegrationTests
             return mesa;
         }
 
+        internal async Task<Cliente> CreateCustomerAsync()
+        {
+            var customer = new Cliente { NomeCliente = $"Cliente-{Guid.NewGuid():N}" };
+            await using var context = CreateContext();
+            context.Clientes.Add(customer);
+            await context.SaveChangesAsync();
+            return customer;
+        }
+
+        internal AppDbContext CreateContextForTest() => CreateContext();
+
+        internal Task<string> GetCsrfTokenForTestAsync() => GetCsrfTokenAsync();
+
         internal async Task<OrderData> CreateOrderDataAsync()
         {
             await using var context = CreateContext();
@@ -452,6 +511,7 @@ public sealed class WorkflowIntegrationTests
                      {
                          "01-create-database-idempotent.sql",
                          "02-procedures-views.sql",
+                         "03-constraints.sql",
                      })
             {
                 var path = Path.Combine(repositoryRoot, "back-end", "Scripts", scriptName);

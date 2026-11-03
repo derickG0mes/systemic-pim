@@ -40,6 +40,7 @@ services:
         done
         /opt/mssql-tools/bin/sqlcmd -b -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -i /scripts/01-create-database-idempotent.sql
         /opt/mssql-tools/bin/sqlcmd -b -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -i /scripts/02-procedures-views.sql
+        /opt/mssql-tools/bin/sqlcmd -b -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -i /scripts/03-constraints.sql
         if [ "$${E2E_SEED}" = "1" ]; then
           if [[ ! "$${E2E_ADMIN_EMAIL}" =~ ^[A-Za-z0-9._+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
             echo "E2E_ADMIN_EMAIL inválido."
