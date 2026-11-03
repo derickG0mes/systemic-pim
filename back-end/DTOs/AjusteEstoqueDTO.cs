@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace PIM3.API.DTOs;
@@ -12,8 +13,13 @@ public class AjusteEstoqueDTO
 public class ProdutoDto
 {
     public int IdProduto { get; set; }
+
+    [Required(ErrorMessage = "Nome do produto é obrigatório.")]
+    [StringLength(45, ErrorMessage = "Nome do produto deve ter no máximo 45 caracteres.")]
     [JsonPropertyName("nomeProduto")]
     public string NomeProduto { get; set; } = string.Empty;
+
+    [StringLength(100, ErrorMessage = "Descrição do produto deve ter no máximo 100 caracteres.")]
     [JsonPropertyName("descricaoProduto")]
     public string? DescricaoProduto { get; set; }
     [JsonPropertyName("precoProduto")]
@@ -22,8 +28,11 @@ public class ProdutoDto
     public int QtdEstoque { get; set; }
     [JsonPropertyName("estoqueMinimo")]
     public int EstoqueMinimo { get; set; }
+    [StringLength(20, ErrorMessage = "Status do produto deve ter no máximo 20 caracteres.")]
     [JsonPropertyName("statusProduto")]
     public string StatusProduto { get; set; } = "DISPONIVEL";
+
+    [StringLength(20, ErrorMessage = "Categoria do produto deve ter no máximo 20 caracteres.")]
     [JsonPropertyName("categoriaProduto")]
     public string CategoriaProduto { get; set; } = string.Empty;
     [JsonPropertyName("categoria")]

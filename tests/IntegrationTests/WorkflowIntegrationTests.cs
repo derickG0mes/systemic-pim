@@ -306,6 +306,103 @@ public sealed class WorkflowIntegrationTests
     }
 
     [IsolatedSqlServerFact]
+    public async Task Duplicate_employee_email_and_payment_name_return_conflict()
+    {
+        await using var environment = await WorkflowTestEnvironment.CreateAsync();
+        await environment.LoginAsAdminAsync();
+        var email = $"employee-{Guid.NewGuid():N}@systemic.test";
+        using var employeeCreated = await environment.SendUnsafeAsync(
+            HttpMethod.Post,
+            "/api/funcionario",
+            CreateEmployeeBody(email, CreateCpf()));
+        Assert.Equal(HttpStatusCode.Created, employeeCreated.StatusCode);
+
+        using var employeeDuplicate = await environment.SendUnsafeAsync(
+            HttpMethod.Post,
+            "/api/funcionario",
+            CreateEmployeeBody(email, CreateCpf()));
+        Assert.Equal(HttpStatusCode.Conflict, employeeDuplicate.StatusCode);
+        Assert.Contains("E-mail já cadastrado", await employeeDuplicate.Content.ReadAsStringAsync());
+
+        var paymentName = $"Forma-{Guid.NewGuid():N}"[..20];
+        using var paymentCreated = await environment.SendUnsafeAsync(
+            HttpMethod.Post,
+            "/api/formapagamento",
+            new { nomeFormaPagamento = paymentName });
+        Assert.Equal(HttpStatusCode.Created, paymentCreated.StatusCode);
+        using var paymentDuplicate = await environment.SendUnsafeAsync(
+            HttpMethod.Post,
+            "/api/formapagamento",
+            new { nomeFormaPagamento = paymentName });
+        Assert.Equal(HttpStatusCode.Conflict, paymentDuplicate.StatusCode);
+        Assert.Contains("Nome da forma de pagamento já cadastrado", await paymentDuplicate.Content.ReadAsStringAsync());
+    }
+
+    [IsolatedSqlServerFact]
+    public async Task Oversized_name_fields_return_400_with_field_specific_validation()
+    {
+        await using var environment = await WorkflowTestEnvironment.CreateAsync();
+        await environment.LoginAsAdminAsync();
+
+        using var cliente = await environment.SendUnsafeAsync(
+            HttpMethod.Post,
+            "/api/cliente",
+            new { nomeCliente = new string('C', 101) });
+        Assert.Equal(HttpStatusCode.BadRequest, cliente.StatusCode);
+        Assert.Contains("NomeCliente", await cliente.Content.ReadAsStringAsync());
+
+        using var funcionario = await environment.SendUnsafeAsync(
+            HttpMethod.Post,
+            "/api/funcionario",
+            CreateEmployeeBody($"long-{Guid.NewGuid():N}@systemic.test", CreateCpf(), new string('F', 101)));
+        Assert.Equal(HttpStatusCode.BadRequest, funcionario.StatusCode);
+        Assert.Contains("NomeFuncionario", await funcionario.Content.ReadAsStringAsync());
+
+        using var pagamento = await environment.SendUnsafeAsync(
+            HttpMethod.Post,
+            "/api/formapagamento",
+            new { nomeFormaPagamento = new string('P', 21) });
+        Assert.Equal(HttpStatusCode.BadRequest, pagamento.StatusCode);
+        Assert.Contains("NomeFormaPagamento", await pagamento.Content.ReadAsStringAsync());
+
+        using var mesa = await environment.SendUnsafeAsync(
+            HttpMethod.Post,
+            "/api/mesa",
+            new { numeroMesa = 987654, capacidadeMesa = 4, statusMesa = new string('M', 21) });
+        Assert.Equal(HttpStatusCode.BadRequest, mesa.StatusCode);
+        Assert.Contains("StatusMesa", await mesa.Content.ReadAsStringAsync());
+
+        using var produto = await environment.SendUnsafeAsync(
+            HttpMethod.Post,
+            "/api/produto",
+            new
+            {
+                nomeProduto = new string('P', 46),
+                precoProduto = 1m,
+                qtdEstoque = 1,
+                estoqueMinimo = 1,
+                statusProduto = "DISPONIVEL",
+                categoriaProduto = "PRINCIPAL",
+            });
+        Assert.Equal(HttpStatusCode.BadRequest, produto.StatusCode);
+        Assert.Contains("NomeProduto", await produto.Content.ReadAsStringAsync());
+
+        var orderData = await environment.CreateOrderDataAsync();
+        using var despesa = await environment.SendUnsafeAsync(
+            HttpMethod.Post,
+            "/api/faturamento/despesa",
+            new
+            {
+                descricaoDespesa = new string('D', 101),
+                categoriaDespesa = "Diversos",
+                valorDespesa = 1m,
+                idFormaPagamento = orderData.FormaPagamento.IdFormaPagamento,
+            });
+        Assert.Equal(HttpStatusCode.BadRequest, despesa.StatusCode);
+        Assert.Contains("DescricaoDespesa", await despesa.Content.ReadAsStringAsync());
+    }
+
+    [IsolatedSqlServerFact]
     public async Task Reservation_operation_is_visible_in_admin_audit_log()
     {
         await using var environment = await WorkflowTestEnvironment.CreateAsync();
@@ -347,6 +444,20 @@ public sealed class WorkflowIntegrationTests
             },
         },
     };
+
+    private static object CreateEmployeeBody(string email, string cpf, string? name = null) => new
+    {
+        nomeFuncionario = name ?? "Funcionário de teste",
+        cpfFuncionario = cpf,
+        emailFuncionario = email,
+        cargoFuncionario = "Teste",
+        role = "employee",
+        telefoneFuncionario = "11999999999",
+        senha = "senha-local-de-teste",
+    };
+
+    private static string CreateCpf() =>
+        string.Concat(Enumerable.Range(0, 11).Select(_ => RandomNumberGenerator.GetInt32(10).ToString()));
 
     private sealed class WorkflowTestEnvironment : IAsyncDisposable
     {

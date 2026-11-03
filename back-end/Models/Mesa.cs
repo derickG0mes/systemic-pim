@@ -14,6 +14,7 @@ public class Mesa
     public int NumeroMesa { get; set; }
 
     [Column("STATUS_MESA")]
+    [StringLength(20, ErrorMessage = "Status da mesa deve ter no máximo 20 caracteres.")]
     public string StatusMesa { get; set; } = "DISPONIVEL";
 
     [Column("CAPACIDADE_MESA")]

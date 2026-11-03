@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using PIM3.API.Controllers;
 using PIM3.API.Data;
 using PIM3.API.DTOs;
@@ -143,6 +144,9 @@ public sealed class FuncionarioService : IFuncionarioService
             return ApiServiceResults.BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "CPF já cadastrado" });
         }
 
+        if (_context.Funcionarios.Any(f => f.EmailFuncionario == request.EmailFuncionario))
+            return ApiServiceResults.Conflict(new RespostaPadraoDTO { Sucesso = false, Mensagem = "E-mail já cadastrado." });
+
         var funcionario = new Funcionario
         {
             NomeFuncionario = request.NomeFuncionario,
@@ -156,7 +160,15 @@ public sealed class FuncionarioService : IFuncionarioService
         };
 
         _context.Funcionarios.Add(funcionario);
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException exception) when (SqlServerExceptionHelper.IsUniqueConstraintViolation(exception))
+        {
+            return ApiServiceResults.Conflict(new RespostaPadraoDTO { Sucesso = false, Mensagem = "CPF ou e-mail já cadastrado." });
+        }
+
         LogSistemaHelper.Registrar(_context, "USUARIO", $"Funcionário criado: {funcionario.NomeFuncionario}");
         await _context.SaveChangesAsync();
 
@@ -199,7 +211,15 @@ public sealed class FuncionarioService : IFuncionarioService
         funcionario.NomeFuncionario = request.NomeFuncionario;
         funcionario.TelefoneFuncionario = request.TelefoneFuncionario;
         if (!string.IsNullOrEmpty(request.EmailFuncionario))
+        {
+            if (_context.Funcionarios.Any(f =>
+                    f.IdFuncionario != id && f.EmailFuncionario == request.EmailFuncionario))
+            {
+                return ApiServiceResults.Conflict(new RespostaPadraoDTO { Sucesso = false, Mensagem = "E-mail já cadastrado." });
+            }
+
             funcionario.EmailFuncionario = request.EmailFuncionario;
+        }
         if (!string.IsNullOrEmpty(request.CargoFuncionario))
             funcionario.CargoFuncionario = request.CargoFuncionario;
 
@@ -209,7 +229,14 @@ public sealed class FuncionarioService : IFuncionarioService
         }
 
         _context.Funcionarios.Update(funcionario);
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException exception) when (SqlServerExceptionHelper.IsUniqueConstraintViolation(exception))
+        {
+            return ApiServiceResults.Conflict(new RespostaPadraoDTO { Sucesso = false, Mensagem = "CPF ou e-mail já cadastrado." });
+        }
 
         return ApiServiceResults.Ok(new RespostaPadraoDTO
         {

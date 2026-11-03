@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
 using PIM3.API.Controllers;
@@ -199,7 +198,7 @@ public sealed class ComandaService : IComandaService
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
         }
-        catch (DbUpdateException exception) when (IsUniqueIndexViolation(exception))
+        catch (DbUpdateException exception) when (SqlServerExceptionHelper.IsUniqueConstraintViolation(exception))
         {
             return ApiServiceResults.Conflict(new { message = "Já existe uma comanda aberta para esta mesa." });
         }
@@ -207,20 +206,6 @@ public sealed class ComandaService : IComandaService
         await NotificarComandaAtualizada(comanda.IdComanda, comanda.IdMesa, comanda.StatusComanda);
 
         return ApiServiceResults.CreatedAtAction(nameof(GetById), new { id = comanda.IdComanda }, comanda);
-    }
-
-    private static bool IsUniqueIndexViolation(DbUpdateException exception)
-    {
-        for (Exception? current = exception; current is not null; current = current.InnerException)
-        {
-            if (current is SqlException sqlException
-                && sqlException.Errors.Cast<SqlError>().Any(error => error.Number is 2601 or 2627))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /// <summary>

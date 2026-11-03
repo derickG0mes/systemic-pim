@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
 using PIM3.API.Models;
 
@@ -33,8 +34,18 @@ public sealed class FormaPagamentoService : IFormaPagamentoService
         if (string.IsNullOrEmpty(forma.NomeFormaPagamento))
             return ApiServiceResults.BadRequest(new { message = "Nome da forma de pagamento é obrigatório" });
 
+        if (_context.FormasPagamento.Any(f => f.NomeFormaPagamento == forma.NomeFormaPagamento))
+            return ApiServiceResults.Conflict(new { sucesso = false, mensagem = "Nome da forma de pagamento já cadastrado." });
+
         _context.FormasPagamento.Add(forma);
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException exception) when (SqlServerExceptionHelper.IsUniqueConstraintViolation(exception))
+        {
+            return ApiServiceResults.Conflict(new { sucesso = false, mensagem = "Nome da forma de pagamento já cadastrado." });
+        }
 
         return ApiServiceResults.CreatedAtAction("GetById", new { id = forma.IdFormaPagamento }, forma);
     }
@@ -45,10 +56,23 @@ public sealed class FormaPagamentoService : IFormaPagamentoService
         if (forma == null)
             return ApiServiceResults.NotFound(new { message = "Forma de pagamento não encontrada" });
 
+        if (_context.FormasPagamento.Any(f =>
+                f.IdFormaPagamento != id && f.NomeFormaPagamento == formaAtualizada.NomeFormaPagamento))
+        {
+            return ApiServiceResults.Conflict(new { sucesso = false, mensagem = "Nome da forma de pagamento já cadastrado." });
+        }
+
         forma.NomeFormaPagamento = formaAtualizada.NomeFormaPagamento;
 
         _context.FormasPagamento.Update(forma);
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException exception) when (SqlServerExceptionHelper.IsUniqueConstraintViolation(exception))
+        {
+            return ApiServiceResults.Conflict(new { sucesso = false, mensagem = "Nome da forma de pagamento já cadastrado." });
+        }
 
         return ApiServiceResults.Ok(forma);
     }

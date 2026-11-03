@@ -11,9 +11,11 @@ public class Produto
 
     [Column("NOME_PRODUTO")]
     [Required(ErrorMessage = "Nome do produto é obrigatório")]
+    [StringLength(45, ErrorMessage = "Nome do produto deve ter no máximo 45 caracteres.")]
     public string NomeProduto { get; set; } = string.Empty;
 
     [Column("DESCRICAO_PRODUTO")]
+    [StringLength(100, ErrorMessage = "Descrição do produto deve ter no máximo 100 caracteres.")]
     public string? DescricaoProduto { get; set; }
 
     [Column("PRECO_CUSTO")]
@@ -35,8 +37,10 @@ public class Produto
     public int EstoqueMinimo { get; set; } = 5;
 
     [Column("STATUS_PRODUTO")]
+    [StringLength(20, ErrorMessage = "Status do produto deve ter no máximo 20 caracteres.")]
     public string StatusProduto { get; set; } = "DISPONIVEL"; // DISPONIVEL, INDISPONIVEL
 
     [Column("CATEGORIA_PRODUTO")]
+    [StringLength(20, ErrorMessage = "Categoria do produto deve ter no máximo 20 caracteres.")]
     public string CategoriaProduto { get; set; } = "PRINCIPAL";
 }

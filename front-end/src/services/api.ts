@@ -53,6 +53,36 @@ async function parseJsonResponse(response: Response) {
   }
 }
 
+export function formatApiErrorMessage(responseBody: string): string {
+  if (!responseBody) return "";
+
+  try {
+    const parsed: unknown = JSON.parse(responseBody);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return responseBody;
+
+    const data = parsed as Record<string, unknown>;
+    const message = data.mensagem ?? data.message;
+    if (typeof message === "string" && message) return message;
+
+    const errors = data.errors;
+    if (errors && typeof errors === "object" && !Array.isArray(errors)) {
+      const fieldMessages = Object.entries(errors as Record<string, unknown>)
+        .flatMap(([field, messages]) => {
+          if (typeof messages === "string") return [`${field}: ${messages}`];
+          if (!Array.isArray(messages)) return [];
+          return messages
+            .filter((item): item is string => typeof item === "string")
+            .map((item) => `${field}: ${item}`);
+        });
+      if (fieldMessages.length > 0) return fieldMessages.join(" ");
+    }
+
+    return responseBody;
+  } catch {
+    return responseBody;
+  }
+}
+
 // A sessão é enviada automaticamente pelo cookie HttpOnly do navegador.
 async function apiCall(endpoint: string, options: RequestInit = {}) {
   const headers: Record<string, string> = {
@@ -79,13 +109,7 @@ async function apiCall(endpoint: string, options: RequestInit = {}) {
     if (response.status === 401) {
       window.dispatchEvent(new Event("auth:unauthorized"));
     }
-    let detail = text;
-    try {
-      const parsed = text ? JSON.parse(text) : null;
-      detail = parsed?.mensagem || parsed?.message || text;
-    } catch {
-      /* mantém texto bruto */
-    }
+    const detail = formatApiErrorMessage(text);
     const err = new Error(
       `[API] ${endpoint} → ${response.status} ${response.statusText}${detail ? `: ${detail}` : ""}`,
     );
