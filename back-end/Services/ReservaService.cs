@@ -10,10 +10,12 @@ namespace PIM3.API.Services;
 public sealed class ReservaService : IReservaService
 {
     private readonly AppDbContext _context;
+    private readonly ILogger<ReservaService> _logger;
 
-    public ReservaService(AppDbContext context)
+    public ReservaService(AppDbContext context, ILogger<ReservaService> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     public async Task<IActionResult> ListarReservas()
@@ -81,9 +83,13 @@ public sealed class ReservaService : IReservaService
             LogSistemaHelper.Registrar(_context, "RESERVA", $"Reserva criada: {cliente.NomeCliente} - Mesa {mesa.NumeroMesa}");
             await _context.SaveChangesAsync();
         }
-        catch
+        catch (Exception exception)
         {
-            /* LOG_SISTEMA ausente não impede a reserva */
+            _logger.LogError(
+                exception,
+                "Falha ao registrar log da reserva {ReservationId} na mesa {TableNumber}.",
+                reserva.IdReserva,
+                mesa.NumeroMesa);
         }
 
         return ApiServiceResults.Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Reserva criada com sucesso!", Dados = reserva });
@@ -107,7 +113,13 @@ public sealed class ReservaService : IReservaService
             LogSistemaHelper.Registrar(_context, "RESERVA", $"Reserva {id} cancelada");
             await _context.SaveChangesAsync();
         }
-        catch { /* log não bloqueia */ }
+        catch (Exception exception)
+        {
+            _logger.LogError(
+                exception,
+                "Falha ao registrar log de cancelamento da reserva {ReservationId}.",
+                id);
+        }
 
         return ApiServiceResults.Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Reserva cancelada com sucesso" });
     }
