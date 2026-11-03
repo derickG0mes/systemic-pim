@@ -68,13 +68,15 @@ public class HealthCheckController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Database health check failed");
+            var correlationId = HttpContext.TraceIdentifier;
+            _logger.LogError(ex, "Database health check failed. CorrelationId: {CorrelationId}", correlationId);
 
             return StatusCode(503, new RespostaPadraoDTO
             {
                 Sucesso = false,
                 Mensagem = "Serviço temporariamente indisponível.",
                 CodigoErro = "DATABASE_INDISPONIVEL",
+                Dados = new { correlationId }
             });
         }
     }

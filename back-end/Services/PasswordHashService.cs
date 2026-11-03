@@ -13,6 +13,13 @@ public class PasswordHashService
     private const int SaltSize = 16;
     private const int HashSize = 32;
     private const int LegacyHashSize = 20;
+    private static readonly string DummyPasswordHash =
+        HashPassword(Convert.ToBase64String(RandomNumberGenerator.GetBytes(SaltSize)));
+
+    public static void InitializeDummyHash() => _ = DummyPasswordHash;
+
+    public static bool VerifyDummyPassword(string password) =>
+        VerifyPassword(password, DummyPasswordHash, out _);
 
     public static string HashPassword(string password)
     {

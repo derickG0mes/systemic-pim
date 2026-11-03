@@ -18,6 +18,7 @@ EnvLoader.Load(Path.Combine(Directory.GetCurrentDirectory(), ".env"));
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls(ApiMetadata.ListenUrl);
+PasswordHashService.InitializeDummyHash();
 
 var dbServer = Environment.GetEnvironmentVariable("DB_SERVER") ?? "localhost";
 var dbName = Environment.GetEnvironmentVariable("DB_NAME") ?? "DB_RESTAURANTE";

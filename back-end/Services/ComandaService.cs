@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -99,8 +100,13 @@ public sealed class ComandaService : IComandaService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load open orders.");
-            return ApiServiceResults.StatusCode(500, new { error = ex.Message });
+            var correlationId = Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString("N");
+            _logger.LogError(ex, "Failed to load open orders. CorrelationId: {CorrelationId}", correlationId);
+            return ApiServiceResults.StatusCode(500, new
+            {
+                error = "Não foi possível carregar as comandas abertas.",
+                correlationId
+            });
         }
     }
 

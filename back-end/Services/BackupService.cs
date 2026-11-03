@@ -8,6 +8,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
 using PIM3.API.Services.Backup;
@@ -18,12 +19,17 @@ public class BackupService
 {
     private readonly AppDbContext _context;
     private readonly IConfiguration _configuration;
+    private readonly ILogger<BackupService> _logger;
     public string BackupDirectory { get; }
 
-    public BackupService(AppDbContext context, IConfiguration configuration)
+    public BackupService(
+        AppDbContext context,
+        IConfiguration configuration,
+        ILogger<BackupService> logger)
     {
         _context = context;
         _configuration = configuration;
+        _logger = logger;
         var configuredPath = Environment.GetEnvironmentVariable("BACKUP_PATH")
             ?? configuration["BACKUP_PATH"];
         BackupDirectory = Path.GetFullPath(string.IsNullOrWhiteSpace(configuredPath)
@@ -178,7 +184,13 @@ public class BackupService
         }
         catch (Exception ex)
         {
-            return $"{{\"erro\": \"Falha ao ler configuracoes: {ex.Message}\"}}";
+            var correlationId = Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString("N");
+            _logger.LogError(ex, "Failed to export application configuration. CorrelationId: {CorrelationId}", correlationId);
+            return JsonSerializer.Serialize(new
+            {
+                erro = "Falha ao ler configurações.",
+                correlationId
+            });
         }
 
         return "{}";

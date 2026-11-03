@@ -339,6 +339,44 @@ public sealed class WorkflowIntegrationTests
     }
 
     [IsolatedSqlServerFact]
+    public async Task Login_returns_identical_responses_for_missing_wrong_and_locked_accounts()
+    {
+        await using var environment = await WorkflowTestEnvironment.CreateAsync();
+        var csrfToken = await environment.GetCsrfTokenForTestAsync();
+
+        using var missing = await environment.SendLoginAsync(
+            csrfToken,
+            $"missing-{Guid.NewGuid():N}@systemic.test",
+            "senha-incorreta");
+        using var incorrect = await environment.SendLoginAsync(
+            csrfToken,
+            environment.AdminEmailForTest,
+            "senha-incorreta");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, missing.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, incorrect.StatusCode);
+        var expectedBody = await missing.Content.ReadAsStringAsync();
+        Assert.Equal(expectedBody, await incorrect.Content.ReadAsStringAsync());
+
+        for (var attempt = 1; attempt < LoginLockoutPolicy.MaxAttempts; attempt++)
+        {
+            using var failedAttempt = await environment.SendLoginAsync(
+                csrfToken,
+                environment.AdminEmailForTest,
+                "senha-incorreta");
+            Assert.Equal(HttpStatusCode.Unauthorized, failedAttempt.StatusCode);
+            Assert.Equal(expectedBody, await failedAttempt.Content.ReadAsStringAsync());
+        }
+
+        using var locked = await environment.SendLoginAsync(
+            csrfToken,
+            environment.AdminEmailForTest,
+            environment.AdminPasswordForTest);
+        Assert.Equal(HttpStatusCode.Unauthorized, locked.StatusCode);
+        Assert.Equal(expectedBody, await locked.Content.ReadAsStringAsync());
+    }
+
+    [IsolatedSqlServerFact]
     public async Task Oversized_name_fields_return_400_with_field_specific_validation()
     {
         await using var environment = await WorkflowTestEnvironment.CreateAsync();
@@ -494,6 +532,8 @@ public sealed class WorkflowIntegrationTests
         }
 
         internal HttpClient Client { get; }
+        internal string AdminEmailForTest => _adminEmail;
+        internal string AdminPasswordForTest => _adminPassword;
 
         internal static async Task<WorkflowTestEnvironment> CreateAsync()
         {
@@ -617,6 +657,16 @@ public sealed class WorkflowIntegrationTests
             request.Headers.Add("X-CSRF-TOKEN", await GetCsrfTokenAsync());
             if (!string.IsNullOrEmpty(_adminToken))
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _adminToken);
+            return await Client.SendAsync(request);
+        }
+
+        internal async Task<HttpResponseMessage> SendLoginAsync(string csrfToken, string email, string password)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/autenticacao/login")
+            {
+                Content = JsonContent.Create(new { email, password }),
+            };
+            request.Headers.Add("X-CSRF-TOKEN", csrfToken);
             return await Client.SendAsync(request);
         }
 

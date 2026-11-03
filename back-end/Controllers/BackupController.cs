@@ -17,11 +17,16 @@ public class BackupController : ControllerBase
 {
     private readonly BackupService _backupService;
     private readonly BackupRestoreService _restoreService;
+    private readonly ILogger<BackupController> _logger;
 
-    public BackupController(BackupService backupService, BackupRestoreService restoreService)
+    public BackupController(
+        BackupService backupService,
+        BackupRestoreService restoreService,
+        ILogger<BackupController> logger)
     {
         _backupService = backupService;
         _restoreService = restoreService;
+        _logger = logger;
     }
 
     [HttpPost("gerar")]
@@ -48,13 +53,9 @@ public class BackupController : ControllerBase
                 }
             });
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            return StatusCode(500, new
-            {
-                sucesso = false,
-                mensagem = $"Falha ao gerar backup: {ex.Message}"
-            });
+            return InternalError(exception, "Falha ao gerar backup.");
         }
     }
 
@@ -75,9 +76,9 @@ public class BackupController : ControllerBase
             var bytes = System.IO.File.ReadAllBytes(zipPath);
             return base.File(bytes, "application/octet-stream", safeName);
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            return StatusCode(500, new { sucesso = false, mensagem = $"Erro ao baixar backup: {ex.Message}" });
+            return InternalError(exception, "Falha ao baixar backup.");
         }
     }
 
@@ -93,9 +94,9 @@ public class BackupController : ControllerBase
                 dados = backups
             });
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            return StatusCode(500, new { sucesso = false, mensagem = $"Erro ao listar backups: {ex.Message}" });
+            return InternalError(exception, "Falha ao listar backups.");
         }
     }
 
@@ -126,9 +127,21 @@ public class BackupController : ControllerBase
         {
             return BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = ex.Message });
         }
-        catch (Exception)
+        catch (Exception exception)
         {
-            return StatusCode(500, new RespostaPadraoDTO { Sucesso = false, Mensagem = "Falha ao restaurar o backup." });
+            return InternalError(exception, "Falha ao restaurar o backup.");
         }
+    }
+
+    private ObjectResult InternalError(Exception exception, string message)
+    {
+        var correlationId = HttpContext.TraceIdentifier;
+        _logger.LogError(exception, "{Operation} CorrelationId: {CorrelationId}", message, correlationId);
+        return StatusCode(500, new
+        {
+            sucesso = false,
+            mensagem = message,
+            correlationId
+        });
     }
 }
