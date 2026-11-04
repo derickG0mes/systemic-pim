@@ -12,8 +12,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
-    "test": "vitest",
-    "test:e2e": "playwright test --config e2e/playwright.config.ts"
+    "test": "vitest"
   },
   "dependencies": {
     "@microsoft/signalr": "^10.0.11",
@@ -37,9 +36,7 @@
     "tailwind-merge": "^2.2.0"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.10.2",
     "@eslint/js": "^8.57.0",
-    "@playwright/test": "^1.52.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.8",
