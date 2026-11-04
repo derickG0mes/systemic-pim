@@ -99,9 +99,10 @@ O Vite usa a porta 8080. O cliente HTTP forma a URL como
 O documento interno continua chamado `v1` e a URL é
 `/swagger/v1/swagger.json`. A versão exibida é `2.0`, com título
 `Systemic API - PIM IV`. A interface Swagger é configurada para o ambiente
-Development. O Compose define `ASPNETCORE_ENVIRONMENT=Production`, por isso o
-Swagger n?o fica dispon?vel no container padr?o; `dotnet run` local usa o
-ambiente Development do perfil de execu??o.
+Development. O perfil local `back-end/Properties/launchSettings.json` define
+esse ambiente para `dotnet run`. O Compose define
+`ASPNETCORE_ENVIRONMENT=Production`, por isso o Swagger não fica disponível no
+container padrão.
 
 ## Autenticação, senha e bloqueio
 

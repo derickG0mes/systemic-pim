@@ -34,7 +34,7 @@ coverage/
 .DS_Store
 Thumbs.db
 
-.vscode
+.vscode/
 
 # Local backups and temporary reports
 backups/

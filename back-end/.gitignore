@@ -66,6 +66,7 @@ Thumbs.db
 appsettings.local.json
 appsettings.Production.json
 launchSettings.json
+!Properties/launchSettings.json
 
 # Arquivos temporários
 *.tmp

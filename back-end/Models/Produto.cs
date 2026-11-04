@@ -29,7 +29,12 @@ public class Produto
     public int QtdEstoque { get; set; }
 
     [Column("PRECO_PRODUTO")]
-    [Range(typeof(decimal), "0.01", "79228162514264337593543950335", ErrorMessage = "Preço deve ser maior que 0")]
+    [Range(
+        typeof(decimal),
+        "0.01",
+        "79228162514264337593543950335",
+        ErrorMessage = "Preço deve ser maior que 0",
+        ParseLimitsInInvariantCulture = true)]
     public decimal PrecoProduto { get; set; }
 
     [Column("ESTOQUE_MINIMO")]
