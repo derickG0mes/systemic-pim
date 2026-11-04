@@ -1,78 +1,73 @@
-# Back-end - Systemic - PIM IV
+# API - Systemic PIM
 
-API REST em ASP.NET Core .NET 10, Entity Framework Core e SQL Server. A API usa
-JWT, expõe documentação Swagger 2.0 em `/swagger` no ambiente Development e
-escuta na porta 5050.
+API REST em ASP.NET Core/.NET 10, Entity Framework Core e SQL Server. A API
+escuta na porta 5050, usa JWT em cookie HttpOnly no fluxo de navegador e expõe
+Swagger em `/swagger` no ambiente Development.
 
 ## Executar
 
-Com o SQL Server iniciado e as variáveis `DB_SERVER`, `DB_NAME`,
-`DB_USER`, `DB_PASSWORD` e `JWT_SECRET_KEY` configuradas:
+Configure o SQL Server e as variáveis `DB_SERVER`, `DB_NAME`, `DB_USER`,
+`DB_PASSWORD`, `JWT_SECRET_KEY` e `BACKUP_HMAC_KEY`. `DB_NAME` assume
+`DB_RESTAURANTE` quando ausente. As chaves JWT e HMAC devem ter, no mínimo,
+32 caracteres/bytes, respectivamente.
+
+`EnvLoader` lê `.env` do diretório de trabalho atual se as variáveis ainda não
+estiverem definidas no processo. Ao executar `dotnet run` nesta pasta, use um
+`back-end/.env` local ou defina as variáveis no ambiente. Não versione
+segredos.
 
 ```powershell
 dotnet restore
-dotnet build
 dotnet run
 ```
 
-O `EnvLoader` lê `.env` do diretório de trabalho atual se as variáveis ainda
-não estiverem definidas no processo. Ao executar `dotnet run` nesta pasta,
-configure um `back-end/.env` local ou defina as variáveis no ambiente. Não
-versione segredos.
+O perfil local inicia a API em Development. Para iniciar a interface,
+consulte o [README principal](../README.md); para CORS, cookies, CSRF, proxy e
+demais opções, consulte [CONFIGURACAO.md](../docs/CONFIGURACAO.md).
 
-## Configuração e segurança
+## Segurança e autenticação
 
-- Banco padrão: `DB_RESTAURANTE`; a conexão é montada em `Program.cs` a partir
-  das variáveis de ambiente.
-- A chave JWT deve conter no mínimo 32 caracteres. A validade padrão é
-  480 minutos e pode ser substituída por `JWT_EXPIRATION_MINUTES`.
-- Novos hashes de senha usam PBKDF2-SHA256 com salt aleatório de 16 bytes e
-  600.000 iterações. As 10.000 iterações são mantidas somente para compatibilidade
-  com hashes legados.
-- Os logins por email e CPF bloqueiam após 5 falhas por 15 minutos, conforme
-  a política compartilhada em `Services/LoginLockoutPolicy.cs`.
-- As ações de negócio exigem JWT e os controllers aplicam os perfis
-  autorizados por recurso; consulte a tabela de endpoints e as limitações em
+- `JWT_SECRET_KEY` é obrigatória fora de Development e deve ter ao menos 32
+  caracteres. O tempo padrão do JWT é 480 minutos; configure
+  `JWT_EXPIRATION_MINUTES` para alterá-lo.
+- O JWT é entregue em cookie `systemic_auth` HttpOnly. As requisições mutáveis,
+  inclusive login e logout, exigem o token CSRF no header `X-CSRF-TOKEN`.
+- Novas senhas usam PBKDF2-SHA256 com salt aleatório e 600.000 iterações;
+  hashes legados continuam aceitos e são atualizados após login bem-sucedido.
+- Login por email e CPF bloqueia após 5 falhas durante 15 minutos. Os limites de
+  requisições da API são configuráveis por `LOGIN_RATE_LIMIT_PER_MINUTE` e
+  `GLOBAL_RATE_LIMIT_PER_MINUTE`.
+- Controllers aplicam autorização por perfil independentemente das rotas da
+  interface. A matriz completa está em
   [CONFIGURACAO.md](../docs/CONFIGURACAO.md).
+- Backups são assinados e verificados com `BACKUP_HMAC_KEY`; configure uma chave
+  exclusiva de pelo menos 32 bytes para gerar ou restaurar backups.
 
 ## Estrutura principal
 
 ```text
 back-end/
-  Controllers/       Endpoints HTTP, incluindo o controlador de backup
+  Controllers/       Endpoints HTTP
   Data/              AppDbContext e mapeamentos do EF Core
-  DTOs/              Modelos de entrada e saída da API
-  Helpers/           EnvLoader e utilitário de fuso horário
+  DTOs/              Modelos de entrada e saída
+  Helpers/           Carregamento de ambiente e fuso horário
   Hubs/              Hub SignalR da cozinha
-  Models/             Entidades do banco
-  Scripts/            Scripts de schema, seed, procedures, views e migrações
-  Services/           JWT, hash de senha e backup
-    Backup/            Validação e restauração de backups
-  Program.cs          Inicialização, autenticação, Swagger e rotas
+  Models/            Entidades do banco
+  Scripts/           Criação e evolução do schema SQL
+  Services/           Regras de negócio, autenticação e backup
+  Program.cs          Inicialização, middleware e rotas
 ```
 
-O projeto define 12 tabelas. O inventário de tabelas, triggers, índices,
-procedures, views, rotas e respostas está em
-[CONFIGURACAO.md](../docs/CONFIGURACAO.md). O serviço de backup usa
-`BACKUP_PATH` quando configurado e, caso contrário, `backups` sob
-`AppContext.BaseDirectory`. No Docker Compose, `BACKUP_PATH` aponta para
-`/app/backups`, montado no volume nomeado persistente `backup_data`. O valor
-pode ser substituído por outro caminho absoluto dentro do container.
-
-A evolução do esquema do banco é feita exclusivamente pelos scripts SQL
-versionados em `Scripts/`, executados na ordem documentada pelo Docker Compose.
-Não são usadas migrations do Entity Framework Core.
+O esquema é gerenciado por scripts SQL versionados; o projeto não usa
+migrations do Entity Framework Core. Execute os scripts em ordem conforme
+documentado no [guia de configuração](../docs/CONFIGURACAO.md).
 
 ## Validação
 
 Na raiz do repositório:
 
 ```powershell
-dotnet restore
 dotnet build systemic-pim.sln
 dotnet test tests/back-end.Tests.csproj
 dotnet list back-end/back-end.csproj package --vulnerable --include-transitive
 ```
-
-Consulte o [README principal](../README.md) para Docker Compose e
-[CONFIGURACAO.md](../docs/CONFIGURACAO.md) para operação e exemplos.

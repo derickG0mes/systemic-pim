@@ -1,64 +1,73 @@
-# Systemic - PIM IV
+# Systemic PIM
 
-Sistema web de gerenciamento de restaurante. A aplicação contém uma API ASP.NET
-Core .NET 10, uma interface React 18 com TypeScript/Vite e React Router 7
-(`react-router`), e um banco SQL Server.
+Sistema web para gerenciamento de restaurante. O projeto é composto por uma
+API ASP.NET Core/.NET 10, uma interface React 18 com TypeScript, Vite e React
+Router 7, e SQL Server 2022. A interface também usa SignalR para atualizações da
+cozinha e oferece suporte a instalação como PWA.
 
-## Executar (forma principal)
+## Requisitos
 
-Requisitos: Docker Desktop ou Docker Engine com Docker Compose.
+- Docker Desktop ou Docker Engine com Docker Compose (modo recomendado).
+- Para execução sem Docker: .NET SDK 10, Node.js 22.12 ou superior, npm e SQL
+  Server acessível.
 
-1. Copie o arquivo de exemplo e substitua as senhas/segredos antes de executar:
+## Executar com Docker Compose
 
-   ```powershell
-   Copy-Item .env.example .env
-   ```
-
-2. Na raiz do repositório, inicie os serviços:
-
-   ```sh
-   docker compose up --build
-   ```
-
-O Compose inicia o SQL Server com o volume `sqlserver_data`, executa o serviço
-`db-init` com os scripts idempotentes e só então inicia a API e o front-end.
-Os scripts usados pelo Compose são
-[`01-create-database-idempotent.sql`](back-end/Scripts/01-create-database-idempotent.sql)
-e [`02-procedures-views.sql`](back-end/Scripts/02-procedures-views.sql).
-
-- Interface: http://localhost:8080
-- API: http://localhost:5050
-- Swagger: http://localhost:5050/swagger (disponível no ambiente Development)
-- Health check: http://localhost:5050/api/healthcheck
-- SQL Server: `localhost:1433`
-
-O Compose executa a API em Production, onde o Swagger não é habilitado. Para
-abrir o Swagger, execute a API localmente em Development.
-
-Pare com `Ctrl+C`; `docker compose down` mantém os dados. Remova o volume
-somente se quiser apagar os dados: `docker compose down --volumes`.
-
-O arquivo `.env.example` contém valores demonstrativos. Troque `DB_PASSWORD` e
-`JWT_SECRET_KEY` por valores próprios; a chave JWT deve ter ao menos 32
-caracteres. Não use os valores de exemplo em produção.
-
-A autenticação do navegador usa cookie JWT HttpOnly; o front-end não persiste
-nem envia o JWT pelo JavaScript. Na inicialização, o perfil é validado em
-`GET /api/autenticacao/validar`; a role do servidor, não a cópia em
-`localStorage`, controla as rotas protegidas. Requisições que alteram dados
-enviam CSRF por `X-CSRF-TOKEN`. Consulte [CONFIGURACAO.md](docs/CONFIGURACAO.md)
-para detalhes de cookie, CORS, proxy e CSRF.
-
-## Executar localmente sem Docker
-
-É necessário ter .NET SDK 10, Node.js/npm e SQL Server disponíveis. Inicialize
-o banco com os dois scripts listados acima e configure `DB_SERVER`, `DB_NAME`,
-`DB_USER`, `DB_PASSWORD` e `JWT_SECRET_KEY`. Para `dotnet run` iniciado dentro
-de `back-end`, o carregador procura `.env` nessa pasta; o `.env` da raiz é
-carregado automaticamente pelo Compose, não por esse comando.
+Na raiz do repositório, copie o exemplo e troque todos os valores
+`TROQUE_*` por valores próprios:
 
 ```powershell
-cd back-end
+Copy-Item .env.example .env
+```
+
+Configure especialmente `DB_PASSWORD`, `JWT_SECRET_KEY` e `BACKUP_HMAC_KEY`.
+Use valores fortes e exclusivos; `JWT_SECRET_KEY` deve ter ao menos 32
+caracteres e `BACKUP_HMAC_KEY`, ao menos 32 bytes. Nunca use os placeholders do
+arquivo de exemplo em produção nem versione `.env`.
+
+Inicie os serviços:
+
+```powershell
+docker compose up --build
+```
+
+O Compose inicia o SQL Server, espera o health check, executa `db-init` e seus
+scripts SQL e então inicia a API e a interface.
+
+| Serviço | Endereço |
+|---|---|
+| Interface | http://localhost:8080 |
+| API | http://localhost:5050 |
+| Health check da API | http://localhost:5050/api/healthcheck |
+| SQL Server | `localhost:1433` |
+| Swagger | http://localhost:5050/swagger (somente quando habilitado em Development) |
+
+O serviço `api` do Compose usa `Production`, então o Swagger não fica
+disponível no ambiente padrão. A API marca o cookie de autenticação como
+`Secure` fora de Development; portanto, acessar a interface por HTTP no Compose
+não permite autenticação de navegador. Para testar o fluxo autenticado
+localmente, use `dotnet run` em Development, ou configure TLS e um proxy
+confiável para a implantação.
+
+`docker compose down` encerra os serviços e preserva os volumes
+`sqlserver_data` e `backup_data`. Use `docker compose down --volumes` somente
+quando quiser apagar também o banco e os backups persistidos.
+
+## Executar sem Docker
+
+Crie o banco e aplique, na ordem, os scripts:
+
+1. [`01-create-database-idempotent.sql`](back-end/Scripts/01-create-database-idempotent.sql)
+2. [`02-procedures-views.sql`](back-end/Scripts/02-procedures-views.sql)
+3. [`03-constraints.sql`](back-end/Scripts/03-constraints.sql)
+
+Defina `DB_SERVER`, `DB_NAME` (opcional; padrão `DB_RESTAURANTE`), `DB_USER`,
+`DB_PASSWORD`, `JWT_SECRET_KEY` e `BACKUP_HMAC_KEY`. A API procura `.env` no
+diretório de trabalho atual; ao iniciá-la a partir de `back-end`, use um
+`back-end/.env` local ou variáveis de ambiente.
+
+```powershell
+Set-Location back-end
 dotnet restore
 dotnet run
 ```
@@ -66,74 +75,73 @@ dotnet run
 Em outro terminal:
 
 ```powershell
-cd front-end
+Set-Location front-end
 npm ci
 npm run dev
 ```
 
-O Vite serve a interface em http://localhost:8080 e o cliente usa a API na
-porta 5050 do mesmo host. Configure as variáveis no ambiente ou crie um
-`back-end/.env` local; não versione arquivos `.env`.
+O Vite fica em http://localhost:8080 e o cliente acessa a API na porta 5050 do
+mesmo host. Para testes locais de navegador, execute a API em Development e
+garanta que o SQL Server e as configurações estejam disponíveis.
 
-## Verificações
+## Testes e verificações
+
+Na raiz:
 
 ```powershell
 dotnet build systemic-pim.sln
 dotnet test tests/back-end.Tests.csproj
-cd front-end
+Set-Location front-end
 npm ci
 npm test -- --run
 npm run lint
 npm run build
 ```
 
-Os testes de integridade do backup precisam de SQL Server e são executados
-explicitamente para evitar dependência de banco nos testes comuns. Com o SQL
-Server do Compose ativo, configure uma conexão com permissão para criar e
-remover bancos (o teste conecta inicialmente ao `master`):
+Os testes de integração de backup precisam de SQL Server e ficam desabilitados
+por padrão; habilite-os com `RUN_INTEGRATION_TESTS=1` e defina
+`BACKUP_TEST_CONNECTION_STRING` apontando para um SQL Server onde os testes
+possam criar e remover bancos temporários. Os testes de workflow SQL usam a
+variável `INTEGRATION_TEST_SQL_CONNECTION_STRING` com a mesma permissão. Não
+aponte essas conexões para um banco com dados que devam ser preservados.
+
+Exemplo no PowerShell com o SQL Server local do Compose ativo. Defina
+`$env:DB_PASSWORD` na sessão com a senha do SQL Server; a conexão deve apontar
+para `master`:
 
 ```powershell
+$connectionBuilder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder
+$connectionBuilder.DataSource = "localhost,1433"
+$connectionBuilder.InitialCatalog = "master"
+$connectionBuilder.UserID = "sa"
+$connectionBuilder.Password = $env:DB_PASSWORD
+$connectionBuilder.TrustServerCertificate = $true
+$testConnection = $connectionBuilder.ConnectionString
 $env:RUN_INTEGRATION_TESTS = "1"
-$env:DB_PASSWORD = "YOUR_SQL_PASSWORD"
-$env:BACKUP_TEST_CONNECTION_STRING = "Server=localhost,1433;Database=master;User Id=sa;Password=$env:DB_PASSWORD;TrustServerCertificate=True"
+$env:BACKUP_TEST_CONNECTION_STRING = $testConnection
+$env:INTEGRATION_TEST_SQL_CONNECTION_STRING = $testConnection
 dotnet test tests/back-end.Tests.csproj
 Remove-Item Env:RUN_INTEGRATION_TESTS
 Remove-Item Env:BACKUP_TEST_CONNECTION_STRING
-Remove-Item Env:DB_PASSWORD
+Remove-Item Env:INTEGRATION_TEST_SQL_CONNECTION_STRING
 ```
 
-Cada teste cria um banco temporário com nome aleatório, direciona a API de teste
-somente a esse banco e o remove ao terminar; nunca restaura em
-`DB_RESTAURANTE`. Sem `RUN_INTEGRATION_TESTS=1`, esses dois testes ficam
-ignorados.
-
-O workflow de CI executa build e testes .NET, `npm ci`, lint, testes do
-front-end (`npm test -- --run`) e build em push e pull request. Não há deploy
-em nuvem configurado. Na última validação local, `dotnet test` aprovou 49
-testes, incluindo os dois testes de backup com `RUN_INTEGRATION_TESTS=1`; o
-front-end aprovou 14 testes em 2 arquivos. `npm audit` reportou zero
-vulnerabilidades; o lint terminou sem erros e com 7 avisos.
-
-O Nginx do front-end define CSP e cabeçalhos de segurança. A política permite
-API/SignalR e recursos do VLibras; o carregamento de sensores pelo iframe
-externo do widget ainda depende de delegação de permissões pelo próprio iframe.
+O workflow de CI executa build e testes .NET, auditoria das dependências de
+produção, lint, testes e build do front-end em push e pull request.
 
 ## Documentação
 
-- [Configuração, execução e endpoints](docs/CONFIGURACAO.md)
-- [Arquitetura e estrutura do projeto](docs/ARQUITETURA.md)
 - [Índice da documentação](docs/README.md)
-- [Relatório de verificação da auditoria](docs/RELATORIO_VERIFICACAO.md)
-- [Exemplo de integração React com fetch](docs/EXEMPLO_INTEGRACAO_REACT.ts)
+- [Configuração, execução, segurança e endpoints](docs/CONFIGURACAO.md)
+- [Arquitetura, módulos, dados e permissões](docs/ARQUITETURA.md)
+- [Exemplo TypeScript de integração com a API](docs/EXEMPLO_INTEGRACAO_REACT.ts)
+- [Instruções da API](back-end/README.md)
 
-## Limitações conhecidas
+## Limitações de implantação
 
-O repositório não contém aplicativo mobile nem integração/deploy em nuvem. As
-credenciais das contas inseridas pelo seed não estão documentadas porque o SQL
-contém hashes, não as senhas correspondentes. A interface aplica a matriz de
-permissões às páginas e a API também autoriza por perfil: `employee` acessa
-operações de pedidos, comandas e reservas; gestão de produtos, mesas, clientes,
-formas de pagamento, faturamento, logs, funcionários e backups exige `admin`
-ou `owner`, enquanto leituras de produtos, mesas e formas de pagamento também
-estão disponíveis a `employee`. Consulte [CONFIGURACAO.md](docs/CONFIGURACAO.md)
-para a matriz por rota e o relatório de verificação para os resultados atualizados.
+Não há implantação em nuvem configurada neste repositório. O front-end e a API
+devem ser publicados com TLS; ao usar um proxy reverso, configure apenas os
+proxies confiáveis em `FORWARDED_HEADERS_KNOWN_PROXIES`. A autenticação usa
+cookie HttpOnly e proteção CSRF, e pressupõe front-end e API no mesmo site.
+Consulte [CONFIGURACAO.md](docs/CONFIGURACAO.md) antes de alterar domínio,
+proxy, CORS ou política de cookies.
