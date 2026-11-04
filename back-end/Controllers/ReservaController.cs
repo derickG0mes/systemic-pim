@@ -18,7 +18,8 @@ public class ReservaController : ControllerBase
     }
 
     [HttpGet]
-    public Task<IActionResult> ListarReservas() => _service.ListarReservas();
+    public Task<IActionResult> ListarReservas([FromQuery] int? pagina, [FromQuery] int? tamanho) =>
+        _service.ListarReservas(pagina, tamanho, Response);
 
     [HttpPost]
     public Task<IActionResult> CriarReserva([FromBody] CriarReservaDTO dto) => _service.CriarReserva(dto);

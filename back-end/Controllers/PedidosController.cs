@@ -19,7 +19,8 @@ public class PedidosController : ControllerBase
     public PedidosController(IPedidoService service) => _service = service;
 
     [HttpGet]
-    public Task<IActionResult> ListarPedidos() => _service.ListarPedidos();
+    public Task<IActionResult> ListarPedidos([FromQuery] int? pagina, [FromQuery] int? tamanho) =>
+        _service.ListarPedidos(pagina, tamanho, Response);
 
     [HttpGet("{id}")]
     public Task<IActionResult> ObterPedido(int id) => _service.ObterPedido(id);

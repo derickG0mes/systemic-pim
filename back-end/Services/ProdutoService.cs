@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Data.SqlClient;
 using PIM3.API.Controllers;
 using PIM3.API.Data;
@@ -16,9 +17,20 @@ public sealed class ProdutoService : IProdutoService
         _context = context;
     }
 
-    public IActionResult GetAll()
+    public IActionResult GetAll(int? pagina, int? tamanho, HttpResponse response)
     {
-        var produtos = _context.Produtos.ToList().Select(CategoriaProdutoHelper.Mapear).ToList();
+        if (!ListPagination.TryCreate(pagina, tamanho, out var pagination))
+            return ListPagination.InvalidRequest();
+
+        var query = _context.Produtos.AsQueryable();
+        if (pagination.IsRequested)
+        {
+            var totalCount = query.Count();
+            pagination.SetTotalCount(response, totalCount);
+            query = pagination.Apply(query, produto => produto.IdProduto);
+        }
+
+        var produtos = query.ToList().Select(CategoriaProdutoHelper.Mapear).ToList();
         return ApiServiceResults.Ok(new RespostaPadraoDTO { Sucesso = true, Dados = produtos });
     }
 

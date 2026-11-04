@@ -18,7 +18,8 @@ public class MesaController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult GetAll() => _service.GetAll();
+    public IActionResult GetAll([FromQuery] int? pagina, [FromQuery] int? tamanho) =>
+        _service.GetAll(pagina, tamanho, Response);
 
     [HttpGet("{id}")]
     public IActionResult GetById(int id) => _service.GetById(id);

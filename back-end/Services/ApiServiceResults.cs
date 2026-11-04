@@ -12,6 +12,8 @@ internal static class ApiServiceResults
 
     public static IActionResult Unauthorized(object? value) => new UnauthorizedObjectResult(value);
 
+    public static IActionResult Conflict(object? value) => new ConflictObjectResult(value);
+
     public static IActionResult StatusCode(int statusCode, object? value) =>
         new ObjectResult(value) { StatusCode = statusCode };
 

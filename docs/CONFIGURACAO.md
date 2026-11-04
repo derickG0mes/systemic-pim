@@ -11,20 +11,20 @@ Na raiz:
 Copy-Item .env.example .env
 ```
 
-Edite `.env`: defina uma senha SQL Server válida e substitua
-`JWT_SECRET_KEY` por uma chave exclusiva com pelo menos 32 caracteres. Gere-a
-com `openssl rand -base64 48`. O valor presente no `.env.example` é apenas um
-placeholder (`SUBSTITUA_POR_CHAVE_GERADA_COM_OPENSSL`) e a API o rejeita fora
-do ambiente `Development`. Chaves ausentes ou com menos de 32 caracteres também
-impedem a inicialização. Não reutilize nem versione a chave real.
+Edite `.env`: substitua todos os valores `TROQUE_*`, configure uma senha SQL
+Server válida e gere chaves exclusivas para `JWT_SECRET_KEY` e
+`BACKUP_HMAC_KEY` (por exemplo, com `openssl rand -base64 48`). A chave JWT
+deve ter pelo menos 32 caracteres; a chave HMAC deve ter pelo menos 32 bytes.
+O placeholder da chave JWT é rejeitado fora de Development. Não reutilize nem
+versione valores reais.
 
 ```sh
 docker compose up --build
 ```
 
 O Compose executa SQL Server, `db-init`, API e front-end. `db-init` aguarda o
-SQL Server e executa `01-create-database-idempotent.sql` e
-`02-procedures-views.sql` antes da API. Os volumes `sqlserver_data` e
+SQL Server e executa `01-create-database-idempotent.sql`,
+`02-procedures-views.sql` e `03-constraints.sql` antes da API. Os volumes `sqlserver_data` e
 `backup_data` persistem o banco e os arquivos de backup, respectivamente.
 `BACKUP_PATH` usa `/app/backups` por padrão; se substituído, deve apontar para
 um caminho absoluto dentro do container.
@@ -39,6 +39,12 @@ um caminho absoluto dentro do container.
 
 Encerre com `docker compose down`. Para apagar deliberadamente os dados do
 banco: `docker compose down --volumes`.
+
+O Compose usa `Production`, então o cookie JWT recebe o atributo `Secure`.
+Como o acesso local é HTTP, a autenticação de navegador não funciona nessa
+configuração sem TLS. Para testar o fluxo autenticado localmente, use `dotnet
+run` em Development junto ao Vite; em implantação, termine TLS em um proxy
+confiável.
 
 ## Execução local
 
@@ -69,14 +75,34 @@ npm run dev
 O Vite usa a porta 8080. O cliente HTTP forma a URL como
 `<protocolo-da-página>://<host-do-navegador>:5050/api`; não lê `VITE_API_URL`.
 
+## Variáveis de ambiente
+
+| Variável | Uso e valor padrão |
+|---|---|
+| `DB_SERVER` | Host SQL Server; no Compose, `sqlserver`. |
+| `DB_NAME` | Nome do banco; padrão `DB_RESTAURANTE` localmente e fixado como `DB_RESTAURANTE` pelo Compose. |
+| `DB_USER` / `DB_PASSWORD` | Credenciais do SQL Server. `DB_PASSWORD` é obrigatório no Compose. |
+| `ASPNETCORE_ENVIRONMENT` | Compose usa `Production`; o perfil local de `dotnet run` usa `Development`. |
+| `JWT_SECRET_KEY` | Chave de assinatura do JWT; obrigatória fora de Development, mínimo de 32 caracteres. |
+| `JWT_EXPIRATION_MINUTES` | Validade do JWT em minutos; padrão 480. |
+| `BACKUP_HMAC_KEY` | Chave HMAC exclusiva, mínimo de 32 bytes, necessária para gerar ou restaurar backups. |
+| `BACKUP_PATH` | Diretório de backups; padrão `backups` sob `AppContext.BaseDirectory`; Compose usa `/app/backups`. |
+| `CORS_ALLOWED_ORIGINS` | Origens permitidas separadas por vírgula; Compose usa `http://localhost:8080`. |
+| `FORWARDED_HEADERS_KNOWN_PROXIES` | IPs dos proxies confiáveis separados por vírgula; vazio quando não há proxy. |
+| `LOGIN_RATE_LIMIT_PER_MINUTE` | Limite de requisições de login por IP/minuto; padrão 60. |
+| `GLOBAL_RATE_LIMIT_PER_MINUTE` | Limite global de requisições por minuto; padrão 600. |
+| `ANTIFORGERY_COOKIE_SECURE_POLICY` | `Always` ou `SameAsRequest`; Compose usa `SameAsRequest` para HTTP local. Em produção, use `Always`. |
+| `SQL_SERVER_PORT` / `FRONTEND_PORT` | Portas publicadas pelo Compose; padrões 1433 e 8080. |
+
 ## Swagger
 
 O documento interno continua chamado `v1` e a URL é
 `/swagger/v1/swagger.json`. A versão exibida é `2.0`, com título
 `Systemic API - PIM IV`. A interface Swagger é configurada para o ambiente
-Development. O Compose define `ASPNETCORE_ENVIRONMENT=Production`, por isso o
-Swagger não fica disponível no container padrão; `dotnet run` local usa o
-ambiente Development do perfil de execução.
+Development. O perfil local `back-end/Properties/launchSettings.json` define
+esse ambiente para `dotnet run`. O Compose define
+`ASPNETCORE_ENVIRONMENT=Production`, por isso o Swagger não fica disponível no
+container padrão.
 
 ## Autenticação, senha e bloqueio
 
@@ -137,6 +163,21 @@ protocolo encaminhado. A API processa um salto de `X-Forwarded-For` e
 Development, a inicialização termina com código 1 e mensagem explícita se
 `JWT_SECRET_KEY` estiver ausente, tiver menos de 32 caracteres ou for um
 placeholder conhecido.
+
+O cookie antiforgery usa `ANTIFORGERY_COOKIE_SECURE_POLICY=SameAsRequest` no
+Compose local para funcionar com HTTP; fora do Compose, o padrão é `Always`
+quando o ambiente não é Development e `SameAsRequest` em Development.
+Em produção, defina explicitamente `ANTIFORGERY_COOKIE_SECURE_POLICY=Always`.
+Valores diferentes de `Always` e `SameAsRequest` impedem a inicialização.
+
+A API limita cada IP a 60 requisições de login por minuto e a 600 requisições
+globais por minuto por padrão. Ajuste `LOGIN_RATE_LIMIT_PER_MINUTE` e
+`GLOBAL_RATE_LIMIT_PER_MINUTE` para inteiros positivos conforme a carga; zero
+ou valor inválido impede a inicialização. Rejeições retornam HTTP 429 e
+`Retry-After`. A política de login também limita `POST /api/funcionario/login`.
+Os headers de hardening são aplicados às respostas; CSP estrita limita-se a
+`/api` para não bloquear a interface Swagger em Development, e HSTS só é
+enviado em HTTPS fora de Development.
 
 O Nginx define CSP com conexão para a API na porta 5050 e WebSocket do
 SignalR, e permite scripts, frames e recursos do VLibras. Também envia
@@ -317,48 +358,31 @@ desconectado.
 ## CI e testes
 
 Em push e pull request, `.github/workflows/ci.yml` executa build e testes .NET,
-`npm ci`, lint, `npm test -- --run` e build do front-end, nesta ordem. O YAML e
-a ordem das etapas foram validados localmente; a execução remota no GitHub
-Actions não foi observada. Na validação atual, 46 testes .NET e 14 testes
-Vitest em 2 arquivos passaram. A cobertura V8 registrou 45,03% de statements,
-27,10% de branches, 32,47% de funções e 46,75% de linhas. `npm audit` reportou
-zero vulnerabilidades; o lint terminou sem erros e com 7 avisos. Para rodar os
-testes do front-end:
+auditoria das dependências de produção do front-end, lint, testes e build. Para
+executar as verificações localmente:
 
-```sh
-cd front-end
+```powershell
+dotnet build systemic-pim.sln
+dotnet test tests/back-end.Tests.csproj
+Set-Location front-end
+npm ci
+npm audit --omit=dev --audit-level=high
+npm run lint
 npm test -- --run
-npm test -- --run --coverage
+npm run build
 ```
 
-## Limitações conhecidas verificadas
+## Limitações e operação
 
 - Não existe aplicativo mobile nem configuração de deploy em nuvem.
-- Não há senhas de teste verificadas/publicáveis para os usuários seed.
-- A interface controla a navegação por perfil, e a API aplica autorização
-  independentemente do front-end; consulte a matriz de acesso nesta tabela.
-- `/api/healthcheck/database` continua público; erros retornam mensagem
-  genérica, enquanto detalhes são registrados no log do servidor.
-- O `db-init` foi executado duas vezes sem erro. O catálogo SQL Server confirmou
-  12 tabelas, 3 triggers, 3 procedures, 2 views e 5 índices, incluindo
-  `IDX_LOG_SISTEMA_DATA`. Os testes em transação confirmaram que abrir comanda
-  ocupa a mesa, mudanças nos itens recalculam o total, pagamento fecha a
-  comanda e libera a mesa, `sp_ajustar_estoque` altera o estoque, e
-  `sp_relatorio_faturamento`/as duas views refletem os dados de exemplo.
-- Um backup real foi gerado via API, um registro foi removido e restaurado com
-  HTTP 200; a consulta confirmou o retorno do registro. O backup de segurança
-  persistiu em `/app/backups` após reiniciar a API. Um ZIP com entrada `../` foi
-  rejeitado com HTTP 400. Employee recebeu 403 nas operações de funcionário;
-  admin não conseguiu criar ou promover owner, enquanto owner conseguiu.
-- Cinco falhas reais bloquearam tanto login por email quanto por CPF por
-  15 minutos; login válido resetou as tentativas. Com SQL Server parado,
-  `/api/healthcheck/database` respondeu HTTP 503 com mensagem genérica e sem
-  detalhes internos.
-- O player VLibras depende de CDN externo: o painel abriu, mas o engine falhou
-  com `ERR_CONNECTION_CLOSED`; não houve violação CSP observada. O carregamento
-  completo permanece não confirmado.
-- O lint passa sem erros; permanecem 7 avisos de Fast Refresh. A cobertura
-  front-end ainda é parcial (45,03% de statements e 46,75% de linhas).
-- O JWT usa cookie `HttpOnly`; os dados não sensíveis do perfil continuam em
-  `localStorage`, mas a role é validada pelo servidor em cada inicialização.
-  O cliente obtém e envia o token CSRF nos métodos mutáveis.
+- O Compose executa a API em Production e expõe os serviços em HTTP local. Como
+  o cookie JWT é `Secure` fora de Development, o login pelo navegador requer
+  HTTPS ou execução local da API em Development.
+- `/api/healthcheck/database` é público; em falha, a resposta omite detalhes
+  internos e a API registra esses detalhes no log.
+- A interface controla a navegação por perfil, mas não substitui a autorização
+  independente da API. Consulte as regras desta tabela de endpoints.
+- A autenticação pressupõe front-end e API no mesmo site. Uma implantação em
+  sites diferentes exige reavaliar `SameSite`, CORS e proteção CSRF.
+- O widget VLibras depende de recursos externos e permissões concedidas pelo
+  iframe do fornecedor; sua disponibilidade não é garantida pela aplicação.

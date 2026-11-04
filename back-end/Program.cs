@@ -1,5 +1,6 @@
 using System.Text;
 using System.Net;
+using System.Threading.RateLimiting;
 using Microsoft.Data.SqlClient;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
@@ -18,11 +19,23 @@ EnvLoader.Load(Path.Combine(Directory.GetCurrentDirectory(), ".env"));
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls(ApiMetadata.ListenUrl);
+PasswordHashService.InitializeDummyHash();
 
 var dbServer = Environment.GetEnvironmentVariable("DB_SERVER") ?? "localhost";
 var dbName = Environment.GetEnvironmentVariable("DB_NAME") ?? "DB_RESTAURANTE";
 var dbUser = Environment.GetEnvironmentVariable("DB_USER") ?? "sa";
 var dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD") ?? "";
+var loginRateLimit = ReadPositiveLimit(
+    builder.Configuration["LOGIN_RATE_LIMIT_PER_MINUTE"],
+    60,
+    "LOGIN_RATE_LIMIT_PER_MINUTE");
+var globalRateLimit = ReadPositiveLimit(
+    builder.Configuration["GLOBAL_RATE_LIMIT_PER_MINUTE"],
+    600,
+    "GLOBAL_RATE_LIMIT_PER_MINUTE");
+var antiforgeryCookieSecurePolicy = ApiSecurityConfiguration.ResolveAntiforgeryCookieSecurePolicy(
+    builder.Environment.IsDevelopment(),
+    builder.Configuration["ANTIFORGERY_COOKIE_SECURE_POLICY"]);
 
 var csBuilder = new SqlConnectionStringBuilder
 {
@@ -116,6 +129,7 @@ builder.Services.AddScoped<ILogService, LogService>();
 builder.Services.AddScoped<IFuncionarioService, FuncionarioService>();
 builder.Services.AddScoped<IAutenticacaoService, AutenticacaoService>();
 builder.Services.AddScoped<IDatabaseHealthService, DatabaseHealthService>();
+builder.Services.AddSingleton(TimeProvider.System);
 
 builder.Services.AddSignalR();
 
@@ -133,6 +147,7 @@ builder.Services.AddCors(options =>
                 "http://127.0.0.1:5173")
               .AllowAnyMethod()
               .AllowAnyHeader()
+              .WithExposedHeaders("X-Total-Count")
               .AllowCredentials();
     });
 
@@ -141,6 +156,7 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(productionCorsOrigins)
               .AllowAnyMethod()
               .AllowAnyHeader()
+              .WithExposedHeaders("X-Total-Count")
               .AllowCredentials();
     });
 });
@@ -151,7 +167,41 @@ builder.Services.AddAntiforgery(options =>
     options.Cookie.Name = "systemic_csrf";
     options.Cookie.HttpOnly = true;
     options.Cookie.SameSite = SameSiteMode.Strict;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+    options.Cookie.SecurePolicy = antiforgeryCookieSecurePolicy;
+});
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            GetClientIp(context),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = globalRateLimit,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            }));
+    options.AddPolicy("login", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            GetClientIp(context),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = loginRateLimit,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            }));
+    options.OnRejected = (context, _) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        var retryAfter = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan duration)
+            ? Math.Max(1, (int)Math.Ceiling(duration.TotalSeconds))
+            : 60;
+        context.HttpContext.Response.Headers["Retry-After"] = retryAfter.ToString();
+        return ValueTask.CompletedTask;
+    };
 });
 
 // 5. CONFIGURAÇÃO DE CONTROLLERS E DOCUMENTAÇÃO
@@ -178,6 +228,23 @@ builder.Services.AddSwaggerGen(options =>
 // CONSTRUIR E CONFIGURAR A APLICAÇÃO
 var app = builder.Build();
 app.UseForwardedHeaders();
+app.Use(async (context, next) =>
+{
+    context.Response.OnStarting(() =>
+    {
+        var headers = context.Response.Headers;
+        headers["X-Content-Type-Options"] = "nosniff";
+        headers["X-Frame-Options"] = "DENY";
+        headers["Referrer-Policy"] = "no-referrer";
+        if (context.Request.Path.StartsWithSegments("/api"))
+            headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'";
+        if (context.Request.IsHttps && !app.Environment.IsDevelopment())
+            headers["Strict-Transport-Security"] = "max-age=31536000";
+        return Task.CompletedTask;
+    });
+
+    await next();
+});
 
 // Mostrar documentação Swagger em desenvolvimento
 if (app.Environment.IsDevelopment())
@@ -199,6 +266,7 @@ else
 {
     app.UseCors("ProdCors");
 }
+app.UseRateLimiter();
 app.UseAuthentication();
 
 // Usar autorização
@@ -240,3 +308,17 @@ app.Lifetime.ApplicationStarted.Register(() =>
 
 Console.WriteLine($"Systemic API - PIM IV iniciada em {ApiMetadata.BaseUrl} (Swagger: /swagger)");
 await app.RunAsync();
+
+static int ReadPositiveLimit(string? configuredValue, int defaultValue, string settingName)
+{
+    if (string.IsNullOrWhiteSpace(configuredValue))
+        return defaultValue;
+
+    if (!int.TryParse(configuredValue, out var limit) || limit <= 0)
+        throw new InvalidOperationException($"{settingName} deve ser um inteiro maior que zero.");
+
+    return limit;
+}
+
+static string GetClientIp(HttpContext context) =>
+    context.Connection.RemoteIpAddress?.ToString() ?? "unknown";

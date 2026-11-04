@@ -8,6 +8,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
 using PIM3.API.Services.Backup;
@@ -18,12 +19,17 @@ public class BackupService
 {
     private readonly AppDbContext _context;
     private readonly IConfiguration _configuration;
+    private readonly ILogger<BackupService> _logger;
     public string BackupDirectory { get; }
 
-    public BackupService(AppDbContext context, IConfiguration configuration)
+    public BackupService(
+        AppDbContext context,
+        IConfiguration configuration,
+        ILogger<BackupService> logger)
     {
         _context = context;
         _configuration = configuration;
+        _logger = logger;
         var configuredPath = Environment.GetEnvironmentVariable("BACKUP_PATH")
             ?? configuration["BACKUP_PATH"];
         BackupDirectory = Path.GetFullPath(string.IsNullOrWhiteSpace(configuredPath)
@@ -38,18 +44,29 @@ public class BackupService
         sqlBuilder.AppendLine($"-- SYSTEMIC DATABASE BACKUP - {DateTime.Now:dd/MM/yyyy HH:mm:ss}");
         sqlBuilder.AppendLine("-- ==================================================\n");
 
-        sqlBuilder.AppendLine("EXEC sp_MSforeachtable 'ALTER TABLE ? NOCHECK CONSTRAINT ALL';\n");
-        sqlBuilder.AppendLine("EXEC sp_MSforeachtable 'DELETE FROM ?';\n");
-
         var connection = _context.Database.GetDbConnection();
         var wasClosed = connection.State == ConnectionState.Closed;
+        var entityTypes = _context.Model.GetEntityTypes().ToList();
+        var tables = entityTypes
+            .Select(entityType => (Name: entityType.GetTableName(), Schema: entityType.GetSchema() ?? "dbo"))
+            .Where(table => !string.IsNullOrEmpty(table.Name))
+            .Distinct()
+            .Select(table => $"{QuoteIdentifier(table.Schema)}.{QuoteIdentifier(table.Name!)}")
+            .ToList();
+
+        sqlBuilder.AppendLine("SET ANSI_NULLS ON;");
+        sqlBuilder.AppendLine("SET QUOTED_IDENTIFIER ON;\n");
+        foreach (var table in tables)
+            sqlBuilder.AppendLine($"ALTER TABLE {table} NOCHECK CONSTRAINT ALL;");
+        sqlBuilder.AppendLine();
+        foreach (var table in tables)
+            sqlBuilder.AppendLine($"DELETE FROM {table};");
+        sqlBuilder.AppendLine();
 
         try
         {
             if (wasClosed)
                 connection.Open();
-
-            var entityTypes = _context.Model.GetEntityTypes().ToList();
 
             foreach (var entityType in entityTypes)
             {
@@ -121,9 +138,13 @@ public class BackupService
                 connection.Close();
         }
 
-        sqlBuilder.AppendLine("EXEC sp_MSforeachtable 'ALTER TABLE ? WITH CHECK CHECK CONSTRAINT ALL';");
+        foreach (var table in tables)
+            sqlBuilder.AppendLine($"ALTER TABLE {table} WITH CHECK CHECK CONSTRAINT ALL;");
         return sqlBuilder.ToString();
     }
+
+    private static string QuoteIdentifier(string identifier) =>
+        $"[{identifier.Replace("]", "]]", StringComparison.Ordinal)}]";
 
     public string ExportarLogs()
     {
@@ -178,7 +199,13 @@ public class BackupService
         }
         catch (Exception ex)
         {
-            return $"{{\"erro\": \"Falha ao ler configuracoes: {ex.Message}\"}}";
+            var correlationId = Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString("N");
+            _logger.LogError(ex, "Failed to export application configuration. CorrelationId: {CorrelationId}", correlationId);
+            return JsonSerializer.Serialize(new
+            {
+                erro = "Falha ao ler configurações.",
+                correlationId
+            });
         }
 
         return "{}";

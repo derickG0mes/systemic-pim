@@ -14,7 +14,12 @@ public class ItemComanda
     public int QtdProduto { get; set; }
 
     [Column("PRECO_UNITARIO_PAGO")]
-    [Range(typeof(decimal), "0.01", "79228162514264337593543950335", ErrorMessage = "Preço deve ser maior que 0")]
+    [Range(
+        typeof(decimal),
+        "0.01",
+        "79228162514264337593543950335",
+        ErrorMessage = "Preço deve ser maior que 0",
+        ParseLimitsInInvariantCulture = true)]
     public decimal PrecoUnitarioPago { get; set; }
 
     [Column("ID_PRODUTO")]

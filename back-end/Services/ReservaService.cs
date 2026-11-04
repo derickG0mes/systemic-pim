@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using PIM3.API.Controllers;
 using PIM3.API.Data;
@@ -10,17 +11,31 @@ namespace PIM3.API.Services;
 public sealed class ReservaService : IReservaService
 {
     private readonly AppDbContext _context;
+    private readonly ILogger<ReservaService> _logger;
 
-    public ReservaService(AppDbContext context)
+    public ReservaService(AppDbContext context, ILogger<ReservaService> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
-    public async Task<IActionResult> ListarReservas()
+    public async Task<IActionResult> ListarReservas(int? pagina, int? tamanho, HttpResponse response)
     {
-        var reservas = await _context.Reservas
+        if (!ListPagination.TryCreate(pagina, tamanho, out var pagination))
+            return ListPagination.InvalidRequest();
+
+        IQueryable<Reserva> query = _context.Reservas
             .Include(r => r.Cliente)
-            .Include(r => r.Mesa)
+            .Include(r => r.Mesa);
+
+        if (pagination.IsRequested)
+        {
+            var totalCount = await query.CountAsync();
+            pagination.SetTotalCount(response, totalCount);
+            query = pagination.Apply(query, reserva => reserva.IdReserva);
+        }
+
+        var reservas = await query
             .Select(r => new
             {
                 r.IdReserva,
@@ -41,17 +56,12 @@ public sealed class ReservaService : IReservaService
         if (string.IsNullOrWhiteSpace(dto.NomeCliente))
             return ApiServiceResults.BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Nome do cliente é obrigatório." });
 
+        if (dto.DataReserva <= DateTime.UtcNow)
+            return ApiServiceResults.BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "A data da reserva deve ser futura." });
+
         var mesa = await _context.Mesas.FirstOrDefaultAsync(m => m.NumeroMesa == dto.NumeroMesa || m.IdMesa == dto.NumeroMesa);
         if (mesa == null)
             return ApiServiceResults.BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = $"Mesa {dto.NumeroMesa} não existe." });
-
-        var cliente = await _context.Clientes.FirstOrDefaultAsync(c => c.NomeCliente == dto.NomeCliente.Trim());
-        if (cliente == null)
-        {
-            cliente = new Cliente { NomeCliente = dto.NomeCliente.Trim() };
-            _context.Clientes.Add(cliente);
-            await _context.SaveChangesAsync();
-        }
 
         var conflito = await _context.Reservas.AnyAsync(r =>
             r.IdMesa == mesa.IdMesa &&
@@ -61,6 +71,14 @@ public sealed class ReservaService : IReservaService
 
         if (conflito)
             return ApiServiceResults.BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = "A mesa já está reservada para este horário." });
+
+        var cliente = await _context.Clientes.FirstOrDefaultAsync(c => c.NomeCliente == dto.NomeCliente.Trim());
+        if (cliente == null)
+        {
+            cliente = new Cliente { NomeCliente = dto.NomeCliente.Trim() };
+            _context.Clientes.Add(cliente);
+            await _context.SaveChangesAsync();
+        }
 
         var reserva = new Reserva
         {
@@ -78,9 +96,13 @@ public sealed class ReservaService : IReservaService
             LogSistemaHelper.Registrar(_context, "RESERVA", $"Reserva criada: {cliente.NomeCliente} - Mesa {mesa.NumeroMesa}");
             await _context.SaveChangesAsync();
         }
-        catch
+        catch (Exception exception)
         {
-            /* LOG_SISTEMA ausente não impede a reserva */
+            _logger.LogError(
+                exception,
+                "Falha ao registrar log da reserva {ReservationId} na mesa {TableNumber}.",
+                reserva.IdReserva,
+                mesa.NumeroMesa);
         }
 
         return ApiServiceResults.Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Reserva criada com sucesso!", Dados = reserva });
@@ -104,7 +126,13 @@ public sealed class ReservaService : IReservaService
             LogSistemaHelper.Registrar(_context, "RESERVA", $"Reserva {id} cancelada");
             await _context.SaveChangesAsync();
         }
-        catch { /* log não bloqueia */ }
+        catch (Exception exception)
+        {
+            _logger.LogError(
+                exception,
+                "Falha ao registrar log de cancelamento da reserva {ReservationId}.",
+                id);
+        }
 
         return ApiServiceResults.Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Reserva cancelada com sucesso" });
     }

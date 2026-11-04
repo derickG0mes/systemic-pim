@@ -17,14 +17,16 @@ public class ComandaController : ControllerBase
     public ComandaController(IComandaService service) => _service = service;
 
     [HttpGet]
-    public IActionResult GetAll() => _service.GetAll();
+    public IActionResult GetAll([FromQuery] int? pagina, [FromQuery] int? tamanho) =>
+        _service.GetAll(pagina, tamanho, Response);
 
     [HttpGet("{id}")]
     public IActionResult GetById(int id) => _service.GetById(id);
 
     [HttpGet("abertas/todas")]
     [Authorize]
-    public IActionResult GetAbertasComTotais() => _service.GetAbertasComTotais();
+    public IActionResult GetAbertasComTotais([FromQuery] int? pagina, [FromQuery] int? tamanho) =>
+        _service.GetAbertasComTotais(pagina, tamanho, Response);
 
     [HttpGet("mesa/{tableNumber}")]
     public IActionResult GetComandasByTable(int tableNumber) => _service.GetComandasByTable(tableNumber);

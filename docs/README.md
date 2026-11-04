@@ -1,11 +1,10 @@
-# Documentação do Systemic - PIM IV
+# Documentação do Systemic PIM
 
-- [Configuração, execução, autenticação e tabela completa de endpoints](CONFIGURACAO.md)
-- [Arquitetura, pastas, páginas, permissões e banco de dados](ARQUITETURA.md)
-- [Plano de implantação em nuvem](PLANO_NUVEM.md)
-- [Decisões de escopo](DECISOES_ESCOPO.md)
-- [Exemplo TypeScript de integração com fetch](EXEMPLO_INTEGRACAO_REACT.ts)
+- [Configuração, execução, autenticação e endpoints](CONFIGURACAO.md)
+- [Arquitetura, módulos, dados e permissões](ARQUITETURA.md)
+- [Exemplo TypeScript de integração com a API](EXEMPLO_INTEGRACAO_REACT.ts)
+- [Instruções da API](../back-end/README.md)
 
-A documentação descreve o estado verificado do código; não substitui a
-validação em um SQL Server configurado. O banco não estava disponível durante
-a última verificação.
+Os documentos descrevem o comportamento implementado no repositório. A
+configuração de produção deve ser validada no ambiente de destino, em especial
+TLS, proxy confiável, CORS, cookies e conexão com SQL Server.

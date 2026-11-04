@@ -34,7 +34,7 @@ coverage/
 .DS_Store
 Thumbs.db
 
-.vscode
+.vscode/
 
 # Local backups and temporary reports
 backups/
@@ -43,8 +43,6 @@ backups/
 *.bak
 TestResults/
 **/TestResults/
-playwright-report/
-test-results/
 *.trx
 *.coverage
 *.coveragexml

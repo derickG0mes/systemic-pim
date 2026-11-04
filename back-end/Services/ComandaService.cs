@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
@@ -22,16 +24,27 @@ public sealed class ComandaService : IComandaService
         _logger = logger;
     }
 
-    public IActionResult GetAll()
+    public IActionResult GetAll(int? pagina, int? tamanho, HttpResponse response)
     {
-        var comandas = _context.Comandas
+        if (!ListPagination.TryCreate(pagina, tamanho, out var pagination))
+            return ListPagination.InvalidRequest();
+
+        IQueryable<Comanda> query = _context.Comandas
             .Include(c => c.ItensComanda)
             .ThenInclude(i => i.Produto)
             .Include(c => c.Cliente)
             .Include(c => c.Mesa)
             .Include(c => c.DetalhesPagamento)
-            .ThenInclude(dp => dp.FormaPagamento)
-            .ToList();
+            .ThenInclude(dp => dp.FormaPagamento);
+
+        if (pagination.IsRequested)
+        {
+            var totalCount = query.Count();
+            pagination.SetTotalCount(response, totalCount);
+            query = pagination.Apply(query, comanda => comanda.IdComanda);
+        }
+
+        var comandas = query.ToList();
 
         return ApiServiceResults.Ok(new { sucesso = true, dados = comandas });
     }
@@ -55,18 +68,39 @@ public sealed class ComandaService : IComandaService
     /// Lista apenas as comandas abertas (ativas)
     /// Endpoint específico para o frontend atualizar a UI
     /// </summary>
-    public IActionResult GetAbertasComTotais()
+    public IActionResult GetAbertasComTotais(int? pagina, int? tamanho, HttpResponse response)
     {
+        if (!ListPagination.TryCreate(pagina, tamanho, out var pagination))
+            return ListPagination.InvalidRequest();
+
         try
         {
-            var abertasNaView = DatabaseRoutineQueries.GetComandasAbertas(_context);
+            List<ComandaAbertaSqlResultDto> abertasNaView;
+            if (pagination.IsRequested)
+            {
+                var abertasQuery = _context.Database
+                    .SqlQueryRaw<ComandaAbertaSqlResultDto>(
+                        "SELECT IdComanda, NumeroMesa, ValorTotal FROM dbo.vw_comandas_abertas");
+                var totalCount = abertasQuery.Count();
+                pagination.SetTotalCount(response, totalCount);
+                abertasNaView = pagination.Apply(abertasQuery, comanda => comanda.IdComanda).ToList();
+            }
+            else
+            {
+                abertasNaView = DatabaseRoutineQueries.GetComandasAbertas(_context);
+            }
+
             if (abertasNaView.Count == 0)
                 return ApiServiceResults.Ok(new RespostaPadraoDTO { Sucesso = true, Dados = Array.Empty<object>() });
 
             var abertasPorId = abertasNaView.ToDictionary(comanda => comanda.IdComanda);
             var idsComandasAbertas = abertasPorId.Keys.ToArray();
-            var comandasAbertas = _context.Comandas
-                .Where(c => c.StatusComanda == "ABERTA" && idsComandasAbertas.Contains(c.IdComanda))
+            IQueryable<Comanda> comandasQuery = _context.Comandas
+                .Where(c => c.StatusComanda == "ABERTA" && idsComandasAbertas.Contains(c.IdComanda));
+            if (pagination.IsRequested)
+                comandasQuery = comandasQuery.OrderBy(c => c.IdComanda);
+
+            var comandasAbertas = comandasQuery
                 .Include(c => c.Mesa)
                 .Include(c => c.ItensComanda)
                 .ThenInclude(i => i.Produto)
@@ -99,8 +133,13 @@ public sealed class ComandaService : IComandaService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load open orders.");
-            return ApiServiceResults.StatusCode(500, new { error = ex.Message });
+            var correlationId = Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString("N");
+            _logger.LogError(ex, "Failed to load open orders. CorrelationId: {CorrelationId}", correlationId);
+            return ApiServiceResults.StatusCode(500, new
+            {
+                error = "Não foi possível carregar as comandas abertas.",
+                correlationId
+            });
         }
     }
 
@@ -156,39 +195,53 @@ public sealed class ComandaService : IComandaService
         if (comanda.IdMesa <= 0)
             return ApiServiceResults.BadRequest(new { message = "Mesa é obrigatória" });
 
-        // Se nenhum cliente foi informado (idCliente = 0), usa o cliente padrão "Consumidor"
-        if (comanda.IdCliente <= 0)
-        {
-            var consumidor = _context.Clientes.FirstOrDefault(c => c.NomeCliente == "Consumidor");
-            if (consumidor == null)
-                return ApiServiceResults.BadRequest(new { message = "Cliente padrão 'Consumidor' não encontrado. Execute a migration-cliente-consumidor.sql." });
-            comanda.IdCliente = consumidor.IdCliente;
-        }
-
-        var mesa = _context.Mesas.FirstOrDefault(m => m.IdMesa == comanda.IdMesa)
-            ?? _context.Mesas.FirstOrDefault(m => m.NumeroMesa == comanda.IdMesa);
+        var mesa = await _context.Mesas.FirstOrDefaultAsync(m => m.IdMesa == comanda.IdMesa)
+            ?? await _context.Mesas.FirstOrDefaultAsync(m => m.NumeroMesa == comanda.IdMesa);
         if (mesa == null)
             return ApiServiceResults.BadRequest(new { message = "Mesa não encontrada" });
 
-        comanda.IdMesa = mesa.IdMesa;
+        await using var transaction = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+        try
+        {
+            var mesaBloqueada = await _context.Mesas
+                .FromSqlInterpolated($"SELECT * FROM dbo.MESA WITH (UPDLOCK, HOLDLOCK) WHERE ID_MESA = {mesa.IdMesa}")
+                .AsNoTracking()
+                .FirstOrDefaultAsync();
+            if (mesaBloqueada == null)
+                return ApiServiceResults.BadRequest(new { message = "Mesa não encontrada" });
 
-        // Verificar se cliente existe
-        var cliente = _context.Clientes.FirstOrDefault(c => c.IdCliente == comanda.IdCliente);
-        if (cliente == null)
-            return ApiServiceResults.BadRequest(new { message = "Cliente não encontrado" });
+            if (comanda.IdCliente <= 0)
+            {
+                var consumidor = await _context.Clientes.FirstOrDefaultAsync(c => c.NomeCliente == "Consumidor");
+                if (consumidor == null)
+                    return ApiServiceResults.BadRequest(new { message = "Cliente padrão 'Consumidor' não encontrado. Execute a migration-cliente-consumidor.sql." });
+                comanda.IdCliente = consumidor.IdCliente;
+            }
 
-        // Verificar se já existe comanda aberta para esta mesa
-        var comandaAberta = _context.Comandas
-            .FirstOrDefault(c => c.IdMesa == comanda.IdMesa && c.StatusComanda == "ABERTA");
-        if (comandaAberta != null)
-            return ApiServiceResults.BadRequest(new { message = "Já existe uma comanda aberta para esta mesa" });
+            comanda.IdMesa = mesaBloqueada.IdMesa;
 
-        comanda.DataAberta = DateTime.UtcNow;
-        comanda.StatusComanda = "ABERTA";
-        comanda.ValorTotal = 0m;
+            var clienteExiste = await _context.Clientes.AnyAsync(c => c.IdCliente == comanda.IdCliente);
+            if (!clienteExiste)
+                return ApiServiceResults.BadRequest(new { message = "Cliente não encontrado" });
 
-        _context.Comandas.Add(comanda);
-        await _context.SaveChangesAsync();
+            var comandaAberta = await _context.Comandas
+                .AnyAsync(c => c.IdMesa == comanda.IdMesa && c.StatusComanda == "ABERTA");
+            if (comandaAberta)
+                return ApiServiceResults.Conflict(new { message = "Já existe uma comanda aberta para esta mesa." });
+
+            comanda.DataAberta = DateTime.UtcNow;
+            comanda.StatusComanda = "ABERTA";
+            comanda.ValorTotal = 0m;
+
+            _context.Comandas.Add(comanda);
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+        catch (DbUpdateException exception) when (SqlServerExceptionHelper.IsUniqueConstraintViolation(exception))
+        {
+            return ApiServiceResults.Conflict(new { message = "Já existe uma comanda aberta para esta mesa." });
+        }
+
         await NotificarComandaAtualizada(comanda.IdComanda, comanda.IdMesa, comanda.StatusComanda);
 
         return ApiServiceResults.CreatedAtAction(nameof(GetById), new { id = comanda.IdComanda }, comanda);
@@ -217,6 +270,9 @@ public sealed class ComandaService : IComandaService
         var produto = _context.Produtos.FirstOrDefault(p => p.IdProduto == item.IdProduto);
         if (produto == null)
             return ApiServiceResults.NotFound(new { message = "Produto não encontrado" });
+
+        if (!string.Equals(produto.StatusProduto, "DISPONIVEL", StringComparison.OrdinalIgnoreCase))
+            return ApiServiceResults.BadRequest(new { message = $"Produto indisponível: {produto.NomeProduto}" });
 
         // Validar estoque
         if (produto.QtdEstoque < item.QtdProduto)

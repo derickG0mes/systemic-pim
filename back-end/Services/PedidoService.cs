@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using PIM3.API.Data;
@@ -28,16 +29,26 @@ public sealed class PedidoService : IPedidoService
     /// Lista todos os pedidos (comandas) do sistema
     /// GET: api/pedidos
     /// </summary>
-    public async Task<IActionResult> ListarPedidos()
+    public async Task<IActionResult> ListarPedidos(int? pagina, int? tamanho, HttpResponse response)
     {
+        if (!ListPagination.TryCreate(pagina, tamanho, out var pagination))
+            return ListPagination.InvalidRequest();
 
         // Aqui buscamos todas as comandas com seus itens relacionados
-        var pedidos = await _context.Comandas
+        IQueryable<Comanda> query = _context.Comandas
             .Include(c => c.ItensComanda)
             .ThenInclude(i => i.Produto)
             .Include(c => c.Mesa)
-            .Include(c => c.Cliente)
-            .ToListAsync();
+            .Include(c => c.Cliente);
+
+        if (pagination.IsRequested)
+        {
+            var totalCount = await query.CountAsync();
+            pagination.SetTotalCount(response, totalCount);
+            query = pagination.Apply(query, comanda => comanda.IdComanda);
+        }
+
+        var pedidos = await query.ToListAsync();
 
         return ApiServiceResults.Ok(new RespostaPadraoDTO
         {
@@ -125,6 +136,16 @@ public sealed class PedidoService : IPedidoService
                         Sucesso = false,
                         Mensagem = $"Produto não encontrado: {itemDTO.IdProduto}",
                         CodigoErro = "PRODUTO_NAO_ENCONTRADO"
+                    });
+                }
+
+                if (!string.Equals(produto.StatusProduto, "DISPONIVEL", StringComparison.OrdinalIgnoreCase))
+                {
+                    return ApiServiceResults.BadRequest(new RespostaPadraoDTO
+                    {
+                        Sucesso = false,
+                        Mensagem = $"Produto indisponível: {produto.NomeProduto}",
+                        CodigoErro = "PRODUTO_INDISPONIVEL"
                     });
                 }
 
@@ -219,6 +240,16 @@ public sealed class PedidoService : IPedidoService
                 });
             }
 
+            if (!string.Equals(produto.StatusProduto, "DISPONIVEL", StringComparison.OrdinalIgnoreCase))
+            {
+                return ApiServiceResults.BadRequest(new RespostaPadraoDTO
+                {
+                    Sucesso = false,
+                    Mensagem = $"Produto indisponível: {produto.NomeProduto}",
+                    CodigoErro = "PRODUTO_INDISPONIVEL"
+                });
+            }
+
             // Validar estoque
             if (produto.QtdEstoque < itemDTO.QtdProduto)
             {
@@ -298,6 +329,9 @@ public sealed class PedidoService : IPedidoService
             var produto = await _context.Produtos.FindAsync(itemDTO.IdProduto);
             if (produto == null)
                 return ApiServiceResults.BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = $"Produto {itemDTO.IdProduto} não encontrado" });
+
+            if (!string.Equals(produto.StatusProduto, "DISPONIVEL", StringComparison.OrdinalIgnoreCase))
+                return ApiServiceResults.BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = $"Produto indisponível: {produto.NomeProduto}", CodigoErro = "PRODUTO_INDISPONIVEL" });
 
             if (produto.QtdEstoque < itemDTO.QtdProduto)
                 return ApiServiceResults.BadRequest(new RespostaPadraoDTO { Sucesso = false, Mensagem = $"Estoque insuficiente para {produto.NomeProduto}" });

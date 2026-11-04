@@ -231,10 +231,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     if (!hasAuthSession()) return;
     try {
       const comandasData = await getComandas();
-      console.log("DEBUG: Dados brutos recebidos do backend:", comandasData);
-
       if (!comandasData) {
-        console.warn("Aviso: Resposta nula do backend");
         return;
       }
 
@@ -244,10 +241,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         ? listaComandas
         : [];
 
-      console.log(`DEBUG: Processando ${comandasArray.length} comandas`);
-
       if (comandasArray.length === 0) {
-        console.warn("Aviso: Nenhuma comanda retornada");
         setTabs([]);
         setOrders([]);
         return;
@@ -322,17 +316,12 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         return tabFormatted;
       });
 
-      console.log("Todos os tabs formatados:", tabsFormatted);
       setTabs(tabsFormatted);
       // Sincroniza a tela de Cozinha/Pedidos diretamente com a lista filtrada (permite limpar se allOrders for vazio)
       setOrders(allOrders);
 
-      console.log(
-        "Comandas sincronizadas da API com totais atualizados:",
-        tabsFormatted,
-      );
     } catch (error) {
-      console.error("Erro ao sincronizar comandas da API:", error);
+      console.error("Erro ao sincronizar comandas da API.");
       throw error;
     }
   }, []);
@@ -370,7 +359,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
           ...(includeProducts ? [syncProducts()] : []),
         ]);
       } catch (error) {
-        console.error("Erro ao reconciliar dados após alteração:", error);
+        console.error("Erro ao reconciliar dados após alteração.");
         showErrorToast(
           "A operação foi concluída, mas não foi possível atualizar os dados do servidor.",
         );
@@ -396,10 +385,9 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         }));
 
         setAuditLogs(logsFormatted);
-        console.log(`${logsFormatted.length} logs sincronizados do backend`);
       }
     } catch (error) {
-      console.error("Erro ao sincronizar logs:", error);
+      console.error("Erro ao sincronizar logs.");
       throw error;
     }
   }, []);
@@ -424,9 +412,8 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         guests: 2,
       }));
       setReservations(formatted);
-      console.log(`${formatted.length} reservas sincronizadas`);
     } catch (error) {
-      console.error("Erro ao sincronizar reservas:", error);
+      console.error("Erro ao sincronizar reservas.");
       throw error;
     }
   }, []);
@@ -456,31 +443,23 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const loadDataFromAPI = async () => {
       if (!hasAuthSession()) {
-        console.warn("Aviso: Sem sessão — ignorando carga da API");
         return;
       }
 
       try {
         // Tenta carregar mesas primeiro
         const mesasResp = await getMesas();
-        console.log("API: Resposta de mesas:", mesasResp);
         const listaMesas = mesasResp?.dados ? mesasResp.dados : mesasResp;
         const mesasArray = Array.isArray(listaMesas) ? listaMesas : [];
 
-        if (mesasArray.length > 0) {
-          console.log(`${mesasArray.length} mesas carregadas do backend`);
-        } else {
-          console.warn("Aviso: Nenhuma mesa retornada do backend");
-        }
       } catch (error) {
-        console.error("Erro ao carregar mesas da API:", error);
+        console.error("Erro ao carregar mesas da API.");
         throw error;
       }
 
       try {
         // Tenta carregar produtos
         const produtosResp = await getProdutos();
-        console.log("API: Resposta de produtos:", produtosResp);
         const listaProdutos = produtosResp?.dados ? produtosResp.dados : (produtosResp?.Dados ? produtosResp.Dados : produtosResp);
         const produtosArray: ApiProduto[] = Array.isArray(listaProdutos)
           ? listaProdutos
@@ -497,12 +476,9 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
             minStock: Number(p.estoqueMinimo || p.minStock || 0),
           }));
           setProducts(formattedProducts);
-          console.log("Produtos carregados da API", formattedProducts);
-        } else {
-          console.warn("Aviso: Nenhum produto retornado do backend");
         }
       } catch (error) {
-        console.error("Erro ao carregar produtos da API:", error);
+        console.error("Erro ao carregar produtos da API.");
         throw error;
       }
 
@@ -510,7 +486,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         // Tenta carregar comandas/pedidos
         await syncComandas();
       } catch (error) {
-        console.error("Erro ao carregar comandas da API:", error);
+        console.error("Erro ao carregar comandas da API.");
         throw error;
       }
 
@@ -518,7 +494,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         // Tenta carregar logs de sistema
         await syncLogs();
       } catch (error) {
-        console.error("Erro ao carregar logs da API:", error);
+        console.error("Erro ao carregar logs da API.");
         throw error;
       }
 
@@ -526,14 +502,13 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         // Tenta carregar reservas
         await syncReservations();
       } catch (error) {
-        console.error("Erro ao carregar reservas da API:", error);
+        console.error("Erro ao carregar reservas da API.");
         throw error;
       }
 
       try {
         // Tenta carregar funcionários/empregados
         const funcResp = await getFuncionarios();
-        console.log("API: Resposta de funcionários:", funcResp);
         const listaFuncionarios = funcResp?.dados ? funcResp.dados : (funcResp?.Dados ? funcResp.Dados : funcResp);
         const funcArray: ApiFuncionario[] = Array.isArray(listaFuncionarios)
           ? listaFuncionarios
@@ -554,12 +529,9 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
             active: f.statusFuncionario === "ATIVO",
           }));
           setEmployees(formattedFunc);
-          console.log("Funcionários carregados da API", formattedFunc);
-        } else {
-          console.warn("Aviso: Nenhum funcionário retornado do backend");
         }
       } catch (error) {
-        console.error("Erro ao carregar funcionários da API:", error);
+        console.error("Erro ao carregar funcionários da API.");
         throw error;
       }
 
@@ -574,21 +546,21 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
           });
         }
       } catch (error) {
-        console.error("Erro ao carregar faturamento da API:", error);
+        console.error("Erro ao carregar faturamento da API.");
         throw error;
       }
     };
 
     if (hasAuthSession()) {
-      loadDataFromAPI().catch((err) =>
-        console.error("Erro: loadDataFromAPI falhou:", err),
+      loadDataFromAPI().catch(() =>
+        console.error("Erro: loadDataFromAPI falhou."),
       );
     }
 
     const handleTokenChanged = async () => {
       if (hasAuthSession()) {
-        await loadDataFromAPI().catch((err) =>
-          console.error("Erro: loadDataFromAPI falhou:", err),
+        await loadDataFromAPI().catch(() =>
+          console.error("Erro: loadDataFromAPI falhou."),
         );
       }
     };
@@ -629,8 +601,8 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         };
         setProducts((prev) => [...prev, newP]);
         log("CREATE_PRODUCT", `Produto "${p.name}" cadastrado`);
-      } catch (error) {
-        console.error("Erro ao cadastrar produto na API:", error);
+      } catch {
+        console.error("Erro ao cadastrar produto na API.");
       }
     },
     [log],
@@ -641,7 +613,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
       // Extrai o ID numérico do produto (formato "p123" → 123)
       const numericId = parseInt(id.replace(/\D/g, ""), 10);
       if (!numericId) {
-        console.error("[updateProduct] ID inválido:", id);
+        console.error("[updateProduct] ID inválido.");
         return;
       }
       try {
@@ -661,8 +633,8 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
           prev.map((x) => (x.id === id ? { ...x, ...p } : x)),
         );
         log("UPDATE_PRODUCT", `Produto ${id} atualizado`);
-      } catch (error: unknown) {
-        console.error("[updateProduct] Falha na API:", error);
+      } catch {
+        console.error("[updateProduct] Falha na API.");
         window.dispatchEvent(
           new CustomEvent("restaurant:toast", {
             detail: { type: "error", message: "Falha ao atualizar produto no servidor." },
@@ -752,21 +724,10 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         }),
       );
 
-      console.log(
-        "[ADDORDER] Iniciando criação de pedido para mesa",
-        o.tableNumber,
-      );
-      console.log("[ADDORDER] Payload enviado:", pedidoPayload);
-
       try {
-        const pedidoResponse = await createPedido(pedidoPayload);
-
-        console.log(
-          "[ADDORDER] Pedido criado com sucesso no backend:",
-          pedidoResponse,
-        );
-      } catch (error: unknown) {
-        console.error("Erro: [ADDORDER] Erro ao criar pedido na API:", error);
+        await createPedido(pedidoPayload);
+      } catch {
+        console.error("Erro: falha ao criar pedido na API.");
         setOrders((prev) => prev.filter((order) => order.id !== pendingOrder.id));
         if (matchingTab) {
           setTabs((prev) =>
@@ -863,8 +824,8 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
             precoUnitarioPago: item.price,
           })),
         });
-      } catch (error) {
-        console.error("Erro ao editar pedido na API:", error);
+      } catch {
+        console.error("Erro ao editar pedido na API.");
         setOrders((prev) =>
           prev.map((current) => (current.id === id ? order : current)),
         );
@@ -909,8 +870,8 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
       }
       try {
         await updatePedidoStatus(id, status);
-      } catch (error) {
-        console.error("Erro ao atualizar status na API:", error);
+      } catch {
+        console.error("Erro ao atualizar status na API.");
         if (order) {
           setOrders((prev) => {
             const updated = prev.filter((current) => current.id !== id);
@@ -940,8 +901,8 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         await createComanda({ idMesa: tableNumber, idCliente: 0 });
         await syncComandas();
         log("OPEN_TAB", `Comanda aberta para mesa ${tableNumber}`);
-      } catch (error: unknown) {
-        console.error("Erro ao abrir comanda na API:", error);
+      } catch {
+        console.error("Erro ao abrir comanda na API.");
         window.dispatchEvent(
           new CustomEvent("restaurant:toast", {
             detail: { type: "error", message: "Falha ao abrir comanda no servidor." },
@@ -975,8 +936,8 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
           idFormaPagamento: formaMap[paymentMethod],
           troco: 0,
         });
-      } catch (error: unknown) {
-        console.error("Erro ao fechar comanda na API:", error);
+      } catch {
+        console.error("Erro ao fechar comanda na API.");
         if (tabBefore) {
           setTabs((prev) =>
             prev.map((tab) => (tab.id === id ? tabBefore : tab)),
@@ -1002,8 +963,8 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
       try {
         // Fecha a comanda no banco sem DETALHE_PAGAMENTO; registra NAO_PAGO no LOG_SISTEMA
         await markComandaInadimplente(id);
-      } catch (error: unknown) {
-        console.error("Erro ao marcar comanda como inadimplente:", error);
+      } catch {
+        console.error("Erro ao marcar comanda como inadimplente.");
         if (tabBefore) {
           setTabs((prev) =>
             prev.map((tab) => (tab.id === id ? tabBefore : tab)),
@@ -1075,8 +1036,8 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
           `Reserva para ${r.clientName} - Mesa ${r.tableNumber}`,
         );
         return { success: true, message: "Reserva criada!" };
-      } catch (error) {
-        console.error("Erro ao criar reserva na API:", error);
+      } catch {
+        console.error("Erro ao criar reserva na API.");
         return {
           success: false,
           message: "Falha ao salvar reserva no servidor.",
@@ -1093,8 +1054,8 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         // Atualiza lista local apenas após confirmação do servidor
         setReservations((prev) => prev.filter((r) => r.id !== id));
         log("CANCEL_RESERVATION", `Reserva ${id} cancelada`);
-      } catch (error: unknown) {
-        console.error("Erro ao cancelar reserva na API:", error);
+      } catch {
+        console.error("Erro ao cancelar reserva na API.");
         window.dispatchEvent(
           new CustomEvent("restaurant:toast", {
             detail: { type: "error", message: "Falha ao cancelar reserva no servidor." },
@@ -1131,7 +1092,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         log("CREATE_EMPLOYEE", `Funcionário "${e.name}" cadastrado`);
         return { success: true, message: "Funcionário cadastrado!" };
       } catch (error: unknown) {
-        console.error("[addEmployee] Falha na API:", error);
+        console.error("[addEmployee] Falha na API.");
         const msg = error instanceof Error
           ? error.message.replace(/^\[API\][^:]*:\s*/, "").trim()
           : "";
@@ -1151,7 +1112,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     async (id: string, e: Partial<Employee>) => {
       const numericId = parseInt(id.replace(/\D/g, ""), 10);
       if (!numericId) {
-        console.error("[updateEmployee] ID inválido:", id);
+        console.error("[updateEmployee] ID inválido.");
         return;
       }
       try {
@@ -1170,7 +1131,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         );
         log("UPDATE_EMPLOYEE", `Funcionário ${id} atualizado`);
       } catch (error: unknown) {
-        console.error("[updateEmployee] Falha na API:", error);
+        console.error("[updateEmployee] Falha na API.");
         const msg = error instanceof Error
           ? error.message.replace(/^\[API\][^:]*:\s*/, "").trim()
           : "";

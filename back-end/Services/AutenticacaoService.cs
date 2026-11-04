@@ -10,15 +10,32 @@ public sealed class AutenticacaoService : IAutenticacaoService
 {
     private readonly AppDbContext _context;
     private readonly JwtService _jwtService;
+    private readonly ILogger<AutenticacaoService> _logger;
+    private readonly TimeProvider _timeProvider;
 
-    public AutenticacaoService(AppDbContext context, JwtService jwtService)
+    public AutenticacaoService(
+        AppDbContext context,
+        JwtService jwtService,
+        ILogger<AutenticacaoService> logger,
+        TimeProvider timeProvider)
     {
         _context = context;
         _jwtService = jwtService;
+        _logger = logger;
+        _timeProvider = timeProvider;
     }
+
+    internal static IActionResult InvalidCredentialsResult() =>
+        ApiServiceResults.Unauthorized(new RespostaPadraoDTO
+        {
+            Sucesso = false,
+            Mensagem = "Ops! Email ou senha incorretos.",
+            CodigoErro = "CREDENCIAIS_INVALIDAS"
+        });
 
     public async Task<IActionResult> Login(LoginDTO loginDTO, HttpResponse response)
     {
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
         if (string.IsNullOrWhiteSpace(loginDTO.Email) || string.IsNullOrWhiteSpace(loginDTO.Senha))
         {
             return ApiServiceResults.BadRequest(new RespostaPadraoDTO
@@ -34,22 +51,16 @@ public sealed class AutenticacaoService : IAutenticacaoService
 
         if (funcionario == null)
         {
-            return ApiServiceResults.Unauthorized(new RespostaPadraoDTO
-            {
-                Sucesso = false,
-                Mensagem = "Ops! Email ou senha incorretos.",
-                CodigoErro = "USUARIO_NAO_ENCONTRADO"
-            });
+            PasswordHashService.VerifyDummyPassword(loginDTO.Senha);
+            _logger.LogWarning("Login rejected because the account was not found.");
+            return InvalidCredentialsResult();
         }
 
-        if (funcionario.LockedUntil.HasValue && funcionario.LockedUntil > DateTime.UtcNow)
+        if (funcionario.LockedUntil.HasValue && funcionario.LockedUntil > now)
         {
-            return ApiServiceResults.Unauthorized(new RespostaPadraoDTO
-            {
-                Sucesso = false,
-                Mensagem = "Ops! Sua conta está temporariamente bloqueada. Tente novamente mais tarde.",
-                CodigoErro = "CONTA_BLOQUEADA"
-            });
+            PasswordHashService.VerifyDummyPassword(loginDTO.Senha);
+            _logger.LogWarning("Login rejected because the account is locked.");
+            return InvalidCredentialsResult();
         }
 
         if (!PasswordHashService.VerifyPassword(
@@ -57,21 +68,17 @@ public sealed class AutenticacaoService : IAutenticacaoService
                 funcionario.PasswordFuncionario,
                 out var upgradedHash))
         {
+            _logger.LogWarning("Login rejected because the password was invalid.");
             funcionario.LoginAttempts++;
 
             if (funcionario.LoginAttempts >= LoginLockoutPolicy.MaxAttempts)
             {
-                funcionario.LockedUntil = DateTime.UtcNow.AddMinutes(LoginLockoutPolicy.DurationMinutes);
+                funcionario.LockedUntil = now.AddMinutes(LoginLockoutPolicy.DurationMinutes);
             }
 
             await _context.SaveChangesAsync();
 
-            return ApiServiceResults.Unauthorized(new RespostaPadraoDTO
-            {
-                Sucesso = false,
-                Mensagem = "Ops! Email ou senha incorretos.",
-                CodigoErro = "SENHA_INCORRETA"
-            });
+            return InvalidCredentialsResult();
         }
 
         funcionario.LoginAttempts = 0;

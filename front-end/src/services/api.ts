@@ -53,6 +53,36 @@ async function parseJsonResponse(response: Response) {
   }
 }
 
+export function formatApiErrorMessage(responseBody: string): string {
+  if (!responseBody) return "";
+
+  try {
+    const parsed: unknown = JSON.parse(responseBody);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return responseBody;
+
+    const data = parsed as Record<string, unknown>;
+    const message = data.mensagem ?? data.message;
+    if (typeof message === "string" && message) return message;
+
+    const errors = data.errors;
+    if (errors && typeof errors === "object" && !Array.isArray(errors)) {
+      const fieldMessages = Object.entries(errors as Record<string, unknown>)
+        .flatMap(([field, messages]) => {
+          if (typeof messages === "string") return [`${field}: ${messages}`];
+          if (!Array.isArray(messages)) return [];
+          return messages
+            .filter((item): item is string => typeof item === "string")
+            .map((item) => `${field}: ${item}`);
+        });
+      if (fieldMessages.length > 0) return fieldMessages.join(" ");
+    }
+
+    return responseBody;
+  } catch {
+    return responseBody;
+  }
+}
+
 // A sessão é enviada automaticamente pelo cookie HttpOnly do navegador.
 async function apiCall(endpoint: string, options: RequestInit = {}) {
   const headers: Record<string, string> = {
@@ -79,17 +109,11 @@ async function apiCall(endpoint: string, options: RequestInit = {}) {
     if (response.status === 401) {
       window.dispatchEvent(new Event("auth:unauthorized"));
     }
-    let detail = text;
-    try {
-      const parsed = text ? JSON.parse(text) : null;
-      detail = parsed?.mensagem || parsed?.message || text;
-    } catch {
-      /* mantém texto bruto */
-    }
+    const detail = formatApiErrorMessage(text);
     const err = new Error(
       `[API] ${endpoint} → ${response.status} ${response.statusText}${detail ? `: ${detail}` : ""}`,
     );
-    console.error(err.message);
+    console.error("[API] Request failed.", response.status);
     throw err;
   }
 
@@ -99,7 +123,7 @@ async function apiCall(endpoint: string, options: RequestInit = {}) {
     return JSON.parse(text);
   } catch {
     const err = new Error(`[API] ${endpoint} — resposta inválida (JSON)`);
-    console.error(err.message, text);
+    console.error("[API] Response was not valid JSON.", response.status);
     throw err;
   }
 }
@@ -241,13 +265,10 @@ export async function ajustarEstoque(
 // ============================================
 
 export async function createPedido<T extends object>(data: T) {
-  console.log("[API] POST /pedidos - Enviando:", data);
-  const response = await apiCall("/pedidos", {
+  return apiCall("/pedidos", {
     method: "POST",
     body: JSON.stringify(data),
   });
-  console.log("[API] POST /pedidos - Resposta:", response);
-  return response;
 }
 
 export async function updatePedido<T extends object>(id: string, data: T) {
@@ -281,10 +302,7 @@ export async function getMesas() {
 // ============================================
 
 export async function getComandas() {
-  console.log("[API] GET /comanda");
-  const response = await apiCall("/comanda");
-  console.log("[API] GET /comanda - Resposta:", response);
-  return response;
+  return apiCall("/comanda");
 }
 
 export async function getLogSistema(pagina = 1, tamanho = 100, filtro = "") {
