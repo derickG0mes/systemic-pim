@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { RefreshCw } from "lucide-react-native";
-import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { Pressable, RefreshControl, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ScreenKeyboardAware } from "./ScreenKeyboardAware";
 import { colors } from "../theme/colors";
 import { styles } from "../theme/styles";
 
@@ -25,14 +26,13 @@ export function AppScreen({
   const insets = useSafeAreaInsets();
 
   return (
-    <ScrollView
+    <ScreenKeyboardAware
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={{
         paddingHorizontal: 16,
         paddingTop: 16 + (safeArea ? insets.top : 0),
         paddingBottom: 36 + (safeArea ? insets.bottom : 0),
       }}
-      keyboardShouldPersistTaps="handled"
       refreshControl={
         onRefresh ? (
           <RefreshControl
@@ -75,6 +75,6 @@ export function AppScreen({
         ) : null}
       </View>
       {children}
-    </ScrollView>
+    </ScreenKeyboardAware>
   );
 }

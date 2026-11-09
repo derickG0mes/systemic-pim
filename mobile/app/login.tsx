@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import { LockKeyhole, Mail, UtensilsCrossed } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ActionButton } from "../src/components/ActionButton";
 import { Message } from "../src/components/Message";
 import { LoadingState } from "../src/components/ResourceStatus";
+import { ScreenKeyboardAware } from "../src/components/ScreenKeyboardAware";
 import { useAuth } from "../src/contexts/AuthContext";
 import { colors } from "../src/theme/colors";
 import { styles } from "../src/theme/styles";
@@ -50,14 +51,10 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.muted }}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      <ScreenKeyboardAware
         style={styles.loginPage}
+        contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingVertical: 24 }}
       >
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingVertical: 24 }}
-          keyboardShouldPersistTaps="handled"
-        >
           <View style={styles.loginCard}>
             <View style={styles.brandMark}>
               <UtensilsCrossed accessibilityLabel="Ícone de talheres" color={colors.white} size={32} />
@@ -125,8 +122,7 @@ export default function LoginScreen() {
               style={{ marginTop: 8 }}
             />
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </ScreenKeyboardAware>
     </SafeAreaView>
   );
 }
