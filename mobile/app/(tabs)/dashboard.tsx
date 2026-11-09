@@ -98,12 +98,20 @@ function DashboardContent() {
       onRefresh={() => void load(true)}
     >
       {error ? <Message kind="error" text={error} /> : null}
-      <ActionButton
-        title="Ver Relatórios Detalhados"
-        variant="secondary"
-        onPress={() => router.push("/reports" as never)}
-        style={{ marginBottom: 14 }}
-      />
+      <View style={{ flexDirection: "row", gap: 10, marginBottom: 14 }}>
+        <ActionButton
+          title="Relatórios"
+          variant="secondary"
+          onPress={() => router.push("/reports" as never)}
+          style={{ flex: 1 }}
+        />
+        <ActionButton
+          title="Auditoria"
+          variant="secondary"
+          onPress={() => router.push("/audit" as never)}
+          style={{ flex: 1 }}
+        />
+      </View>
       {loading && !data ? <LoadingState label="Carregando faturamento..." /> : null}
       {data ? (
         <>

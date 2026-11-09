@@ -215,6 +215,23 @@ export async function getTopProducts() {
   );
 }
 
+export interface SystemLogDto {
+  idLogSistema: number;
+  dataLog: string;
+  tipoLog: string;
+  descricaoLog: string;
+  usuarioLog: string;
+}
+
+export async function listSystemLogs(pagina = 1, tamanho = 30, filtro = "") {
+  const query = new URLSearchParams({
+    pagina: String(pagina),
+    tamanho: String(tamanho),
+    ...(filtro ? { filtro } : {}),
+  });
+  return request<SystemLogDto[]>(`/log/sistema?${query.toString()}`);
+}
+
 export function unwrapList<T>(value: unknown) {
   const result = unwrap<T[]>(value);
   return Array.isArray(result) ? result : [];
