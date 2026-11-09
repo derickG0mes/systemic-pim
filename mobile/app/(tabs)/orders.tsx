@@ -1,5 +1,5 @@
-import { useCallback, useRef } from "react";
-import { Alert, Text, View } from "react-native";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { Alert, Text, TextInput, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { ActionButton } from "../../src/components/ActionButton";
 import { AppScreen } from "../../src/components/AppScreen";
@@ -18,8 +18,12 @@ function nextStatus(status: "preparing" | "in_progress" | "completed") {
   return null;
 }
 
+type OrderFilter = "all" | "preparing" | "in_progress" | "completed";
+
 export default function OrdersScreen() {
   const { colors, styles } = useTheme();
+  const [filterStatus, setFilterStatus] = useState<OrderFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const loadOrders = useCallback(() => listOrders(), []);
   const resource = useCachedResource<CommandDto[]>("orders", loadOrders);
   const refreshOrders = resource.refresh;
@@ -63,9 +67,35 @@ export default function OrdersScreen() {
     );
   };
 
-  const orders = [...(resource.data ?? [])].sort(
-    (first, second) => new Date(second.dataAberta).getTime() - new Date(first.dataAberta).getTime(),
-  );
+  const orders = useMemo(() => {
+    const raw = [...(resource.data ?? [])].sort(
+      (first, second) => new Date(second.dataAberta).getTime() - new Date(first.dataAberta).getTime(),
+    );
+
+    return raw.filter((order) => {
+      const status = getOrderStatus(order.itensComanda ?? [], order.statusComanda);
+      if (filterStatus !== "all" && status !== filterStatus) {
+        return false;
+      }
+
+      if (searchQuery.trim()) {
+        const query = searchQuery.trim().toLowerCase();
+        const tableNumber = String(order.mesa?.numeroMesa ?? order.numeroMesa ?? order.idMesa);
+        const matchesTable = tableNumber.includes(query) || `mesa ${tableNumber}`.includes(query);
+        const matchesItems = (order.itensComanda ?? []).some((item) => {
+          const name = (item.produto?.nomeProduto ?? item.nomeProduto ?? "").toLowerCase();
+          return name.includes(query);
+        });
+        const matchesId = String(order.idComanda).includes(query);
+        if (!matchesTable && !matchesItems && !matchesId) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [filterStatus, resource.data, searchQuery]);
+
   return (
     <AppScreen
       title="Pedidos"
@@ -74,10 +104,40 @@ export default function OrdersScreen() {
       onRefresh={() => void resource.refresh()}
     >
       <ActionButton title="Novo pedido" onPress={() => router.push("/pedido/novo")} style={{ marginBottom: 14 }} />
+
+      <TextInput
+        accessibilityLabel="Buscar por mesa, item ou comanda"
+        placeholder="Buscar por mesa, comanda ou item..."
+        placeholderTextColor={colors.mutedForeground}
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        style={[styles.input, { marginBottom: 10 }]}
+      />
+
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+        {(["all", "preparing", "in_progress", "completed"] as const).map((st) => (
+          <ActionButton
+            key={st}
+            title={st === "all" ? "Todos" : orderStatusLabels[st]}
+            variant={filterStatus === st ? "primary" : "secondary"}
+            onPress={() => setFilterStatus(st)}
+            style={{ minWidth: 64 }}
+          />
+        ))}
+      </View>
+
       {resource.error ? <Message kind="error" text={resource.error} /> : null}
       {resource.cacheWarning ? <Message kind="info" text={resource.cacheWarning} /> : null}
       {resource.loading && !resource.data ? <LoadingState label="Carregando pedidos..." /> : null}
-      {!resource.loading && orders.length === 0 ? <EmptyState text="Nenhum pedido encontrado." /> : null}
+      {!resource.loading && orders.length === 0 ? (
+        <EmptyState
+          text={
+            searchQuery.trim() || filterStatus !== "all"
+              ? "Nenhum pedido encontrado com os filtros aplicados."
+              : "Nenhum pedido encontrado."
+          }
+        />
+      ) : null}
       {orders.map((order) => {
         const status = getOrderStatus(order.itensComanda ?? [], order.statusComanda);
         const tableNumber = order.mesa?.numeroMesa ?? order.numeroMesa ?? order.idMesa;
