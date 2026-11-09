@@ -232,6 +232,59 @@ export async function listSystemLogs(pagina = 1, tamanho = 30, filtro = "") {
   return request<SystemLogDto[]>(`/log/sistema?${query.toString()}`);
 }
 
+export interface EmployeeDto {
+  idFuncionario: number;
+  nomeFuncionario: string;
+  emailFuncionario: string;
+  cpfFuncionario: string;
+  telefoneFuncionario: string;
+  cargoFuncionario: string;
+  role: string;
+  perfil?: string;
+  statusFuncionario: string;
+}
+
+export function listEmployees() {
+  return request<EmployeeDto[]>("/funcionario");
+}
+
+export function createEmployee(data: {
+  nomeFuncionario: string;
+  cpfFuncionario: string;
+  telefoneFuncionario: string;
+  cargoFuncionario: string;
+  emailFuncionario: string;
+  role: string;
+  senha?: string;
+}) {
+  return request<EmployeeDto>("/funcionario", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateEmployee(
+  id: number,
+  data: {
+    nomeFuncionario: string;
+    cpfFuncionario: string;
+    telefoneFuncionario: string;
+    cargoFuncionario: string;
+    emailFuncionario: string;
+    role: string;
+    senha?: string;
+  },
+) {
+  return request<EmployeeDto>(`/funcionario/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteEmployee(id: number) {
+  return request<void>(`/funcionario/${id}`, { method: "DELETE" });
+}
+
 export function unwrapList<T>(value: unknown) {
   const result = unwrap<T[]>(value);
   return Array.isArray(result) ? result : [];

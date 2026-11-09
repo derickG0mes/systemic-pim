@@ -98,11 +98,17 @@ function DashboardContent() {
       onRefresh={() => void load(true)}
     >
       {error ? <Message kind="error" text={error} /> : null}
-      <View style={{ flexDirection: "row", gap: 10, marginBottom: 14 }}>
+      <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
         <ActionButton
           title="Relatórios"
           variant="secondary"
           onPress={() => router.push("/reports" as never)}
+          style={{ flex: 1 }}
+        />
+        <ActionButton
+          title="Usuários"
+          variant="secondary"
+          onPress={() => router.push("/users" as never)}
           style={{ flex: 1 }}
         />
         <ActionButton
