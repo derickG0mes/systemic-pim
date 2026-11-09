@@ -10,8 +10,7 @@ import { useCachedResource } from "../../src/hooks/useCachedResource";
 import { formatCurrency } from "../../src/lib/format";
 import { openComanda, listComandas, listOpenComandas, listTables } from "../../src/services/api";
 import type { CommandDto, TableDto } from "../../src/types/api";
-import { colors } from "../../src/theme/colors";
-import { styles } from "../../src/theme/styles";
+import { useTheme } from "../../src/contexts/ThemeContext";
 
 interface TableAndCommandData {
   tables: TableDto[];
@@ -20,6 +19,7 @@ interface TableAndCommandData {
 }
 
 export default function TablesScreen() {
+  const { colors, styles } = useTheme();
   const loadTables = useCallback(async () => {
     const [tables, commands, allCommands] = await Promise.all([
       listTables(),

@@ -18,10 +18,10 @@ import {
 } from "../../src/services/api";
 import type { CommandDto, PaymentFormDto, ProductDto } from "../../src/types/api";
 import { formatCurrency } from "../../src/lib/format";
-import { colors } from "../../src/theme/colors";
-import { styles } from "../../src/theme/styles";
+import { useTheme } from "../../src/contexts/ThemeContext";
 
 function ComandaDetailContent() {
+  const { colors, styles } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const commandId = Number(id);
   const [command, setCommand] = useState<CommandDto | null>(null);

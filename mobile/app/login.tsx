@@ -8,11 +8,11 @@ import { Message } from "../src/components/Message";
 import { LoadingState } from "../src/components/ResourceStatus";
 import { ScreenKeyboardAware } from "../src/components/ScreenKeyboardAware";
 import { useAuth } from "../src/contexts/AuthContext";
-import { colors } from "../src/theme/colors";
-import { styles } from "../src/theme/styles";
+import { useTheme } from "../src/contexts/ThemeContext";
 
 export default function LoginScreen() {
   const { login, user, ready, startupError, retryStartup } = useAuth();
+  const { colors, styles } = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -57,7 +57,7 @@ export default function LoginScreen() {
       >
           <View style={styles.loginCard}>
             <View style={styles.brandMark}>
-              <UtensilsCrossed accessibilityLabel="Ícone de talheres" color={colors.white} size={32} />
+              <UtensilsCrossed accessibilityLabel="Ícone de talheres" color={colors.primaryForeground} size={32} />
             </View>
             <Text style={styles.brandTitle}>Systemic</Text>
             <Text style={styles.brandSubtitle}>Sistema de Gerenciamento</Text>

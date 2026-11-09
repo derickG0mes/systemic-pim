@@ -3,10 +3,11 @@ import { ActivityIndicator, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useAuth } from "../contexts/AuthContext";
-import { colors } from "../theme/colors";
+import { useTheme } from "../contexts/ThemeContext";
 
 export function AuthGate({ children, managerOnly = false }: { children: ReactNode; managerOnly?: boolean }) {
   const { user, ready, startupError } = useAuth();
+  const { colors } = useTheme();
 
   useEffect(() => {
     if (ready && !user) router.replace("/login");

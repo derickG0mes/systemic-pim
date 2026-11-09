@@ -3,11 +3,12 @@ import { ActivityIndicator, Text } from "react-native";
 import { router } from "expo-router";
 import { ActionButton } from "../src/components/ActionButton";
 import { useAuth } from "../src/contexts/AuthContext";
-import { colors } from "../src/theme/colors";
+import { useTheme } from "../src/contexts/ThemeContext";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function IndexRoute() {
   const { user, ready, startupError, retryStartup } = useAuth();
+  const { colors } = useTheme();
 
   useEffect(() => {
     if (!ready || startupError) return;

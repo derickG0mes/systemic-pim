@@ -10,8 +10,7 @@ import { useCachedResource } from "../../src/hooks/useCachedResource";
 import { formatCurrency, formatDateTime, getOrderStatus, orderStatusLabels } from "../../src/lib/format";
 import { listOrders, updateOrderStatus } from "../../src/services/api";
 import type { CommandDto } from "../../src/types/api";
-import { colors } from "../../src/theme/colors";
-import { styles } from "../../src/theme/styles";
+import { useTheme } from "../../src/contexts/ThemeContext";
 
 function nextStatus(status: "preparing" | "in_progress" | "completed") {
   if (status === "preparing") return "in_progress";
@@ -20,6 +19,7 @@ function nextStatus(status: "preparing" | "in_progress" | "completed") {
 }
 
 export default function OrdersScreen() {
+  const { colors, styles } = useTheme();
   const loadOrders = useCallback(() => listOrders(), []);
   const resource = useCachedResource<CommandDto[]>("orders", loadOrders);
   const refreshOrders = resource.refresh;

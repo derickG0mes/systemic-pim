@@ -13,12 +13,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AuthGate } from "../../src/components/AuthGate";
 import { NotificationsCenter } from "../../src/components/NotificationsCenter";
 import { useAuth } from "../../src/contexts/AuthContext";
+import { useTheme } from "../../src/contexts/ThemeContext";
 import { listComandas, listOpenComandas, listProducts, listTables } from "../../src/services/api";
 import { writeCache } from "../../src/services/cache";
-import { colors } from "../../src/theme/colors";
 
 function TabNavigation() {
   const { user, logout } = useAuth();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isManager = user?.role === "admin" || user?.role === "owner";

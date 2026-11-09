@@ -1,5 +1,5 @@
 import { ActivityIndicator, Pressable, Text, type StyleProp, type ViewStyle } from "react-native";
-import { colors } from "../theme/colors";
+import { useTheme } from "../contexts/ThemeContext";
 
 interface ActionButtonProps {
   title: string;
@@ -18,9 +18,15 @@ export function ActionButton({
   variant = "primary",
   style,
 }: ActionButtonProps) {
+  const { colors } = useTheme();
   const backgroundColor =
     variant === "danger" ? colors.destructive : variant === "secondary" ? colors.secondary : colors.primary;
-  const textColor = variant === "secondary" ? colors.foreground : colors.white;
+  const textColor =
+    variant === "secondary"
+      ? colors.secondaryForeground
+      : variant === "danger"
+        ? colors.destructiveForeground
+        : colors.primaryForeground;
 
   return (
     <Pressable
@@ -36,7 +42,7 @@ export function ActionButton({
           justifyContent: "center",
           paddingHorizontal: 16,
           borderRadius: 10,
-          backgroundColor: disabled ? colors.border : backgroundColor,
+          backgroundColor: disabled ? colors.muted : backgroundColor,
           opacity: pressed ? 0.84 : 1,
           flexDirection: "row",
           gap: 8,
@@ -45,7 +51,9 @@ export function ActionButton({
       ]}
     >
       {loading ? <ActivityIndicator color={textColor} /> : null}
-      <Text style={{ color: textColor, fontFamily: "Inter_600SemiBold", fontSize: 15 }}>{title}</Text>
+      <Text style={{ color: disabled ? colors.foreground : textColor, fontFamily: "Inter_600SemiBold", fontSize: 15 }}>
+        {title}
+      </Text>
     </Pressable>
   );
 }

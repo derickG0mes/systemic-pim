@@ -1,9 +1,10 @@
 import { Link, Stack } from "expo-router";
 import { Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { colors } from "../src/theme/colors";
+import { useTheme } from "../src/contexts/ThemeContext";
 
 export default function NotFoundScreen() {
+  const { colors } = useTheme();
   return (
     <>
       <Stack.Screen options={{ title: "Página não encontrada" }} />

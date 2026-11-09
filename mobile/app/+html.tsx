@@ -10,14 +10,8 @@ export default function Root({ children }: { children: ReactNode }) {
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
 
         <ScrollViewStyleReset />
-        <style dangerouslySetInnerHTML={{ __html: responsiveBackground }} />
       </head>
       <body>{children}</body>
     </html>
   );
 }
-
-const responsiveBackground = `
-body {
-  background-color: #F6F7F9;
-}`;

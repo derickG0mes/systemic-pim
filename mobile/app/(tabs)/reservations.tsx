@@ -9,10 +9,10 @@ import { useCachedResource } from "../../src/hooks/useCachedResource";
 import { formatDateTime } from "../../src/lib/format";
 import { cancelReservation, createReservation, listReservations, listTables } from "../../src/services/api";
 import type { ReservationDto, TableDto } from "../../src/types/api";
-import { colors } from "../../src/theme/colors";
-import { styles } from "../../src/theme/styles";
+import { useTheme } from "../../src/contexts/ThemeContext";
 
 export default function ReservationsScreen() {
+  const { colors, styles } = useTheme();
   const loadReservations = useCallback(() => listReservations(), []);
   const loadTables = useCallback(() => listTables(), []);
   const reservations = useCachedResource<ReservationDto[]>("reservations", loadReservations);

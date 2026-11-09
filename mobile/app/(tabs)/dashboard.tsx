@@ -7,6 +7,7 @@ import { Message } from "../../src/components/Message";
 import { Panel } from "../../src/components/Panel";
 import { LoadingState } from "../../src/components/ResourceStatus";
 import { useAuth } from "../../src/contexts/AuthContext";
+import { useTheme } from "../../src/contexts/ThemeContext";
 import { formatCurrency, getOrderStatus } from "../../src/lib/format";
 import {
   getDailyFinancialSummary,
@@ -15,8 +16,6 @@ import {
   listOrders,
 } from "../../src/services/api";
 import type { FinancialSummary } from "../../src/types/api";
-import { colors } from "../../src/theme/colors";
-import { styles } from "../../src/theme/styles";
 import { useFocusEffect } from "expo-router";
 
 interface DashboardData {
@@ -34,6 +33,7 @@ function todayRange() {
 
 function DashboardContent() {
   const { user } = useAuth();
+  const { colors, styles } = useTheme();
   const { width } = useWindowDimensions();
   const metricColumns = width >= 1024 ? 4 : width >= 640 ? 2 : 1;
   const metricWidth =
@@ -208,6 +208,7 @@ function MetricCard({
   icon: ReactNode;
   alert?: boolean;
 }) {
+  const { colors } = useTheme();
   return (
     <Panel style={alert ? { borderColor: colors.destructive, marginBottom: 0 } : { marginBottom: 0 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>

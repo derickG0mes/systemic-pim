@@ -11,10 +11,10 @@ import { useCachedResource } from "../../src/hooks/useCachedResource";
 import { formatCurrency } from "../../src/lib/format";
 import { createOrder, listOpenComandas, listProducts } from "../../src/services/api";
 import type { CommandDto, ProductDto } from "../../src/types/api";
-import { colors } from "../../src/theme/colors";
-import { styles } from "../../src/theme/styles";
+import { useTheme } from "../../src/contexts/ThemeContext";
 
 function NewOrderContent() {
+  const { colors, styles } = useTheme();
   const loadCommands = useCallback(() => listOpenComandas(), []);
   const loadProducts = useCallback(() => listProducts(), []);
   const commands = useCachedResource<CommandDto[]>("open-comandas", loadCommands);
@@ -154,7 +154,7 @@ function NewOrderContent() {
                   onPress={() => setQuantity(product.idProduto, -1)}
                   style={{ minWidth: 42, minHeight: 42, alignItems: "center", justifyContent: "center", backgroundColor: colors.secondary, borderRadius: 9 }}
                 >
-                  <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 20 }}>−</Text>
+                  <Text style={{ color: colors.secondaryForeground, fontFamily: "Inter_700Bold", fontSize: 20 }}>−</Text>
                 </Pressable>
                 <Text accessibilityLabel={`Quantidade ${cart[product.idProduto] ?? 0}`} style={{ color: colors.foreground, fontFamily: "Inter_700Bold", minWidth: 20, textAlign: "center" }}>
                   {cart[product.idProduto] ?? 0}
@@ -166,7 +166,7 @@ function NewOrderContent() {
                   onPress={() => setQuantity(product.idProduto, 1)}
                   style={{ minWidth: 42, minHeight: 42, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary, borderRadius: 9, opacity: (cart[product.idProduto] ?? 0) >= product.qtdEstoque ? 0.45 : 1 }}
                 >
-                  <Text style={{ color: colors.white, fontFamily: "Inter_700Bold", fontSize: 20 }}>+</Text>
+                  <Text style={{ color: colors.primaryForeground, fontFamily: "Inter_700Bold", fontSize: 20 }}>+</Text>
                 </Pressable>
               </View>
             </View>

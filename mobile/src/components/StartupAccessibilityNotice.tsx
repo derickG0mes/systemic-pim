@@ -11,11 +11,12 @@ import {
 } from "react-native";
 import { Accessibility } from "lucide-react-native";
 import { readPreference, writePreference } from "../services/cache";
-import { colors } from "../theme/colors";
+import { useTheme } from "../contexts/ThemeContext";
 
 const STARTUP_NOTICE_KEY = "accessibility.startup-notice-seen";
 
 export function StartupAccessibilityNotice() {
+  const { colors } = useTheme();
   const [visible, setVisible] = useState(false);
   const [error, setError] = useState("");
 
@@ -91,7 +92,7 @@ export function StartupAccessibilityNotice() {
           flex: 1,
           justifyContent: "center",
           padding: 24,
-          backgroundColor: "rgba(0, 0, 0, 0.45)",
+          backgroundColor: colors.overlay,
         }}
       >
         <View
@@ -140,7 +141,7 @@ export function StartupAccessibilityNotice() {
               backgroundColor: colors.primary,
             }}
           >
-            <Text style={{ color: colors.white, fontFamily: "Inter_600SemiBold", fontSize: 15 }}>
+            <Text style={{ color: colors.primaryForeground, fontFamily: "Inter_600SemiBold", fontSize: 15 }}>
               Ativar leitor de tela
             </Text>
           </Pressable>

@@ -9,10 +9,10 @@ import { useCachedResource } from "../../src/hooks/useCachedResource";
 import { formatCurrency } from "../../src/lib/format";
 import { listProducts } from "../../src/services/api";
 import type { ProductDto } from "../../src/types/api";
-import { colors } from "../../src/theme/colors";
-import { styles } from "../../src/theme/styles";
+import { useTheme } from "../../src/contexts/ThemeContext";
 
 function ProductList() {
+  const { colors, styles } = useTheme();
   const loadProducts = useCallback(() => listProducts(), []);
   const resource = useCachedResource<ProductDto[]>("products", loadProducts);
   const products = resource.data ?? [];

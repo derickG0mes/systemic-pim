@@ -1,9 +1,15 @@
 import { Text, View } from "react-native";
-import { colors } from "../theme/colors";
+import { useTheme } from "../contexts/ThemeContext";
 
 export function Message({ text, kind = "info" }: { text: string; kind?: "error" | "info" | "success" }) {
+  const { colors } = useTheme();
   const backgroundColor = kind === "error" ? colors.destructiveSoft : kind === "success" ? colors.successSoft : colors.secondary;
-  const color = kind === "error" ? colors.destructive : kind === "success" ? colors.success : colors.info;
+  const color =
+    kind === "error"
+      ? colors.destructive
+      : kind === "success"
+        ? colors.success
+        : colors.secondaryForeground;
 
   return (
     <View

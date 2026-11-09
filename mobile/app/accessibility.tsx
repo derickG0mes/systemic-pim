@@ -14,12 +14,21 @@ import { AppScreen } from "../src/components/AppScreen";
 import { AuthGate } from "../src/components/AuthGate";
 import { Message } from "../src/components/Message";
 import { Panel } from "../src/components/Panel";
-import { colors } from "../src/theme/colors";
-import { styles } from "../src/theme/styles";
+import { useTheme } from "../src/contexts/ThemeContext";
+import type { ThemeName } from "../src/theme/colors";
+
+const themeLabels: Record<ThemeName, string> = {
+  light: "Claro",
+  dark: "Escuro",
+  "high-contrast": "Alto contraste",
+};
 
 function AccessibilityContent() {
+  const { colors, styles, theme, setTheme, error: themeError } = useTheme();
   const [screenReaderEnabled, setScreenReaderEnabled] = useState<boolean | null>(null);
   const [settingsError, setSettingsError] = useState("");
+  const [themeSaveError, setThemeSaveError] = useState("");
+  const [savingTheme, setSavingTheme] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -68,6 +77,18 @@ function AccessibilityContent() {
     );
   };
 
+  const changeTheme = async (nextTheme: ThemeName) => {
+    setThemeSaveError("");
+    setSavingTheme(true);
+    try {
+      await setTheme(nextTheme);
+    } catch (error) {
+      setThemeSaveError(error instanceof Error ? error.message : "Não foi possível salvar o tema.");
+    } finally {
+      setSavingTheme(false);
+    }
+  };
+
   return (
     <AppScreen
       title="Acessibilidade"
@@ -80,6 +101,27 @@ function AccessibilityContent() {
         onPress={() => router.back()}
         style={{ marginBottom: 12 }}
       />
+      <Panel>
+        <Text style={styles.sectionTitle}>Tema</Text>
+        <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14, marginBottom: 12 }}>
+          Escolha a aparência usada em todas as telas. A preferência fica salva neste dispositivo.
+        </Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          {(Object.keys(themeLabels) as ThemeName[]).map((themeOption) => (
+            <ActionButton
+              key={themeOption}
+              title={themeLabels[themeOption]}
+              variant={theme === themeOption ? "primary" : "secondary"}
+              disabled={savingTheme}
+              onPress={() => void changeTheme(themeOption)}
+              style={{ flexGrow: 1, minWidth: 120 }}
+            />
+          ))}
+        </View>
+        {themeError || themeSaveError ? (
+          <Message kind="error" text={themeSaveError || themeError} />
+        ) : null}
+      </Panel>
       <FeaturePanel
         title="Leitores de tela"
         description="Os controles do app têm rótulos acessíveis e funcionam com o TalkBack no Android e o VoiceOver no iPhone."
@@ -158,6 +200,7 @@ function FeaturePanel({
   description: string;
   icon: React.ReactNode;
 }) {
+  const { colors, styles } = useTheme();
   return (
     <Panel>
       <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>

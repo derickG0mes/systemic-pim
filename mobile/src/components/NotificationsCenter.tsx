@@ -3,11 +3,12 @@ import { Alert, AppState, FlatList, Modal, Pressable, Text, View } from "react-n
 import { router } from "expo-router";
 import { Bell, CheckCheck, X } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTheme } from "../contexts/ThemeContext";
 import { listNotifications, markAllNotificationsRead, markNotificationRead } from "../services/api";
 import type { NotificationItem } from "../types/notification";
-import { colors } from "../theme/colors";
 
 export function NotificationsCenter() {
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [visible, setVisible] = useState(false);
   const [items, setItems] = useState<NotificationItem[]>([]);
