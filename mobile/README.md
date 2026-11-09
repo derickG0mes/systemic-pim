@@ -10,7 +10,7 @@ Requisitos: Node.js e npm. Instale as dependências e configure a URL da API:
 
 ```powershell
 cd mobile
-npm install
+npm ci
 Copy-Item .env.example .env
 ```
 
@@ -36,6 +36,59 @@ Inicie o Metro:
 ```powershell
 npx expo start
 ```
+
+## Gerar e instalar o APK Android
+
+O perfil `preview` gera um APK de distribuição interna. Antes do build, troque
+`SEU_IP_LOCAL` em `eas.json` pelo IPv4 do computador na rede Wi-Fi. O celular
+precisa alcançar esse endereço e a porta 8080; não use `localhost`, que aponta
+para o próprio celular. A URL é incorporada ao APK durante o build.
+
+Para testar na rede local por HTTP, deixe a API e o Nginx do Docker Compose em
+execução e configure `ALLOW_INSECURE_LOCAL_NETWORK=true` no `.env` da raiz
+antes de iniciar os containers. Use essa opção somente em uma rede privada de
+teste. O perfil `preview` habilita tráfego HTTP para Android; o perfil
+`production` não o habilita.
+
+Instale/autentique o EAS CLI e gere o APK:
+
+```powershell
+npx eas-cli@latest login
+npx eas-cli@latest build --platform android --profile preview
+```
+
+Na primeira execução, aceite a configuração/associação do projeto Expo se o
+CLI solicitar. Quando o build terminar, baixe o APK pelo link exibido pelo EAS.
+Transfira-o para o Android, abra o arquivo e autorize a instalação dessa fonte
+quando o sistema solicitar. O perfil `production` exige uma URL HTTPS real:
+substitua `https://api.example.invalid/api` em `eas.json` após publicar a API.
+O `versionCode` em `app.json` deve ser incrementado nos próximos APKs.
+
+## Sessão no APK standalone
+
+As chamadas de login, CSRF e API usam `credentials: "include"`. Depois do
+login, o app descarta o token CSRF anterior, obtém um novo e valida a sessão.
+O token CSRF fica apenas em memória; após reabrir o app, a sessão é validada
+com o cookie e um novo token CSRF é obtido antes da próxima operação mutável.
+Um HTTP 401 limpa a sessão e retorna ao login. Falhas de rede mostram uma
+mensagem para conferir a conexão e `EXPO_PUBLIC_API_URL`; telas de espera
+exibem indicador de carregamento.
+
+O suporte a cookies persistentes pode variar no runtime nativo e não é
+comprovado por um bundle/export. Antes de considerar o APK funcional, teste em
+um Android físico:
+
+1. Acesse a API pela URL configurada e faça login; confirme que telas
+   autenticadas e operações protegidas por CSRF funcionam.
+2. Feche o app completamente e reabra-o; confirme que a sessão continua
+   autenticada e que a primeira operação mutável obtém/usa CSRF corretamente.
+3. Faça logout, ou invalide/expire a sessão no servidor; confirme que um 401
+   retorna ao login e limpa o cache.
+4. Desative a rede ou use uma URL inacessível; confirme a mensagem de falha,
+   o indicador durante a tentativa e que a tela continua recuperável ao
+   restaurar a conexão.
+5. Repita login e reabertura usando HTTPS no ambiente publicado antes de gerar
+   uma versão de produção.
 
 ### Usar o Expo CLI pelo WSL
 
