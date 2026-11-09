@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, type ReactNode } from "react";
 import { Text, useWindowDimensions, View } from "react-native";
 import { AlertTriangle, DollarSign, ShoppingCart, TrendingUp } from "lucide-react-native";
+import { ActionButton } from "../../src/components/ActionButton";
 import { AuthGate } from "../../src/components/AuthGate";
 import { AppScreen } from "../../src/components/AppScreen";
 import { Message } from "../../src/components/Message";
@@ -16,7 +17,7 @@ import {
   listOrders,
 } from "../../src/services/api";
 import type { FinancialSummary } from "../../src/types/api";
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 
 interface DashboardData {
   summary: FinancialSummary;
@@ -97,6 +98,12 @@ function DashboardContent() {
       onRefresh={() => void load(true)}
     >
       {error ? <Message kind="error" text={error} /> : null}
+      <ActionButton
+        title="Ver Relatórios Detalhados"
+        variant="secondary"
+        onPress={() => router.push("/reports" as never)}
+        style={{ marginBottom: 14 }}
+      />
       {loading && !data ? <LoadingState label="Carregando faturamento..." /> : null}
       {data ? (
         <>
