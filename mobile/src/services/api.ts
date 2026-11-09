@@ -81,6 +81,34 @@ export async function logout() {
 
 export const listTables = () => request<TableDto[]>("/mesa");
 export const listProducts = () => request<ProductDto[]>("/produto");
+export function createProduct(data: {
+  nomeProduto: string;
+  categoria?: string;
+  categoriaProduto?: string;
+  precoProduto: number;
+  qtdEstoque: number;
+  estoqueMinimo: number;
+  statusProduto?: string;
+  descricaoProduto?: string;
+}) {
+  return request<ProductDto>("/produto", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function adjustProductStock(
+  idProduto: number,
+  data: { tipo: "ADICIONAR" | "REMOVER"; quantidade: number; motivo: string },
+) {
+  return request<{ quantidadeAnterior: number; quantidadeNova: number }>(
+    `/produto/${idProduto}/ajustar-estoque`,
+    {
+      method: "PUT",
+      body: JSON.stringify(data),
+    },
+  );
+}
 export const listComandas = () => request<CommandDto[]>("/comanda");
 export const listOpenComandas = () => request<CommandDto[]>("/comanda/abertas/todas");
 export const getComanda = (id: number) => request<CommandDto>(`/comanda/${id}`);
