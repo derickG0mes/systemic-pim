@@ -18,11 +18,16 @@ public sealed class PedidoService : IPedidoService
     // Injeção de dependência do banco de dados
     private readonly AppDbContext _context;
     private readonly IHubContext<CozinhaHub> _cozinhaHub;
+    private readonly INotificationService _notifications;
 
-    public PedidoService(AppDbContext context, IHubContext<CozinhaHub> cozinhaHub)
+    public PedidoService(
+        AppDbContext context,
+        IHubContext<CozinhaHub> cozinhaHub,
+        INotificationService notifications)
     {
         _context = context;
         _cozinhaHub = cozinhaHub;
+        _notifications = notifications;
     }
 
     /// <summary>
@@ -114,6 +119,7 @@ public sealed class PedidoService : IPedidoService
 
         if (comandaExistente != null)
         {
+            var stockBefore = new Dictionary<int, (int Stock, int Minimum, string Name)>();
 
             // Adicionar itens à comanda existente
             foreach (var itemDTO in pedidoDTO.Itens)
@@ -176,6 +182,7 @@ public sealed class PedidoService : IPedidoService
                 _context.ItensComanda.Add(item);
 
                 // Diminuir estoque do produto
+                stockBefore.TryAdd(produto.IdProduto, (produto.QtdEstoque, produto.EstoqueMinimo, produto.NomeProduto));
                 produto.QtdEstoque -= itemDTO.QtdProduto;
                 _context.Produtos.Update(produto);
             }
@@ -184,6 +191,8 @@ public sealed class PedidoService : IPedidoService
             await _context.Entry(comandaExistente).ReloadAsync();
 
             await NotificarPedidoNovo(comandaExistente.IdComanda, comandaExistente.IdMesa, pedidoDTO.Itens);
+            await NotifyNewOrderAsync(comandaExistente.IdComanda, mesa.NumeroMesa);
+            await NotifyStockThresholdsAsync(stockBefore);
 
             return ApiServiceResults.Ok(new RespostaPadraoDTO
             {
@@ -217,6 +226,7 @@ public sealed class PedidoService : IPedidoService
         };
 
         // Processar cada item do pedido
+        var newOrderStockBefore = new Dictionary<int, (int Stock, int Minimum, string Name)>();
         foreach (var itemDTO in pedidoDTO.Itens)
         {
             if (itemDTO.QtdProduto <= 0)
@@ -276,6 +286,7 @@ public sealed class PedidoService : IPedidoService
             novaComanda.ItensComanda.Add(item);
 
             // Diminuir estoque do produto
+            newOrderStockBefore.TryAdd(produto.IdProduto, (produto.QtdEstoque, produto.EstoqueMinimo, produto.NomeProduto));
             produto.QtdEstoque -= itemDTO.QtdProduto;
             _context.Produtos.Update(produto);
         }
@@ -285,6 +296,8 @@ public sealed class PedidoService : IPedidoService
 
         await _context.Entry(novaComanda).ReloadAsync();
         await NotificarPedidoNovo(novaComanda.IdComanda, novaComanda.IdMesa, pedidoDTO.Itens);
+        await NotifyNewOrderAsync(novaComanda.IdComanda, mesa.NumeroMesa);
+        await NotifyStockThresholdsAsync(newOrderStockBefore);
 
         return ApiServiceResults.CreatedAtAction(nameof(ObterPedido), new { id = novaComanda.IdComanda }, new RespostaPadraoDTO
         {
@@ -309,6 +322,8 @@ public sealed class PedidoService : IPedidoService
         if (pedido == null)
             return ApiServiceResults.NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Pedido não encontrado" });
 
+        var stockBefore = new Dictionary<int, (int Stock, int Minimum, string Name)>();
+
         // Limpar itens antigos
         var itensAntigos = _context.ItensComanda.Where(i => i.IdComanda == id).ToList();
         foreach (var item in itensAntigos)
@@ -317,6 +332,7 @@ public sealed class PedidoService : IPedidoService
             var produto = await _context.Produtos.FindAsync(item.IdProduto);
             if (produto != null)
             {
+                stockBefore.TryAdd(produto.IdProduto, (produto.QtdEstoque, produto.EstoqueMinimo, produto.NomeProduto));
                 produto.QtdEstoque += item.QtdProduto;
                 _context.Produtos.Update(produto);
             }
@@ -344,6 +360,7 @@ public sealed class PedidoService : IPedidoService
                 IdComanda = id
             };
 
+            stockBefore.TryAdd(produto.IdProduto, (produto.QtdEstoque, produto.EstoqueMinimo, produto.NomeProduto));
             produto.QtdEstoque -= itemDTO.QtdProduto;
             _context.Produtos.Update(produto);
             _context.ItensComanda.Add(novoItem);
@@ -351,6 +368,7 @@ public sealed class PedidoService : IPedidoService
 
         await _context.SaveChangesAsync();
         await _context.Entry(pedido).ReloadAsync();
+        await NotifyStockThresholdsAsync(stockBefore);
         await _cozinhaHub.Clients.All.SendAsync("ComandaAtualizada", new
         {
             idComanda = pedido.IdComanda,
@@ -421,6 +439,12 @@ public sealed class PedidoService : IPedidoService
                     idMesa = pedido.IdMesa,
                     timestamp = DateTime.UtcNow
                 });
+                await _notifications.NotifyAsync(
+                    "pedido_pronto",
+                    "Pedido pronto",
+                    $"Pedido da mesa {pedido.Mesa?.NumeroMesa ?? pedido.IdMesa} está pronto para servir.",
+                    "/orders",
+                    ["employee", "admin", "owner"]);
             }
 
             await _cozinhaHub.Clients.All.SendAsync("ComandaAtualizada", new
@@ -539,5 +563,31 @@ public sealed class PedidoService : IPedidoService
             }),
             timestamp = DateTime.UtcNow
         });
+    }
+
+    private Task NotifyNewOrderAsync(int idComanda, int idMesa) =>
+        _notifications.NotifyAsync(
+            "pedido_novo",
+            "Novo pedido para a cozinha",
+            $"Comanda #{idComanda} · Mesa {idMesa}.",
+            "/orders",
+            ["employee", "admin", "owner"]);
+
+    private async Task NotifyStockThresholdsAsync(
+        IReadOnlyDictionary<int, (int Stock, int Minimum, string Name)> stockBefore)
+    {
+        foreach (var (productId, previous) in stockBefore)
+        {
+            var product = await _context.Produtos.FindAsync(productId);
+            if (product is null || previous.Stock <= previous.Minimum || product.QtdEstoque > product.EstoqueMinimo)
+                continue;
+
+            await _notifications.NotifyAsync(
+                "estoque_baixo",
+                "Estoque baixo",
+                $"{previous.Name}: restam {product.QtdEstoque} (mínimo {product.EstoqueMinimo}).",
+                "/inventory",
+                ["admin", "owner"]);
+        }
     }
 }
