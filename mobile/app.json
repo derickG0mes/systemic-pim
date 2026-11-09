@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Systemic PIM",
+    "name": "Systemic",
     "slug": "systemic-pim",
     "version": "1.0.0",
     "platforms": [
@@ -10,6 +10,9 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "systemicpim",
+    "web": {
+      "favicon": "./assets/images/favicon.png"
+    },
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
@@ -30,7 +33,7 @@
         "android.permission.VIBRATE"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#853BFF",
+        "backgroundColor": "#863BFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false

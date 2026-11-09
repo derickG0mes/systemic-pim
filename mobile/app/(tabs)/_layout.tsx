@@ -115,17 +115,22 @@ function TabNavigation() {
         headerTintColor: colors.foreground,
         headerTitleStyle: { color: colors.foreground, fontFamily: "Inter_600SemiBold" },
         headerTitle: () => (
-          <Text
-            numberOfLines={1}
-            style={{
-              maxWidth: Math.max(120, width - 200),
-              color: colors.foreground,
-              fontFamily: "Inter_600SemiBold",
-              fontSize: 16,
-            }}
-          >
-            {user?.nome ?? "Systemic"}
-          </Text>
+          <View style={{ maxWidth: Math.max(120, width - 200) }}>
+            <Text
+              numberOfLines={1}
+              style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 16 }}
+            >
+              Systemic
+            </Text>
+            {user?.nome ? (
+              <Text
+                numberOfLines={1}
+                style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }}
+              >
+                {user.nome}
+              </Text>
+            ) : null}
+          </View>
         ),
         headerShadowVisible: false,
         headerBackButtonDisplayMode: "minimal",
