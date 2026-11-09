@@ -103,6 +103,18 @@ export default function OrdersScreen() {
       refreshing={resource.refreshing}
       onRefresh={() => void resource.refresh()}
     >
+      <View
+        accessible
+        accessibilityRole="text"
+        accessibilityLabel="Atualização automática ativa a cada 15 segundos."
+        style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 }}
+      >
+        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success }} />
+        <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }}>
+          Atualização automática ativa (15s)
+        </Text>
+      </View>
+
       <ActionButton title="Novo pedido" onPress={() => router.push("/pedido/novo")} style={{ marginBottom: 14 }} />
 
       <TextInput
