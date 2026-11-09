@@ -143,6 +143,18 @@ respeitam as áreas seguras do iOS e Android. Nas abas, o cabeçalho mostra o
 nome da pessoa autenticada e mantém os nomes das telas nos itens da navegação
 inferior.
 
+## Notificações em tempo real
+
+O aplicativo possui integração com o **SignalR** (`/hubs/notificacoes`) e **Expo Notifications** (`expo-notifications`):
+
+- **Conexão em primeiro plano e segundo plano:** ao efetuar o login, o cliente estabelece conexão WebSocket/LongPolling com o Hub de Notificações, escutando o evento `NotificationCreated`.
+- **Canal de Alta Importância no Android:** as notificações são exibidas nativamente na barra de status do Android através do canal `systemic-default`, com som e vibração habilitados e permissão `POST_NOTIFICATIONS` (Android 13+).
+- **Abertura da tela ao tocar:** ao clicar em qualquer notificação no sistema, o app realiza o roteamento automático:
+  - Pedidos (`pedido_*`) direcionam para a aba **Pedidos**.
+  - Reservas (`reserva_*`) direcionam para a aba **Reservas**.
+  - Estoque baixo (`estoque_baixo`) direciona para a aba **Produtos e Estoque**.
+- **Resiliência e Reconexão:** o cliente SignalR implementa reconexão automática (`[0, 2s, 5s, 10s, 30s]`). Caso a conexão caia, a central de notificações mantém uma sincronização periódica (polling) a cada 30 segundos e ao retornar ao aplicativo.
+
 ## Telas e endpoints
 
 Todos os caminhos abaixo são relativos a `/api`; as chamadas mutáveis enviam
@@ -155,9 +167,12 @@ Todos os caminhos abaixo são relativos a `/api`; as chamadas mutáveis enviam
 | Detalhe da comanda | Todos | `POST /comanda/{id}/itens`, `DELETE /comanda/{id}/itens/{itemId}`, `GET /formapagamento`, `PUT /comanda/{id}/pagar`, `PUT /comanda/{id}/fechar` |
 | Pedidos e status | Todos | `GET /pedidos`, `GET /comanda/abertas/todas`, `GET /produto`, `POST /pedidos`, `PUT /pedidos/{id}/status` |
 | Reservas | Todos | `GET /reserva`, `POST /reserva`, `DELETE /reserva/{id}`, `GET /mesa` |
-| Notificações | Todos | `GET /notificacoes`, `PATCH /notificacoes/{id}/lida`, `POST /notificacoes/marcar-todas-lidas` |
+| Notificações | Todos | `GET /notificacoes`, `PATCH /notificacoes/{id}/lida`, `POST /notificacoes/marcar-todas-lidas`, `WS /hubs/notificacoes` |
 | Resumo financeiro | `admin`, `owner` | `GET /faturamento`, `GET /faturamento/receita-por-forma?dataInicio=…&dataFim=…`, `GET /faturamento/produtos-mais-vendidos` |
-| Produtos e estoque | `admin`, `owner` | `GET /produto` |
+| Relatórios detalhados | `admin`, `owner` | `GET /faturamento/relatorio?dataInicio=…&dataFim=…`, `GET /faturamento/receita-por-forma?dataInicio=…&dataFim=…` |
+| Produtos e estoque | `admin`, `owner` | `GET /produto`, `POST /produto`, `PUT /produto/{id}/ajustar-estoque` |
+| Logs de auditoria | `admin`, `owner` | `GET /log/sistema?pagina=…&tamanho=…&filtro=…` |
+| Usuários (Funcionários) | `admin`, `owner` | `GET /funcionario`, `POST /funcionario`, `PUT /funcionario/{id}`, `DELETE /funcionario/{id}` |
 
 O endpoint de pagamento fecha a comanda e libera a mesa. A ação de fechamento
 separada chama `PUT /comanda/{id}/fechar`; a API registra esse caminho com a

@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { Bell, CheckCheck, X } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../contexts/ThemeContext";
+import { useSignalRNotifications } from "../hooks/useSignalRNotifications";
 import { listNotifications, markAllNotificationsRead, markNotificationRead } from "../services/api";
 import type { NotificationItem } from "../types/notification";
 
@@ -32,6 +33,19 @@ export function NotificationsCenter() {
       loading.current = false;
     }
   }, []);
+
+  const handleLiveNotification = useCallback((newItem: NotificationItem) => {
+    setItems((current) => {
+      if (current.some((item) => item.id === newItem.id)) return current;
+      return [newItem, ...current];
+    });
+    setUnreadCount((count) => count + 1);
+  }, []);
+
+  const { connected: signalRConnected } = useSignalRNotifications({
+    enabled: true,
+    onNotificationReceived: handleLiveNotification,
+  });
 
   useEffect(() => {
     const initialRequest = setTimeout(() => void refresh(), 0);
@@ -125,9 +139,24 @@ export function NotificationsCenter() {
             alignItems: "center",
             justifyContent: "space-between",
           }}>
-            <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 18 }}>
-              Notificações
-            </Text>
+            <View>
+              <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 18 }}>
+                Notificações
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 }}>
+                <View
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: 3,
+                    backgroundColor: signalRConnected ? colors.success : colors.mutedForeground,
+                  }}
+                />
+                <Text style={{ color: colors.mutedForeground, fontSize: 11, fontFamily: "Inter_400Regular" }}>
+                  {signalRConnected ? "Tempo real conectado" : "Modo periódico"}
+                </Text>
+              </View>
+            </View>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <Pressable
                 accessibilityRole="button"

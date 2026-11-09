@@ -62,6 +62,13 @@ export function getApiBaseUrl() {
   return configuredUrl;
 }
 
+export function getHubUrl(hubPath = "/hubs/notificacoes"): string {
+  const apiBase = getApiBaseUrl();
+  const root = apiBase.replace(/\/api\/?$/, "");
+  const normalizedPath = hubPath.startsWith("/") ? hubPath : `/${hubPath}`;
+  return `${root}${normalizedPath}`;
+}
+
 async function readJson(response: Response): Promise<unknown> {
   const text = await response.text();
   if (!text) return null;

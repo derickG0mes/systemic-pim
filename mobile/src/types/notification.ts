@@ -4,6 +4,7 @@ export interface NotificationItem {
   title: string;
   message: string;
   href: string;
+  link?: string;
   createdAt: string;
   readAt: string | null;
 }
