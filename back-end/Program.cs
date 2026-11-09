@@ -126,6 +126,7 @@ builder.Services.AddScoped<IMesaService, MesaService>();
 builder.Services.AddScoped<IProdutoService, ProdutoService>();
 builder.Services.AddScoped<IReservaService, ReservaService>();
 builder.Services.AddScoped<ILogService, LogService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IFuncionarioService, FuncionarioService>();
 builder.Services.AddScoped<IAutenticacaoService, AutenticacaoService>();
 builder.Services.AddScoped<IDatabaseHealthService, DatabaseHealthService>();
@@ -140,11 +141,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("DevCors", policy =>
     {
-        policy.WithOrigins(
-                "http://localhost:8080",
-                "http://127.0.0.1:8080",
-                "http://localhost:5173",
-                "http://127.0.0.1:5173")
+        policy.SetIsOriginAllowed(ApiSecurityConfiguration.IsAllowedLocalNetworkCorsOrigin)
               .AllowAnyMethod()
               .AllowAnyHeader()
               .WithExposedHeaders("X-Total-Count")
@@ -283,6 +280,7 @@ app.MapControllers();
 
 // Mapear SignalR Hub para comunicação em tempo real
 app.MapHub<CozinhaHub>("/hubs/cozinha");
+app.MapHub<NotificationsHub>("/hubs/notificacoes");
 
 // VERIFICAR CONEXÃO COM O BANCO DE DADOS
 app.Lifetime.ApplicationStarted.Register(() =>
