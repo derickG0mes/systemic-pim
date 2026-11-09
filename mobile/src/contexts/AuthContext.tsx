@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { router } from "expo-router";
 import { clearCache } from "../services/cache";
 import { login as loginRequest, logout as logoutRequest, validateSession } from "../services/api";
 import { setUnauthorizedHandler } from "../services/http";
@@ -64,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const clearSession = useCallback(() => {
     setUser(null);
     setStartupError("");
+    router.replace("/login");
     void clearCache().catch((error: unknown) => {
       console.error("Não foi possível limpar o cache local após encerrar a sessão.", error);
     });

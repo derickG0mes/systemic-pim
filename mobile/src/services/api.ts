@@ -8,7 +8,7 @@ import type {
   TableDto,
 } from "../types/api";
 import type { NotificationList } from "../types/notification";
-import { clearCsrfToken, getApiBaseUrl, getCsrfRequestToken, request, unwrap } from "./http";
+import { clearCsrfToken, fetchApi, getApiBaseUrl, getCsrfRequestToken, request, unwrap } from "./http";
 
 export async function validateSession() {
   try {
@@ -32,7 +32,7 @@ export async function validateSession() {
 
 export async function login(email: string, password: string) {
   const csrfToken = await getCsrfRequestToken();
-  const response = await fetch(`${getApiBaseUrl()}/autenticacao/login`, {
+  const response = await fetchApi(`${getApiBaseUrl()}/autenticacao/login`, {
     method: "POST",
     credentials: "include",
     headers: {

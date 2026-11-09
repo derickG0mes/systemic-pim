@@ -5,6 +5,7 @@ import { LockKeyhole, Mail, UtensilsCrossed } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ActionButton } from "../src/components/ActionButton";
 import { Message } from "../src/components/Message";
+import { LoadingState } from "../src/components/ResourceStatus";
 import { useAuth } from "../src/contexts/AuthContext";
 import { colors } from "../src/theme/colors";
 import { styles } from "../src/theme/styles";
@@ -23,7 +24,7 @@ export default function LoginScreen() {
   if (!ready) {
     return (
       <SafeAreaView style={styles.centeredPage}>
-        <Text style={styles.bodyText}>Validando sessão...</Text>
+        <LoadingState label="Validando sessão..." />
       </SafeAreaView>
     );
   }

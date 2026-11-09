@@ -12,6 +12,20 @@ export class ApiError extends Error {
   }
 }
 
+export async function fetchApi(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new ApiError(
+        "Não foi possível conectar à API. Verifique a rede e o endereço EXPO_PUBLIC_API_URL.",
+        0,
+      );
+    }
+    throw error;
+  }
+}
+
 type RequestOptions = RequestInit & {
   notifyUnauthorized?: boolean;
 };
@@ -90,7 +104,7 @@ export async function getCsrfRequestToken(forceRefresh = false): Promise<string>
   if (csrfRequest) return csrfRequest;
 
   csrfRequest = (async () => {
-    const response = await fetch(`${getApiBaseUrl()}/autenticacao/csrf`, {
+    const response = await fetchApi(`${getApiBaseUrl()}/autenticacao/csrf`, {
       method: "GET",
       credentials: "include",
       headers: { Accept: "application/json" },
@@ -130,7 +144,7 @@ export async function request<T>(
     headers.set("X-CSRF-TOKEN", await getCsrfRequestToken());
   }
 
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+  const response = await fetchApi(`${getApiBaseUrl()}${path}`, {
     ...options,
     credentials: "include",
     headers,
