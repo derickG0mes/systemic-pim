@@ -13,6 +13,7 @@ import {
   BarChart3, Users, FileText, Database, LogOut, UtensilsCrossed, Menu, Accessibility,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import NotificationsBell from "@/components/NotificationsBell";
 
 const NAV_ITEMS = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, permission: "dashboard" as const },
@@ -102,10 +103,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </a>
         <AppSidebarContent />
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="h-14 flex items-center border-b bg-card px-4 shrink-0">
+          <header className="h-14 flex items-center justify-between border-b bg-card px-4 shrink-0">
             <SidebarTrigger aria-label="Abrir ou fechar menu lateral">
               <Menu className="h-5 w-5" aria-hidden="true" />
             </SidebarTrigger>
+            <NotificationsBell />
           </header>
           <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto p-4 md:p-6">
             {children}

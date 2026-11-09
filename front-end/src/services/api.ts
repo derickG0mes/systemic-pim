@@ -1,5 +1,6 @@
-const currentHost = window.location.hostname;
-export const API_URL = `${window.location.protocol}//${currentHost}:5050/api`;
+import type { NotificationList } from "@/types/notification";
+
+export const API_URL = `${window.location.origin}/api`;
 
 function resolveApiUrl(): string {
   return API_URL;
@@ -357,6 +358,26 @@ export async function deleteReserva(id: string) {
   return apiCall(`/reserva/${id}`, {
     method: "DELETE",
   });
+}
+
+export async function getNotifications(): Promise<NotificationList> {
+  const response = await apiCall("/notificacoes?limit=50") as {
+    dados?: NotificationList;
+    Dados?: NotificationList;
+  } | null;
+  const result = response?.dados ?? response?.Dados;
+  if (!result || !Array.isArray(result.items) || !Number.isInteger(result.unreadCount)) {
+    throw new Error("A API retornou uma lista de notificações inválida.");
+  }
+  return result;
+}
+
+export async function markNotificationRead(id: number) {
+  return apiCall(`/notificacoes/${id}/lida`, { method: "PATCH" });
+}
+
+export async function markAllNotificationsRead() {
+  return apiCall("/notificacoes/marcar-todas-lidas", { method: "POST", body: JSON.stringify({}) });
 }
 
 // ============================================
