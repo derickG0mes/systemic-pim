@@ -37,17 +37,15 @@ scripts SQL e então inicia a API e a interface.
 | Serviço | Endereço |
 |---|---|
 | Interface | http://localhost:8080 |
-| API | http://localhost:5050 |
-| Health check da API | http://localhost:5050/api/healthcheck |
+| API pela interface | http://localhost:8080/api |
+| Health check direto da API | http://localhost:5050/api/healthcheck |
 | SQL Server | `localhost:1433` |
 | Swagger | http://localhost:5050/swagger (somente quando habilitado em Development) |
 
-O serviço `api` do Compose usa `Production`, então o Swagger não fica
-disponível no ambiente padrão. A API marca o cookie de autenticação como
-`Secure` fora de Development; portanto, acessar a interface por HTTP no Compose
-não permite autenticação de navegador. Para testar o fluxo autenticado
-localmente, use `dotnet run` em Development, ou configure TLS e um proxy
-confiável para a implantação.
+O navegador deve usar a API pela interface (`/api`): o Nginx encaminha as
+requisições dentro do Docker. Dispositivos móveis só precisam alcançar a porta
+8080; não é necessário expor a porta 5050 na rede Wi-Fi. O Compose local permite
+cookies de sessão HTTP por configuração explícita; em produção, use HTTPS.
 
 `docker compose down` encerra os serviços e preserva os volumes
 `sqlserver_data` e `backup_data`. Use `docker compose down --volumes` somente
@@ -80,9 +78,9 @@ npm ci
 npm run dev
 ```
 
-O Vite fica em http://localhost:8080 e o cliente acessa a API na porta 5050 do
-mesmo host. Para testes locais de navegador, execute a API em Development e
-garanta que o SQL Server e as configurações estejam disponíveis.
+O Vite fica em http://localhost:8080 e encaminha `/api` e `/hubs` para a API
+em `localhost:5050`. O cliente usa a mesma origem da página. Garanta que a API
+e o SQL Server estejam disponíveis.
 
 ## Testes e verificações
 
