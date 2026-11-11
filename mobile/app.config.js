@@ -1,3 +1,6 @@
+const fs = require("fs");
+const path = require("path");
+
 module.exports = ({ config }) => {
   const buildProfile = process.env.EAS_BUILD_PROFILE;
   const apiUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
@@ -27,5 +30,22 @@ module.exports = ({ config }) => {
     ]);
   }
 
-  return { ...config, plugins };
+  // Push remoto no Android exige o google-services.json do projeto Firebase (FCM).
+  // Coloque o arquivo em mobile/google-services.json (pode ser versionado: contém apenas
+  // identificadores públicos do projeto Firebase) ou, no EAS, defina a variável de ambiente do
+  // tipo arquivo GOOGLE_SERVICES_JSON.
+  const googleServicesFile =
+    process.env.GOOGLE_SERVICES_JSON ??
+    (fs.existsSync(path.resolve("google-services.json")) ? "./google-services.json" : undefined);
+
+  if (!googleServicesFile && (buildProfile === "preview" || buildProfile === "production")) {
+    console.warn(
+      "[push] google-services.json não encontrado: o build Android sairá sem push remoto (FCM). " +
+        "Veja docs/PUSH_NOTIFICATIONS.md.",
+    );
+  }
+
+  const android = googleServicesFile ? { ...config.android, googleServicesFile } : config.android;
+
+  return { ...config, android, plugins };
 };

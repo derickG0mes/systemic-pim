@@ -16,9 +16,21 @@ import { useAuth } from "../../src/contexts/AuthContext";
 import { useTheme } from "../../src/contexts/ThemeContext";
 import { listComandas, listOpenComandas, listProducts, listTables } from "../../src/services/api";
 import { writeCache } from "../../src/services/cache";
+import { registerPushNotificationsAsync } from "../../src/services/pushRegistration";
 
 function TabNavigation() {
   const { user, logout } = useAuth();
+  const userId = user?.id;
+
+  // Registra este aparelho para receber push remoto (notificação com o app fechado).
+  // Em Expo Go ou em builds sem as credenciais do FCM isso falha; o app segue funcionando
+  // com SignalR e consulta periódica.
+  useEffect(() => {
+    if (userId === undefined) return;
+    void registerPushNotificationsAsync().catch((error: unknown) => {
+      console.warn("Push remoto indisponível neste aparelho:", error);
+    });
+  }, [userId]);
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
