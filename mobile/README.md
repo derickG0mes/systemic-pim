@@ -39,10 +39,11 @@ npx expo start
 
 ## Gerar e instalar o APK Android
 
-O perfil `preview` gera um APK de distribuição interna. Antes do build, troque
-`SEU_IP_LOCAL` em `eas.json` pelo IPv4 do computador na rede Wi-Fi. O celular
-precisa alcançar esse endereço e a porta 8080; não use `localhost`, que aponta
-para o próprio celular. A URL é incorporada ao APK durante o build.
+O perfil `preview` gera um APK de distribuição interna. Antes do build, ajuste
+o IPv4 do computador na rede Wi-Fi em `EXPO_PUBLIC_API_URL` dentro de `eas.json`
+(perfil `preview`). O celular precisa alcançar esse endereço e a porta 8080; não
+use `localhost`, que aponta para o próprio celular. A URL é incorporada ao APK
+durante o build.
 
 Para testar na rede local por HTTP, deixe a API e o Nginx do Docker Compose em
 execução e configure `ALLOW_INSECURE_LOCAL_NETWORK=true` no `.env` da raiz
