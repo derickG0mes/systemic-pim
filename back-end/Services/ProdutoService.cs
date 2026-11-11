@@ -11,10 +11,12 @@ namespace PIM3.API.Services;
 public sealed class ProdutoService : IProdutoService
 {
     private readonly AppDbContext _context;
+    private readonly INotificationService _notifications;
 
-    public ProdutoService(AppDbContext context)
+    public ProdutoService(AppDbContext context, INotificationService notifications)
     {
         _context = context;
+        _notifications = notifications;
     }
 
     public IActionResult GetAll(int? pagina, int? tamanho, HttpResponse response)
@@ -76,6 +78,7 @@ public sealed class ProdutoService : IProdutoService
 
         produto.NomeProduto = dto.NomeProduto;
         produto.DescricaoProduto = dto.DescricaoProduto;
+        var oldStock = produto.QtdEstoque;
         produto.QtdEstoque = dto.QtdEstoque;
         produto.PrecoProduto = dto.PrecoProduto;
         produto.EstoqueMinimo = dto.EstoqueMinimo;
@@ -87,6 +90,7 @@ public sealed class ProdutoService : IProdutoService
         await _context.SaveChangesAsync();
         LogSistemaHelper.Registrar(_context, "ESTOQUE", $"Produto atualizado: {produto.NomeProduto}");
         await _context.SaveChangesAsync();
+        await NotifyLowStockAsync(produto, oldStock);
 
         return ApiServiceResults.Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Produto atualizado", Dados = CategoriaProdutoHelper.Mapear(produto) });
     }
@@ -114,6 +118,7 @@ public sealed class ProdutoService : IProdutoService
         if (produto == null)
             return ApiServiceResults.NotFound(new RespostaPadraoDTO { Sucesso = false, Mensagem = "Produto não encontrado" });
 
+        var oldStock = produto.QtdEstoque;
         List<AjusteEstoqueSqlResultDto> resultados;
         try
         {
@@ -136,6 +141,16 @@ public sealed class ProdutoService : IProdutoService
 
         var resultado = resultados.Single();
         produto.QtdEstoque = resultado.QuantidadeNova;
+        if (string.Equals(ajuste.Tipo, "ADICIONAR", StringComparison.OrdinalIgnoreCase))
+        {
+            await _notifications.NotifyAsync(
+                "estoque_reabastecido",
+                "Estoque atualizado",
+                $"{produto.NomeProduto}: entrada registrada ({resultado.QuantidadeAnterior} → {resultado.QuantidadeNova}).",
+                "/inventory",
+                ["admin", "owner"]);
+        }
+        await NotifyLowStockAsync(produto, oldStock);
 
         return ApiServiceResults.Ok(new RespostaPadraoDTO
         {
@@ -149,5 +164,18 @@ public sealed class ProdutoService : IProdutoService
                 produto = CategoriaProdutoHelper.Mapear(produto)
             }
         });
+    }
+
+    private Task NotifyLowStockAsync(Produto produto, int previousStock)
+    {
+        if (previousStock <= produto.EstoqueMinimo || produto.QtdEstoque > produto.EstoqueMinimo)
+            return Task.CompletedTask;
+
+        return _notifications.NotifyAsync(
+            "estoque_baixo",
+            "Estoque baixo",
+            $"{produto.NomeProduto}: restam {produto.QtdEstoque} (mínimo {produto.EstoqueMinimo}).",
+            "/inventory",
+            ["admin", "owner"]);
     }
 }

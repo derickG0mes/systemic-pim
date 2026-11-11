@@ -12,11 +12,13 @@ public sealed class ReservaService : IReservaService
 {
     private readonly AppDbContext _context;
     private readonly ILogger<ReservaService> _logger;
+    private readonly INotificationService _notifications;
 
-    public ReservaService(AppDbContext context, ILogger<ReservaService> logger)
+    public ReservaService(AppDbContext context, ILogger<ReservaService> logger, INotificationService notifications)
     {
         _context = context;
         _logger = logger;
+        _notifications = notifications;
     }
 
     public async Task<IActionResult> ListarReservas(int? pagina, int? tamanho, HttpResponse response)
@@ -90,6 +92,12 @@ public sealed class ReservaService : IReservaService
 
         _context.Reservas.Add(reserva);
         await _context.SaveChangesAsync();
+        await _notifications.NotifyAsync(
+            "reserva_criada",
+            "Nova reserva",
+            $"{cliente.NomeCliente} · Mesa {mesa.NumeroMesa} · {reserva.DataReserva:dd/MM HH:mm}",
+            "/reservations",
+            ["employee", "admin", "owner"]);
 
         try
         {
@@ -133,6 +141,13 @@ public sealed class ReservaService : IReservaService
                 "Falha ao registrar log de cancelamento da reserva {ReservationId}.",
                 id);
         }
+
+        await _notifications.NotifyAsync(
+            "reserva_cancelada",
+            "Reserva cancelada",
+            $"A reserva #{reserva.IdReserva} foi cancelada.",
+            "/reservations",
+            ["employee", "admin", "owner"]);
 
         return ApiServiceResults.Ok(new RespostaPadraoDTO { Sucesso = true, Mensagem = "Reserva cancelada com sucesso" });
     }

@@ -14,6 +14,15 @@ export default defineConfig(() => ({
     hmr: {
       overlay: false,
     },
+    proxy: {
+      "/api": {
+        target: "http://localhost:5050",
+      },
+      "/hubs": {
+        target: "http://localhost:5050",
+        ws: true,
+      },
+    },
   },
   optimizeDeps: {
     include: [

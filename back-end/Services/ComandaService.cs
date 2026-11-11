@@ -16,12 +16,18 @@ public sealed class ComandaService : IComandaService
     private readonly AppDbContext _context;
     private readonly IHubContext<CozinhaHub> _cozinhaHub;
     private readonly ILogger<ComandaService> _logger;
+    private readonly INotificationService _notifications;
 
-    public ComandaService(AppDbContext context, IHubContext<CozinhaHub> cozinhaHub, ILogger<ComandaService> logger)
+    public ComandaService(
+        AppDbContext context,
+        IHubContext<CozinhaHub> cozinhaHub,
+        ILogger<ComandaService> logger,
+        INotificationService notifications)
     {
         _context = context;
         _cozinhaHub = cozinhaHub;
         _logger = logger;
+        _notifications = notifications;
     }
 
     public IActionResult GetAll(int? pagina, int? tamanho, HttpResponse response)
@@ -254,6 +260,7 @@ public sealed class ComandaService : IComandaService
     {
         var comanda = _context.Comandas
             .Include(c => c.ItensComanda)
+            .Include(c => c.Mesa)
             .FirstOrDefault(c => c.IdComanda == id);
         if (comanda == null)
             return ApiServiceResults.NotFound(new { message = "Comanda não encontrada" });
@@ -285,6 +292,9 @@ public sealed class ComandaService : IComandaService
         item.IdComanda = id;
         _context.ItensComanda.Add(item);
 
+        var stockBefore = produto.QtdEstoque;
+        var minimumStock = produto.EstoqueMinimo;
+        var productName = produto.NomeProduto;
         // Diminuir estoque
         produto.QtdEstoque -= item.QtdProduto;
         _context.Produtos.Update(produto);
@@ -299,6 +309,21 @@ public sealed class ComandaService : IComandaService
             itens = new[] { new { idProduto = item.IdProduto, qtdProduto = item.QtdProduto, statusItem = item.StatusItem } },
             timestamp = DateTime.UtcNow
         });
+        await _notifications.NotifyAsync(
+            "pedido_novo",
+            "Novo pedido para a cozinha",
+            $"Comanda #{id} · Mesa {comanda.Mesa?.NumeroMesa ?? comanda.IdMesa}.",
+            "/orders",
+            ["employee", "admin", "owner"]);
+        if (stockBefore > minimumStock && produto.QtdEstoque <= minimumStock)
+        {
+            await _notifications.NotifyAsync(
+                "estoque_baixo",
+                "Estoque baixo",
+                $"{productName}: restam {produto.QtdEstoque} (mínimo {minimumStock}).",
+                "/inventory",
+                ["admin", "owner"]);
+        }
         await NotificarComandaAtualizada(comanda.IdComanda, comanda.IdMesa, comanda.StatusComanda);
         return ApiServiceResults.Ok(new { message = "Item adicionado com sucesso", itemId = item.IdItemComanda, novoTotal });
     }

@@ -21,6 +21,7 @@ public class AppDbContext : DbContext
     public DbSet<Despesa> Despesas { get; set; }
     public DbSet<LogComanda> LogsComanda { get; set; }
     public DbSet<LogSistema> LogsSistema { get; set; }
+    public DbSet<Notification> Notifications { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -103,6 +104,11 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<LogComanda>().ToTable("LOG_COMANDA");
         modelBuilder.Entity<LogSistema>().ToTable("LOG_SISTEMA");
+        modelBuilder.Entity<Notification>().ToTable("NOTIFICACAO");
+        modelBuilder.Entity<Notification>()
+            .HasIndex(notification => new { notification.EmployeeId, notification.CreatedAt });
+        modelBuilder.Entity<Notification>()
+            .HasIndex(notification => new { notification.EmployeeId, notification.ReadAt });
         modelBuilder.Entity<Comanda>()
             .ToTable("COMANDA", tb => tb.HasTrigger("trg_abrir_comanda")); // Nome correto da tabela no banco
 

@@ -27,7 +27,9 @@ public class JwtService
         var secretKey = Environment.GetEnvironmentVariable("JWT_SECRET_KEY")
             ?? configuration["Jwt:SecretKey"];
         _secretKey = ValidateSecretKey(secretKey, environment.IsDevelopment());
-        _secureCookie = !environment.IsDevelopment();
+        _secureCookie = ApiSecurityConfiguration.IsAuthCookieSecure(
+            environment.IsDevelopment(),
+            configuration.GetValue<bool>("ALLOW_INSECURE_LOCAL_NETWORK"));
             
         var expStr = Environment.GetEnvironmentVariable("JWT_EXPIRATION_MINUTES") 
             ?? configuration["Jwt:ExpirationMinutes"];

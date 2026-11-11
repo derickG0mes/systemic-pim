@@ -31,7 +31,8 @@ public class ComandaControllerClaimTests
         var service = new ComandaService(
             context,
             null!,
-            NullLogger<ComandaService>.Instance);
+            NullLogger<ComandaService>.Instance,
+            null!);
         var controller = new ComandaController(service);
         var claims = claimValue is null
             ? Array.Empty<Claim>()
