@@ -644,17 +644,17 @@ public sealed class WorkflowIntegrationTests
     }
 
     [IsolatedSqlServerFact]
-    public async Task Api_contract_checks_authentication_roles_and_csrf_for_all_72_actions()
+    public async Task Api_contract_checks_authentication_roles_and_csrf_for_all_74_actions()
     {
         await using var environment = await WorkflowTestEnvironment.CreateAsync();
         var actions = environment.GetApiActionsForTest();
-        Assert.Equal(72, actions.Count);
+        Assert.Equal(74, actions.Count);
 
         var csrfToken = await environment.GetCsrfTokenForTestAsync();
         var protectedActions = actions
             .Where(RequiresAuthentication)
             .ToArray();
-        Assert.Equal(65, protectedActions.Length);
+        Assert.Equal(67, protectedActions.Length);
 
         foreach (var action in protectedActions)
         {
