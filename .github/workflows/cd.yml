@@ -30,6 +30,9 @@ jobs:
           printf 'BACKUP_HMAC_KEY=%s\n' "$(openssl rand -hex 32)" >> .env
           printf 'CORS_ALLOWED_ORIGINS=http://localhost:8080\n' >> .env
 
+      - name: Create external Data Protection keys volume
+        run: docker volume create systemic-pim_aspnet_data_protection_keys
+
       - name: Start Compose and wait for healthy services
         run: docker compose up -d --build --wait
 
@@ -46,6 +49,7 @@ jobs:
         if: always()
         run: |
           docker compose down --volumes --remove-orphans
+          docker volume rm --force systemic-pim_aspnet_data_protection_keys || true
           rm -f .env
 
   publish:

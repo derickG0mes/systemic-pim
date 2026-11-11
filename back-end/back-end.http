@@ -1,12 +1,39 @@
 @PIM4.API_HostAddress = http://localhost:5050
-@token = cole_um_token_jwt_valido_aqui
+
+# A API autentica por cookie HttpOnly (systemic_auth) e exige o token CSRF
+# (X-CSRF-TOKEN) nas requisições mutáveis. O cliente HTTP do editor reaproveita
+# os cookies entre as requisições abaixo.
+#
+# 1. Obtenha o token CSRF (grava o cookie antiforgery systemic_csrf).
+# 2. Faça login com o token no header (grava o cookie de sessão systemic_auth).
+# 3. As requisições seguintes reutilizam o cookie de sessão automaticamente.
+
+# @name csrf
+GET {{PIM4.API_HostAddress}}/api/autenticacao/csrf
+Accept: application/json
+
+###
+
+POST {{PIM4.API_HostAddress}}/api/autenticacao/login
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrf.response.body.requestToken}}
+
+{
+  "email": "admin@restaurante.com",
+  "password": "COLE_A_SENHA_AQUI"
+}
+
+###
+
+GET {{PIM4.API_HostAddress}}/api/autenticacao/validar
+Accept: application/json
+
+###
 
 GET {{PIM4.API_HostAddress}}/api/faturamento/relatorio?dataInicio=2026-01-01T00:00:00&dataFim=2026-12-31T23:59:59
 Accept: application/json
-Authorization: Bearer {{token}}
 
 ###
 
 GET {{PIM4.API_HostAddress}}/api/faturamento/produtos-mais-vendidos
 Accept: application/json
-Authorization: Bearer {{token}}

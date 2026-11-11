@@ -4,6 +4,8 @@ VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PIM3.API", "back-end\back-end.csproj", "{A50A9C19-A3C4-0DC5-08E1-87EC8FC2F2EA}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "back-end.Tests", "tests\back-end.Tests.csproj", "{7C2B9E34-5D81-4F0A-9E2C-1B6A4D3F8E55}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -14,6 +16,10 @@ Global
 		{A50A9C19-A3C4-0DC5-08E1-87EC8FC2F2EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A50A9C19-A3C4-0DC5-08E1-87EC8FC2F2EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A50A9C19-A3C4-0DC5-08E1-87EC8FC2F2EA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7C2B9E34-5D81-4F0A-9E2C-1B6A4D3F8E55}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7C2B9E34-5D81-4F0A-9E2C-1B6A4D3F8E55}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7C2B9E34-5D81-4F0A-9E2C-1B6A4D3F8E55}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7C2B9E34-5D81-4F0A-9E2C-1B6A4D3F8E55}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
