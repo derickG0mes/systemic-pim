@@ -39,11 +39,29 @@ npx expo start
 
 ## Gerar e instalar o APK Android
 
-O perfil `preview` gera um APK de distribuição interna. Antes do build, ajuste
-o IPv4 do computador na rede Wi-Fi em `EXPO_PUBLIC_API_URL` dentro de `eas.json`
-(perfil `preview`). O celular precisa alcançar esse endereço e a porta 8080; não
-use `localhost`, que aponta para o próprio celular. A URL é incorporada ao APK
-durante o build.
+O perfil `preview` gera um APK de distribuição interna. Ele aponta para o
+ambiente `preview` do Expo Services (`"environment": "preview"` em `eas.json`) e
+**não traz mais a URL da API**: `EXPO_PUBLIC_API_URL` precisa existir como
+variável desse ambiente, e `app.config.js` aborta o build se ela estiver
+ausente, inválida ou não terminar em `/api`. Arquivos `.env` locais não são
+enviados ao build remoto. Crie a variável uma vez (e atualize-a quando o IP
+mudar), com o IPv4 do computador na rede Wi-Fi:
+
+```powershell
+npx eas-cli@latest env:set --name EXPO_PUBLIC_API_URL --value "http://IP_DO_COMPUTADOR_NA_REDE:8080/api" --environment preview --visibility plaintext
+```
+
+Também é possível gerenciá-la no painel do projeto em expo.dev (Project
+settings > Environment variables). Veja a
+[documentação do Expo](https://docs.expo.dev/build-reference/variables/).
+
+⚠️ A CONFIRMAR: o commit que removeu a URL de `eas.json` fala em "arquivo .env
+da preview". Confirme se a variável do ambiente `preview` está criada no projeto
+Expo (`npx eas-cli@latest env:list --environment preview`); sem ela, o build do
+perfil `preview` falha.
+
+O celular precisa alcançar o IP configurado e a porta 8080; não use `localhost`,
+que aponta para o próprio celular. A URL é incorporada ao APK durante o build.
 
 Para testar na rede local por HTTP, deixe a API e o Nginx do Docker Compose em
 execução e configure `ALLOW_INSECURE_LOCAL_NETWORK=true` no `.env` da raiz
@@ -144,17 +162,38 @@ respeitam as áreas seguras do iOS e Android. Nas abas, o cabeçalho mostra o
 nome da pessoa autenticada e mantém os nomes das telas nos itens da navegação
 inferior.
 
+### Temas
+
+Na tela Acessibilidade, a seção **Tema** oferece **Claro**, **Escuro** e **Alto
+contraste**. A escolha vale para todas as telas e fica salva no dispositivo
+(SQLite local, chave `systemic:accessibility:theme`); o tema inicial é o Claro.
+
 ## Notificações em tempo real
 
 O aplicativo possui integração com o **SignalR** (`/hubs/notificacoes`) e **Expo Notifications** (`expo-notifications`):
 
-- **Conexão em primeiro plano e segundo plano:** ao efetuar o login, o cliente estabelece conexão WebSocket/LongPolling com o Hub de Notificações, escutando o evento `NotificationCreated`.
+- **Conexão enquanto o app está em execução:** ao abrir as telas autenticadas, o cliente conecta ao Hub de Notificações (`withCredentials`, mesmo cookie da sessão) e escuta o evento `NotificationCreated`. Cada evento recebido vira uma notificação **local** do dispositivo e entra na central do app.
+- **Sem push remoto:** o app não usa FCM/APNs nem token de push. A notificação do sistema só é disparada quando o JavaScript do app está ativo e conectado. ⚠️ A CONFIRMAR: a entrega com o app totalmente fechado ou suspenso pelo sistema não é garantida pelo código e deve ser testada em aparelho físico.
 - **Canal de Alta Importância no Android:** as notificações são exibidas nativamente na barra de status do Android através do canal `systemic-default`, com som e vibração habilitados e permissão `POST_NOTIFICATIONS` (Android 13+).
 - **Abertura da tela ao tocar:** ao clicar em qualquer notificação no sistema, o app realiza o roteamento automático:
   - Pedidos (`pedido_*`) direcionam para a aba **Pedidos**.
   - Reservas (`reserva_*`) direcionam para a aba **Reservas**.
-  - Estoque baixo (`estoque_baixo`) direciona para a aba **Produtos e Estoque**.
-- **Resiliência e Reconexão:** o cliente SignalR implementa reconexão automática (`[0, 2s, 5s, 10s, 30s]`). Caso a conexão caia, a central de notificações mantém uma sincronização periódica (polling) a cada 30 segundos e ao retornar ao aplicativo.
+  - Estoque baixo (`estoque_baixo`) direciona para a aba **Produtos e Estoque**; um link que contenha `inventory` (como em `estoque_reabastecido`) também leva a essa aba, e `orders`/`reservations` levam às respectivas abas.
+- **Resiliência e Reconexão:** o cliente SignalR implementa reconexão automática (`[0, 2s, 5s, 10s, 30s]`). Caso a conexão caia, a central de notificações mantém uma sincronização periódica (polling) a cada 30 segundos (com o app em primeiro plano) e ao retornar ao aplicativo. O cabeçalho da central mostra "Tempo real conectado" ou "Modo periódico".
+
+Os tipos de notificação e seus destinatários estão em [docs/API.md](../docs/API.md#notificações).
+
+## Navegação e perfis
+
+Após o login, `employee` abre em **Mesas**; `admin` e `owner` abrem em **Resumo**.
+A barra inferior mostra **Mesas**, **Pedidos** e **Reservas** para todos os
+perfis, e **Resumo** e **Produtos** somente para `admin` e `owner`. Relatórios,
+Usuários e Auditoria são abertos por botões na tela Resumo. Ocultar telas por
+perfil é só conveniência da interface: a API aplica a autorização (veja
+[docs/API.md](../docs/API.md#perfis-e-permissões)).
+
+A tela **Pedidos** se atualiza sozinha a cada 15 segundos enquanto está em foco.
+Mesas, produtos, comandas, pedidos e reservas ficam em cache SQLite local.
 
 ## Telas e endpoints
 
@@ -184,3 +223,27 @@ o app não cria pedidos sem comanda.
 
 Mesas, produtos, comandas abertas e reservas têm cache SQLite e atualização ao
 abrir a tela ou puxar a lista para atualizar. O cache é limpo ao sair da conta.
+
+## Verificações e estrutura
+
+O CI do repositório não cobre o mobile. Antes de abrir um pull request, rode a
+partir de `mobile/`:
+
+```powershell
+npm run typecheck
+npm run lint
+```
+
+```text
+mobile/
+  app/             Rotas do Expo Router: login, (tabs), comanda/[id], pedido/novo,
+                   reports, users, audit, accessibility
+  src/components/  Componentes de tela (AuthGate, NotificationsCenter, Panel...)
+  src/contexts/    AuthContext e ThemeContext
+  src/hooks/       useCachedResource e useSignalRNotifications
+  src/services/    api, http (CSRF, cookies, erros), cache SQLite e notificações
+  src/theme/       Cores dos três temas e estilos
+  app.config.js    Validação de EXPO_PUBLIC_API_URL nos builds EAS
+  app.json         Identificação do app (Android: com.systemicpim.app) e permissões
+  eas.json         Perfis de build: preview (APK) e production
+```

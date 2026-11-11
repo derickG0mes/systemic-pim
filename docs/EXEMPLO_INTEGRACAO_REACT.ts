@@ -1,4 +1,4 @@
-const API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:5050/api`;
+const API_BASE_URL = `${window.location.origin}/api`; // mesma origem do front-end: o Nginx (Compose) ou o Vite (dev) encaminha para a API na porta 5050
 
 type ApiEnvelope<T> = {
   sucesso: boolean;

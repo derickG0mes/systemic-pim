@@ -1,11 +1,15 @@
 # Configuração e uso - Systemic - PIM IV
 
-Este documento descreve a execução local e em Docker, os dados de
-autenticação, a persistência e as rotas atuais dos controllers.
+Este documento descreve a execução local e em Docker, a autenticação, a
+persistência (banco e backup) e as particularidades de segurança. A lista de
+variáveis de ambiente está em [VARIAVEIS_AMBIENTE.md](VARIAVEIS_AMBIENTE.md) e a
+referência dos endpoints em [API.md](API.md).
 
 ## Executar com Docker Compose
 
-Na raiz:
+Requisitos: Docker Engine ou Docker Desktop com o plugin Compose.
+
+Na raiz do repositório:
 
 ```powershell
 Copy-Item .env.example .env
@@ -18,6 +22,16 @@ deve ter pelo menos 32 caracteres; a chave HMAC deve ter pelo menos 32 bytes.
 O placeholder da chave JWT é rejeitado fora de Development. Não reutilize nem
 versione valores reais.
 
+Crie uma vez o volume externo que guarda as chaves do ASP.NET Data Protection
+(o `docker-compose.yml` o declara como `external: true`, então o
+`docker compose up` falha se ele não existir):
+
+```sh
+docker volume create systemic-pim_aspnet_data_protection_keys
+```
+
+Suba os serviços:
+
 ```sh
 docker compose up --build
 ```
@@ -26,16 +40,18 @@ O Compose executa SQL Server, `db-init`, API e front-end. `db-init` aguarda o
 SQL Server e executa `01-create-database-idempotent.sql`,
 `02-procedures-views.sql`, `03-constraints.sql` e
 `04-create-notifications.sql` antes da API. Os volumes `sqlserver_data` e
-`backup_data` persistem o banco e os arquivos de backup, respectivamente.
-`BACKUP_PATH` usa `/app/backups` por padrão; se substituído, deve apontar para
-um caminho absoluto dentro do container.
+`backup_data` persistem o banco e os arquivos de backup, respectivamente; o
+volume externo preserva as chaves de proteção de dados para que os cookies
+antiforgery continuem válidos depois de recriar a API. `BACKUP_PATH` usa
+`/app/backups` por padrão; se substituído, deve apontar para um caminho
+absoluto dentro do container.
 
 | Serviço | Endereço |
 |---|---|
 | Front-end | http://localhost:8080 |
 | API pelo front-end (recomendado) | http://localhost:8080/api |
 | API direta (diagnóstico) | http://localhost:5050 |
-| Swagger | http://localhost:5050/swagger, se habilitado pelo ambiente |
+| Swagger | Indisponível no Compose padrão (a API roda em `Production`) |
 | Health da API | http://localhost:5050/api/healthcheck |
 | SQL Server | `localhost:1433` |
 
@@ -46,33 +62,67 @@ rede Wi-Fi. O endpoint direto na porta 5050 é útil apenas para diagnóstico.
 
 No Compose local, `ALLOW_INSECURE_LOCAL_NETWORK=true` e
 `ANTIFORGERY_COOKIE_SECURE_POLICY=SameAsRequest` permitem autenticação por
-cookie sobre HTTP. Use essa exceção somente na rede local de desenvolvimento.
-Em produção, mantenha HTTPS e cookies `Secure`.
+cookie sobre HTTP. O Compose já define `SameAsRequest` por padrão, mas
+`ALLOW_INSECURE_LOCAL_NETWORK` vem desligado (`false`): ative-o no `.env` para
+fazer login por HTTP em `localhost` ou na rede local. Use essa exceção somente
+na rede local de desenvolvimento. Em produção, mantenha HTTPS e cookies
+`Secure`.
 
 Encerre com `docker compose down`. Para apagar deliberadamente os dados do
-banco: `docker compose down --volumes`.
+banco e dos backups: `docker compose down --volumes` (o volume externo das
+chaves não é removido por esse comando).
+
+### Contas iniciais
+
+O script `01-create-database-idempotent.sql` cria quatro contas, todas com hash
+legado e sem senha publicada neste repositório:
+
+| E-mail | Perfil |
+|---|---|
+| `admin@restaurante.com` | `admin` |
+| `owner@restaurante.com` | `owner` |
+| `garcom@restaurante.com` | `employee` |
+| `cozinha@restaurante.com` | `employee` |
+
+⚠️ A CONFIRMAR: a senha inicial dessas contas não consta no repositório. Se
+você não a conhece, defina uma nova com `PUT /api/funcionario/{id}` ou
+atualize o hash direto no banco.
+
+O mesmo script cria o cliente padrão "Consumidor", as mesas 1 a 20 (capacidade
+4), as formas de pagamento PIX, Cartão de Crédito, Cartão de Débito e Dinheiro,
+e 18 produtos de cardápio.
 
 ## Execução local
 
-Requisitos: .NET SDK 10, Node.js/npm e SQL Server. Execute os scripts SQL
-idempotentes listados acima antes de iniciar a API.
+Requisitos: .NET SDK 10, Node.js 22.12 ou superior, npm e SQL Server.
 
-O script `back-end/Scripts/04-create-notifications.sql` cria a tabela de
-notificações e seus índices. Execute-o também em bancos já existentes antes de
-atualizar a API; ele pode ser executado novamente sem apagar notificações.
+Aplique os scripts SQL, nesta ordem, no servidor (por exemplo, com `sqlcmd`):
+
+1. `back-end/Scripts/01-create-database-idempotent.sql`
+2. `back-end/Scripts/02-procedures-views.sql`
+3. `back-end/Scripts/03-constraints.sql`
+4. `back-end/Scripts/04-create-notifications.sql`
+
+Todos são idempotentes. Os scripts usam o banco `DB_RESTAURANTE` literalmente;
+se usar outro nome em `DB_NAME`, adapte os scripts. O script 04 cria a tabela
+`NOTIFICACAO` e seus índices; execute-o também em bancos já existentes antes de
+atualizar a API (sem ele, as notificações não são gravadas nem listadas).
 
 `Program.cs` monta a connection string com `DB_SERVER`, `DB_NAME`, `DB_USER` e
-`DB_PASSWORD`. `DB_NAME` assume `DB_RESTAURANTE` quando ausente. `EnvLoader`
-procura `.env` no diretório de trabalho atual; portanto, ao executar a API a
-partir da pasta `back-end`, configure as variáveis no processo ou use um
-`back-end/.env` local. O `.env` da raiz é lido automaticamente pelo Compose.
-Não versione arquivos `.env`.
+`DB_PASSWORD` (com `TrustServerCertificate=true`). `DB_NAME` assume
+`DB_RESTAURANTE` quando ausente. `EnvLoader` procura `.env` no diretório de
+trabalho atual; portanto, ao executar a API a partir da pasta `back-end`,
+configure as variáveis no processo ou use um `back-end/.env` local. O `.env` da
+raiz é lido automaticamente pelo Compose. Não versione arquivos `.env`.
 
 ```powershell
 cd back-end
 dotnet restore
 dotnet run
 ```
+
+O perfil `back-end` de `launchSettings.json` inicia a API em Development, na
+porta 5050, com Swagger.
 
 Em outro terminal:
 
@@ -86,38 +136,33 @@ O Vite usa a porta 8080 e encaminha `/api` e `/hubs` para
 `http://localhost:5050`. O cliente HTTP usa a mesma origem da página (`/api`),
 sem exigir acesso direto à porta da API pelo navegador.
 
-## Variáveis de ambiente
+### Dados de teste
 
-| Variável | Uso e valor padrão |
-|---|---|
-| `DB_SERVER` | Host SQL Server; no Compose, `sqlserver`. |
-| `DB_NAME` | Nome do banco; padrão `DB_RESTAURANTE` localmente e fixado como `DB_RESTAURANTE` pelo Compose. |
-| `DB_USER` / `DB_PASSWORD` | Credenciais do SQL Server. `DB_PASSWORD` é obrigatório no Compose. |
-| `ASPNETCORE_ENVIRONMENT` | Compose usa `Production`; o perfil local de `dotnet run` usa `Development`. |
-| `JWT_SECRET_KEY` | Chave de assinatura do JWT; obrigatória fora de Development, mínimo de 32 caracteres. |
-| `JWT_EXPIRATION_MINUTES` | Validade do JWT em minutos; padrão 480. |
-| `BACKUP_HMAC_KEY` | Chave HMAC exclusiva, mínimo de 32 bytes, necessária para gerar ou restaurar backups. |
-| `BACKUP_PATH` | Diretório de backups; padrão `backups` sob `AppContext.BaseDirectory`; Compose usa `/app/backups`. |
-| `CORS_ALLOWED_ORIGINS` | Origens permitidas separadas por vírgula; Compose usa `http://localhost:8080`. |
-| `ALLOW_INSECURE_LOCAL_NETWORK` | Padrão `false`. Ative somente no Compose local para permitir cookies de sessão HTTP; não use em produção. |
-| Chaves ASP.NET Data Protection | Compose persiste as chaves de proteção em volume Docker para manter cookies CSRF válidos após recriar a API. |
-| `FORWARDED_HEADERS_KNOWN_PROXIES` | IPs dos proxies confiáveis separados por vírgula; vazio quando não há proxy. |
-| `LOGIN_RATE_LIMIT_PER_MINUTE` | Limite de requisições de login por IP/minuto; padrão 60. |
-| `GLOBAL_RATE_LIMIT_PER_MINUTE` | Limite global de requisições por minuto; padrão 600. |
-| `ANTIFORGERY_COOKIE_SECURE_POLICY` | `Always` ou `SameAsRequest`; Compose usa `SameAsRequest` para HTTP local. Em produção, use `Always`. |
-| `SQL_SERVER_PORT` / `FRONTEND_PORT` | Portas publicadas pelo Compose; padrões 1433 e 8080. |
+`back-end/Scripts/seed-dados-testes.sql` popula funcionários, clientes,
+reservas, despesas, 120 comandas pagas, 4 comandas abertas e logs de exemplo. Ele
+não roda no Compose; execute-o manualmente depois dos scripts 01 a 03. Ele
+recusa a execução se detectar que já foi aplicado e usa gerador aleatório, então
+cada banco recebe valores diferentes.
+
+### Scripts históricos
+
+`migration-cliente-consumidor.sql` (insere o cliente "Consumidor") e
+`migration-logs-sistema.sql` (cria `LOG_SISTEMA` e o índice
+`IDX_LOG_SISTEMA_DATA`) servem para bancos antigos. As duas operações já fazem
+parte do script 01.
 
 ## Swagger
 
-O documento interno continua chamado `v1` e a URL é
-`/swagger/v1/swagger.json`. A versão exibida é `2.0`, com título
-`Systemic API - PIM IV`. A interface Swagger é configurada para o ambiente
-Development. O perfil local `back-end/Properties/launchSettings.json` define
-esse ambiente para `dotnet run`. O Compose define
-`ASPNETCORE_ENVIRONMENT=Production`, por isso o Swagger não fica disponível no
-container padrão.
+O documento interno chama-se `v1` e a URL é `/swagger/v1/swagger.json`. A
+versão exibida é `2.0`, com título `Systemic API - PIM IV`. O Swagger e sua
+interface só são habilitados no ambiente Development. O perfil local
+`back-end/Properties/launchSettings.json` define esse ambiente para
+`dotnet run`. O Compose define `ASPNETCORE_ENVIRONMENT=Production`, por isso o
+Swagger não fica disponível no container padrão.
 
 ## Autenticação, senha e bloqueio
+
+Os exemplos de requisição estão em [API.md](API.md#fluxo-de-autenticação-com-exemplos).
 
 ### Login por email
 
@@ -127,10 +172,9 @@ container padrão.
 { "email": "usuario@example.com", "password": "senha" }
 ```
 
-No sucesso, a API emite o JWT no cookie `systemic_auth` (`HttpOnly` e
-`SameSite=Lax`). `Secure` é sempre definido fora de Development; em Development
-também é definido quando a requisição usa HTTPS. O envelope JSON
-contém somente dados não sensíveis do usuário, sem o token.
+No sucesso, a API emite o JWT no cookie `systemic_auth` (`HttpOnly`,
+`SameSite=Lax`, `Path=/`). O envelope JSON contém somente dados não sensíveis
+do usuário (`id`, `nomeUsuario`, `role`), sem o token.
 
 ### Login por CPF
 
@@ -147,34 +191,25 @@ No sucesso, a API emite o mesmo cookie de autenticação e retorna
 
 O fluxo do navegador envia o cookie JWT automaticamente; o front-end não
 persiste o JWT em `localStorage` nem constrói um header `Authorization`.
+
+**Atributo `Secure`:** o cookie `systemic_auth` é marcado como `Secure` quando
+a requisição usa HTTPS ou quando a API não está em Development e
+`ALLOW_INSECURE_LOCAL_NETWORK` não está ativo. Em Development, ou fora dele com
+`ALLOW_INSECURE_LOCAL_NETWORK=true`, requisições HTTP recebem o cookie sem
+`Secure`.
+
 Antes do login, a aplicação obtém um request token em
-`GET /api/autenticacao/csrf` (o cookie antiforgery é HttpOnly) e envia o token
-no header `X-CSRF-TOKEN` em login e em toda requisição mutável (`POST`, `PUT`,
-`PATCH` ou `DELETE`). A API valida esses tokens por um filtro global.
-`POST /api/autenticacao/logout` também requer o header e apaga o cookie de
-autenticação.
+`GET /api/autenticacao/csrf` (o cookie antiforgery `systemic_csrf` é
+`HttpOnly` e `SameSite=Strict`) e envia o token no header `X-CSRF-TOKEN` em
+login e em toda requisição mutável (`POST`, `PUT`, `PATCH` ou `DELETE`). A API
+valida esses tokens por um filtro global. `POST /api/autenticacao/logout`
+também requer o header e apaga o cookie de autenticação.
 
-Depois do login, a aplicação renova o token CSRF antes de novas operações
-mutáveis. Na inicialização, `GET /api/autenticacao/validar` valida a sessão e
-retorna id, nome e role das claims. `AuthContext` usa a role retornada pelo
-servidor para as rotas protegidas; a role salva em `restaurant_user` não é
-considerada fonte de autorização.
-
-Em Development, o CORS com credenciais permite origens localhost e endereços
-IPv4 privados nas portas 8080 e 5173. No Compose, o Nginx encaminha `/api` e
-`/hubs` para a API, então o navegador usa a mesma origem e não depende de CORS
-nem de acesso móvel à porta 5050. `ALLOW_INSECURE_LOCAL_NETWORK=true` permite
-cookies de sessão sem `Secure` sobre HTTP e deve ficar restrito ao Compose
-local. Não habilite a opção em produção. Em produção, configure
-`CORS_ALLOWED_ORIGINS` com as origens confiáveis separadas por vírgula.
-Em produção, termine TLS no proxy e envie
-`X-Forwarded-Proto: https`. Configure `FORWARDED_HEADERS_KNOWN_PROXIES` com os
-IPs confiáveis separados por vírgulas; somente esses proxies podem informar o
-protocolo encaminhado. A API processa um salto de `X-Forwarded-For` e
-`X-Forwarded-Proto` antes da autenticação. Em ambiente diferente de
-Development, a inicialização termina com código 1 e mensagem explícita se
-`JWT_SECRET_KEY` estiver ausente, tiver menos de 32 caracteres ou for um
-placeholder conhecido.
+Depois do login, a aplicação descarta o token CSRF e busca outro antes de novas
+operações mutáveis. Na inicialização, `GET /api/autenticacao/validar` valida a
+sessão e retorna id, nome e role das claims. `AuthContext` (web) e o
+`AuthContext` do mobile usam a role retornada pelo servidor; a role salva em
+`restaurant_user` (localStorage da web) não é considerada fonte de autorização.
 
 O cookie antiforgery usa `ANTIFORGERY_COOKIE_SECURE_POLICY=SameAsRequest` no
 Compose local para funcionar com HTTP; fora do Compose, o padrão é `Always`
@@ -182,22 +217,7 @@ quando o ambiente não é Development e `SameAsRequest` em Development.
 Em produção, defina explicitamente `ANTIFORGERY_COOKIE_SECURE_POLICY=Always`.
 Valores diferentes de `Always` e `SameAsRequest` impedem a inicialização.
 
-A API limita cada IP a 60 requisições de login por minuto e a 600 requisições
-globais por minuto por padrão. Ajuste `LOGIN_RATE_LIMIT_PER_MINUTE` e
-`GLOBAL_RATE_LIMIT_PER_MINUTE` para inteiros positivos conforme a carga; zero
-ou valor inválido impede a inicialização. Rejeições retornam HTTP 429 e
-`Retry-After`. A política de login também limita `POST /api/funcionario/login`.
-Os headers de hardening são aplicados às respostas; CSP estrita limita-se a
-`/api` para não bloquear a interface Swagger em Development, e HSTS só é
-enviado em HTTPS fora de Development.
-
-O Nginx define CSP com conexão para a mesma origem e WebSocket do SignalR, e
-permite scripts, frames e recursos do VLibras. Também envia
-`X-Content-Type-Options: nosniff`, `Referrer-Policy`,
-`X-Frame-Options: DENY` e `Permissions-Policy`. O documento permite
-acelerômetro e giroscópio para a origem do VLibras, mas o iframe externo não
-delegou essas permissões na verificação do navegador; sensores do widget
-permanecem não verificados.
+### Senhas e bloqueio
 
 Novos hashes usam PBKDF2-SHA-256, salt aleatório de 16 bytes e 600.000
 iterações, armazenados no formato versionado
@@ -208,27 +228,75 @@ validade padrão de 480 minutos, ajustável por `JWT_EXPIRATION_MINUTES` (ou
 `Jwt:ExpirationMinutes`).
 
 - Login por email e por CPF: após 5 falhas, bloqueio por 15 minutos. Os dois
-  controllers usam `LoginLockoutPolicy` como fonte única desses limites.
-- O estado adicional de tentativas do `AuthContext` existe apenas em memória
-  no navegador; o bloqueio por email é controlado também pelo servidor.
+  fluxos usam `LoginLockoutPolicy` como fonte única desses limites.
+- O login por email responde sempre com a mesma mensagem genérica
+  (`CREDENCIAIS_INVALIDAS`), inclusive para conta bloqueada; o login por CPF
+  informa as tentativas restantes e o tempo de bloqueio.
+- O estado adicional de tentativas do `AuthContext` web existe apenas em
+  memória no navegador; o bloqueio é controlado também pelo servidor.
 
 O seed SQL contém contas com hashes PBKDF2 legados e nenhuma senha em texto
 claro. Um login válido atualiza o hash para PBKDF2-SHA-256 versionado com
 600.000 iterações. Credenciais de teste não são publicadas.
 
+## Proxy, CORS, limites e cabeçalhos de segurança
+
+**CORS.** Em Development, o CORS com credenciais permite origens `http`
+`localhost`, loopback e endereços IPv4 privados (10.x, 172.16-31.x, 192.168.x)
+nas portas 8080 e 5173. Fora de Development, vale `CORS_ALLOWED_ORIGINS` (lista
+separada por vírgulas). No Compose, o Nginx encaminha `/api` e `/hubs` para a
+API, então o navegador usa a mesma origem e não depende de CORS nem de acesso
+móvel à porta 5050. O header `X-Total-Count` é exposto ao CORS.
+
+**TLS e proxy.** Em produção, termine TLS no proxy e envie
+`X-Forwarded-Proto: https`. Configure `FORWARDED_HEADERS_KNOWN_PROXIES` com os
+IPs confiáveis separados por vírgulas; somente esses proxies podem informar o
+protocolo encaminhado. A API processa um salto de `X-Forwarded-For` e
+`X-Forwarded-Proto` antes da autenticação. Fora de Development, a API aplica
+`UseHttpsRedirection`.
+
+**Validação de segredos.** Em ambiente diferente de Development, a
+inicialização termina com código 1 e mensagem explícita se `JWT_SECRET_KEY`
+estiver ausente, tiver menos de 32 caracteres ou for um placeholder conhecido.
+
+**Limites de taxa.** A API limita cada IP a 60 requisições de login por minuto
+e a 600 requisições globais por minuto por padrão. Ajuste
+`LOGIN_RATE_LIMIT_PER_MINUTE` e `GLOBAL_RATE_LIMIT_PER_MINUTE` para inteiros
+positivos conforme a carga; zero ou valor inválido impede a inicialização.
+Rejeições retornam HTTP 429 e `Retry-After`. A política de login também limita
+`POST /api/funcionario/login`.
+
+⚠️ A CONFIRMAR: o IP usado pelo limitador é `RemoteIpAddress`. No Compose
+padrão, a API só recebe conexões do container do Nginx; sem
+`FORWARDED_HEADERS_KNOWN_PROXIES` apontando para o IP desse container, o
+`X-Forwarded-For` é ignorado e todos os clientes dividem a mesma cota. Valide
+no ambiente de destino.
+
+**Cabeçalhos da API.** Todas as respostas levam `X-Content-Type-Options:
+nosniff`, `X-Frame-Options: DENY` e `Referrer-Policy: no-referrer`. A CSP
+estrita (`default-src 'none'; frame-ancestors 'none'`) limita-se a `/api` para
+não bloquear a interface Swagger em Development, e HSTS só é enviado em HTTPS
+fora de Development.
+
+**Cabeçalhos do Nginx** (`front-end/nginx.conf`). Define CSP com conexão para a
+mesma origem e WebSocket do SignalR, e permite scripts, frames e recursos do
+VLibras. Também envia `X-Content-Type-Options: nosniff`, `Referrer-Policy:
+strict-origin-when-cross-origin`, `X-Frame-Options: DENY` e `Permissions-Policy`.
+O documento permite acelerômetro e giroscópio para a origem do VLibras, mas o
+iframe externo não delegou essas permissões na verificação do navegador;
+sensores do widget permanecem não verificados. O arquivo traz um bloco `server`
+de HTTPS comentado, como modelo.
+
 ## Regras de acesso
 
-`JWT` significa que o endpoint exige uma sessão autenticada; no navegador, ela
-é enviada pelo cookie HttpOnly `systemic_auth`. O perfil é indicado em cada
-linha: quando a linha informa somente `JWT`, a API valida o token sem exigir
-uma role específica. `Público` significa que o controller não exige
-autenticação. Todas as requisições mutáveis, inclusive login e logout, exigem
-`X-CSRF-TOKEN`. A matriz de páginas do front-end e as regras da API são
-controles independentes.
+A API aplica autorização por role em cada controller. A matriz por endpoint está
+em [API.md](API.md#endpoints) e o resumo de perfis em
+[API.md](API.md#perfis-e-permissões).
 
-O front-end usa React Router 7.18.5 pelo pacote `react-router`; `react-router-dom`
-não está instalado. `ProtectedRoute` aguarda a validação do perfil no servidor
-antes de renderizar uma rota protegida.
+O front-end usa React Router 7.18.5 pelo pacote `react-router`;
+`react-router-dom` não está instalado. `ProtectedRoute` aguarda a validação do
+perfil no servidor antes de renderizar uma rota protegida. A matriz de páginas
+(`front-end/src/lib/rbac.ts`) e as regras da API são controles independentes.
 
 | Perfil do front-end | Páginas permitidas |
 |---|---|
@@ -236,120 +304,32 @@ antes de renderizar uma rota protegida.
 | `admin` | Todas as páginas protegidas |
 | `owner` | Todas as páginas protegidas |
 
-Na API, `employee`, `admin` e `owner` podem executar as operações operacionais
-de pedidos, comandas e reservas. `admin` e `owner` podem gerenciar produtos,
-mesas, clientes, formas de pagamento, faturamento, logs, funcionários e
-backups; as leituras de produtos, mesas e formas de pagamento também aceitam
-`employee`. A criação ou promoção de outro `owner` exige que o ator também seja
-`owner`. A tabela abaixo registra as regras efetivas de cada endpoint.
-
-## Tabela completa de endpoints
-
-A tabela registra as 72 ações HTTP expostas pelos 14 controllers.
-
-Os nomes JSON são camelCase. `Envelope` representa `{sucesso, mensagem,
-dados, codigoErro}`. Nem todos os endpoints usam esse envelope: as respostas
-brutas e variações observadas estão indicadas abaixo. Os códigos de erro e
-mensagens variam conforme a validação do controller.
-
-A central grava notificações individuais por funcionário ativo. Novos pedidos
-e reservas são enviados aos funcionários; estoque baixo é enviado somente a
-`admin` e `owner`. A web recebe eventos pelo SignalR em
-`/hubs/notificacoes`; o app mobile consulta a central a cada 30 segundos quando
-está em primeiro plano. Notificações push fora do app e alertas de ingredientes
-não fazem parte deste fluxo.
-
-| Método e rota | Autenticação / perfil | Corpo ou parâmetros | Resposta de sucesso |
-|---|---|---|---|
-| `GET /api/autenticacao/csrf` | Público | — | JSON `{requestToken}` e cookie antiforgery HttpOnly |
-| `POST /api/autenticacao/login` | Público; requer CSRF | JSON `{email, password}` | Envelope; `dados` contém id, `nomeUsuario`, `role`; JWT em cookie HttpOnly |
-| `GET /api/autenticacao/validar` | JWT | — | Envelope com `dados.id`, `dados.nome` e `dados.role`, lidos das claims |
-| `POST /api/autenticacao/logout` | Público; requer CSRF | Header `X-CSRF-TOKEN` | Envelope; expira o cookie JWT |
-| `POST /api/backup/gerar` | JWT; `admin` ou `owner` | — | JSON `{sucesso,mensagem,dados}` com nome, caminho e tamanho do ZIP |
-| `GET /api/backup/baixar/{nomeArquivo}` | JWT; `admin` ou `owner` | `nomeArquivo` na rota | Arquivo ZIP (`application/octet-stream`) |
-| `GET /api/backup/listar` | JWT; `admin` ou `owner` | — | JSON `{sucesso,dados}` com lista de backups |
-| `POST /api/backup/restore` | JWT; `admin` ou `owner` | `multipart/form-data`, campo `Arquivo` com ZIP | Envelope de sucesso ou erro |
-| `GET /api/cliente` | JWT; `admin` ou `owner` | — | Envelope; `dados` é lista de clientes |
-| `GET /api/cliente/{id}` | JWT; `admin` ou `owner` | `id` na rota | Envelope; `dados` é cliente |
-| `POST /api/cliente` | JWT; `admin` ou `owner` | JSON `Cliente`: `{nomeCliente, telefoneCliente, feedback}` | 201; Envelope com cliente |
-| `PUT /api/cliente/{id}` | JWT; `admin` ou `owner` | `id` e JSON `Cliente` | Envelope com cliente atualizado |
-| `DELETE /api/cliente/{id}` | JWT; `admin` ou `owner` | `id` na rota | Envelope com mensagem |
-| `GET /api/comanda` | JWT; `employee`, `admin` ou `owner` | — | JSON `{sucesso,dados}` com comandas |
-| `GET /api/comanda/{id}` | JWT; `employee`, `admin` ou `owner` | `id` na rota | JSON `{sucesso,dados}` com comanda |
-| `GET /api/comanda/abertas/todas` | JWT; `employee`, `admin` ou `owner` | — | Envelope; `dados` contém comandas abertas e itens ativos |
-| `GET /api/comanda/mesa/{tableNumber}` | JWT; `employee`, `admin` ou `owner` | Número da mesa na rota | Lista JSON de comandas |
-| `PUT /api/comanda/{id}` | JWT; `employee`, `admin` ou `owner` | `id` e JSON `Comanda` (campos usados: `idCliente`, `idMesa`) | Entidade `Comanda` |
-| `POST /api/comanda` | JWT; `employee`, `admin` ou `owner` | JSON `Comanda`; inclui `idMesa`, `idCliente` | 201; entidade criada |
-| `POST /api/comanda/{id}/itens` | JWT; `employee`, `admin` ou `owner` | JSON `ItemComanda`: `idProduto`, `qtdProduto`, `precoUnitarioPago`; o servidor define o status inicial | JSON `{message,itemId,novoTotal}` |
-| `PUT /api/comanda/{id}/pagar` | JWT; `employee`, `admin` ou `owner` | JSON `{idFormaPagamento,troco}`; o funcionário vem da claim `NameIdentifier` | Envelope com comanda paga |
-| `PUT /api/comanda/{id}/fechar` | JWT; `employee`, `admin` ou `owner` | `id` na rota; sem corpo | Envelope com comanda fechada |
-| `DELETE /api/comanda/{id}/itens/{itemId}` | JWT; `employee`, `admin` ou `owner` | IDs na rota | JSON `{message,novoTotal}` |
-| `PUT /api/comanda/{id}/inadimplente` | JWT; `employee`, `admin` ou `owner` | `id` na rota; sem corpo | Envelope com resultado |
-| `DELETE /api/comanda/{id}` | JWT; `employee`, `admin` ou `owner` | `id` na rota | JSON `{message}` |
-| `GET /api/faturamento` | JWT; `admin` ou `owner` | — | Envelope com resumo do dia: datas, receita, despesas e lucro |
-| `GET /api/faturamento/relatorio` | JWT; `admin` ou `owner` | Query `dataInicio`, `dataFim` | JSON `{dataInicio,dataFim,receita,despesas,lucro}` |
-| `GET /api/faturamento/produtos-mais-vendidos` | JWT; `admin` ou `owner` | — | Lista JSON `{idProduto,nomeProduto,quantidadeVendida}` |
-| `GET /api/faturamento/receita-por-forma` | JWT; `admin` ou `owner` | Query `dataInicio`, `dataFim` | Lista JSON `{formaPagemento,total}` |
-| `GET /api/faturamento/despesa-por-categoria` | JWT; `admin` ou `owner` | Query `dataInicio`, `dataFim` | Lista JSON `{categoria,total}` |
-| `POST /api/faturamento/despesa` | JWT; `admin` ou `owner` | JSON `Despesa` (descrição, valor, categoria, forma de pagamento) | 201; entidade `Despesa` |
-| `GET /api/faturamento/despesas` | JWT; `admin` ou `owner` | Query `dataInicio`, `dataFim` | Lista JSON de despesas com forma de pagamento |
-| `GET /api/formapagamento` | JWT; `employee`, `admin` ou `owner` | — | JSON `{sucesso,dados}` com formas de pagamento |
-| `GET /api/formapagamento/{id}` | JWT; `employee`, `admin` ou `owner` | `id` na rota | JSON `{sucesso,dados}` |
-| `POST /api/formapagamento` | JWT; `admin` ou `owner` | JSON `{nomeFormaPagamento}` | 201; entidade criada |
-| `PUT /api/formapagamento/{id}` | JWT; `admin` ou `owner` | `id` e JSON `FormaPagamento` | Entidade atualizada |
-| `DELETE /api/formapagamento/{id}` | JWT; `admin` ou `owner` | `id` na rota | JSON `{message}` |
-| `POST /api/funcionario/login` | Público; requer CSRF | JSON `{cpfFuncionario, senha}` | JSON `{idFuncionario,nomeFuncionario}`; JWT em cookie HttpOnly |
-| `GET /api/funcionario` | JWT; `admin` ou `owner` | — | Envelope; `dados` é lista de funcionários sem senha |
-| `GET /api/funcionario/{id}` | JWT; `admin` ou `owner` | `id` na rota | Envelope; `dados` é funcionário sem senha |
-| `POST /api/funcionario` | JWT; `admin` ou `owner` | JSON `{nomeFuncionario,cpfFuncionario,emailFuncionario,cargoFuncionario,role,telefoneFuncionario,senha}` | 201; Envelope com funcionário sem senha |
-| `PUT /api/funcionario/{id}` | JWT; `admin` ou `owner` | `id` e JSON do DTO de funcionário; senha vazia não altera senha | Envelope com funcionário sem senha |
-| `DELETE /api/funcionario/{id}` | JWT; `admin` ou `owner` | `id` na rota | Envelope; desativa funcionário |
-| `GET /api/healthcheck` | Público | — | Envelope com status, timestamp e versão `2.0` |
-| `GET /api/healthcheck/database` | Público | — | Envelope de status; em erro retorna mensagem genérica e registra detalhes no log |
-| `GET /api/healthcheck/info` | Público | — | Envelope com status genérico da API (`status: ok`) |
-| `GET /api/log/sistema` | JWT; `admin` ou `owner` | Query opcional `pagina` (padrão 1), `tamanho` (50), `filtro` | JSON `{sucesso,total,pagina,dados}` |
-| `POST /api/log/registrar` | JWT; `admin` ou `owner` | JSON `{tipoLog,descricaoLog,usuarioLog,dadoAnterior,dadoNovo}` | Envelope com o ID criado |
-| `GET /api/log/comanda/{idComanda}` | JWT; `admin` ou `owner` | `idComanda` na rota | JSON `{sucesso,dados}` com logs |
-| `GET /api/mesa` | JWT; `employee`, `admin` ou `owner` | — | Envelope; `dados` é lista de mesas |
-| `GET /api/mesa/{id}` | JWT; `employee`, `admin` ou `owner` | `id` na rota | Envelope; `dados` é mesa |
-| `POST /api/mesa` | JWT; `admin` ou `owner` | JSON `Mesa`: `numeroMesa`, `capacidadeMesa`, opcional `statusMesa` | 201; Envelope com mesa |
-| `PUT /api/mesa/{id}` | JWT; `admin` ou `owner` | `id` e JSON `Mesa` | Entidade `Mesa` atualizada |
-| `DELETE /api/mesa/{id}` | JWT; `admin` ou `owner` | `id` na rota | JSON `{message}` |
-| `GET /api/pedidos` | JWT; `employee`, `admin` ou `owner` | — | Envelope; `dados` contém comandas e itens |
-| `GET /api/notificacoes?limit=50` | JWT; funcionário autenticado | `limit` de 1 a 100 | Envelope com notificações do funcionário e total não lido |
-| `PATCH /api/notificacoes/{id}/lida` | JWT; funcionário autenticado | ID da notificação | 204; só altera notificações do próprio funcionário |
-| `POST /api/notificacoes/marcar-todas-lidas` | JWT; funcionário autenticado; requer CSRF | — | Envelope com total atualizado |
-| `GET /api/pedidos/{id}` | JWT; `employee`, `admin` ou `owner` | `id` na rota | Envelope; `dados` contém pedido |
-| `POST /api/pedidos` | JWT; `employee`, `admin` ou `owner` | JSON `{idMesa,itens:[{idProduto,qtdProduto,precoUnitarioPago}]}` no fluxo com comanda aberta; o DTO também aceita `idCliente` para criar sem comanda | 201; Envelope com pedido |
-| `PUT /api/pedidos/{id}` | JWT; `employee`, `admin` ou `owner` | `id` e o mesmo DTO de pedido | Envelope com pedido atualizado |
-| `PUT /api/pedidos/{id}/status` | JWT; `employee`, `admin` ou `owner` | JSON `{status}` | Envelope com pedido atualizado |
-| `DELETE /api/pedidos/{id}` | JWT; `employee`, `admin` ou `owner` | `id` na rota | Envelope com resultado |
-| `GET /api/produto` | JWT; `employee`, `admin` ou `owner` | — | Envelope; `dados` é lista de produtos |
-| `GET /api/produto/{id}` | JWT; `employee`, `admin` ou `owner` | `id` na rota | Envelope; `dados` é produto |
-| `POST /api/produto` | JWT; `admin` ou `owner` | JSON `ProdutoDto`: `nomeProduto`, `descricaoProduto`, `precoProduto`, `qtdEstoque`, `estoqueMinimo`, `statusProduto`, `categoria` ou `categoriaProduto` | 201; Envelope com produto |
-| `PUT /api/produto/{id}` | JWT; `admin` ou `owner` | `id` e JSON `ProdutoDto` | Envelope com produto atualizado |
-| `DELETE /api/produto/{id}` | JWT; `admin` ou `owner` | `id` na rota | Envelope com mensagem |
-| `PUT /api/produto/{id}/ajustar-estoque` | JWT; `admin` ou `owner` | JSON `{tipo:"ADICIONAR"|"REMOVER",quantidade,motivo}` | Envelope com quantidades e produto |
-| `GET /api/reserva` | JWT; `employee`, `admin` ou `owner` | — | Envelope; `dados` é lista de reservas |
-| `POST /api/reserva` | JWT; `employee`, `admin` ou `owner` | JSON `{nomeCliente,numeroMesa,dataReserva}` | Envelope com reserva |
-| `DELETE /api/reserva/{id}` | JWT; `employee`, `admin` ou `owner` | `id` na rota | Envelope com resultado |
+No app mobile, as abas Mesas, Pedidos e Reservas aparecem para todos os
+perfis; Resumo e Produtos (e, a partir de Resumo, Relatórios, Usuários e
+Auditoria) só para `admin` e `owner`.
 
 ## Banco de dados e scripts
 
-Banco: `DB_RESTAURANTE`. O script de schema define 12 tabelas:
-`FUNCIONARIO`, `CLIENTE`, `MESA`, `FORMA_PAGAMENTO`, `PRODUTO`, `RESERVA`,
-`COMANDA`, `ITEM_COMANDA`, `DETALHE_PAGAMENTO`, `DESPESAS`, `LOG_COMANDA` e
-`LOG_SISTEMA`.
+Banco: `DB_RESTAURANTE`. O esquema é evoluído por scripts SQL versionados; o
+projeto não usa migrations do Entity Framework Core.
 
-`01-create-database-idempotent.sql` cria/atualiza as tabelas, cinco índices,
-três triggers e dados básicos. `02-procedures-views.sql` define três
-procedures (`sp_fechar_comanda`, `sp_relatorio_faturamento`,
-`sp_ajustar_estoque`) e duas views (`vw_comandas_abertas`,
-`vw_produtos_mais_vendidos`). Os quatro usuários encontrados no script
-idempotente têm hashes no banco, não senhas verificáveis em texto
-claro. O índice `IDX_LOG_SISTEMA_DATA` também consta na migração histórica
-`migration-logs-sistema.sql`; sua criação idempotente está incluída no script
-executado pelo Compose.
+Os scripts definem 13 tabelas: `FUNCIONARIO`, `CLIENTE`, `MESA`,
+`FORMA_PAGAMENTO`, `PRODUTO`, `RESERVA`, `COMANDA`, `ITEM_COMANDA`,
+`DETALHE_PAGAMENTO`, `DESPESAS`, `LOG_COMANDA`, `LOG_SISTEMA` (script 01) e
+`NOTIFICACAO` (script 04). O modelo de dados está em
+[ARQUITETURA.md](ARQUITETURA.md#modelo-de-dados).
+
+| Script | Conteúdo |
+|---|---|
+| `01-create-database-idempotent.sql` | Cria o banco e as 12 primeiras tabelas quando não existem, cinco índices, três triggers (`trg_abrir_comanda`, `trg_atualizar_valor_total`, `trg_fechar_comanda`) e os dados básicos (contas, cliente "Consumidor", mesas, formas de pagamento, produtos) |
+| `02-procedures-views.sql` | Procedures `sp_fechar_comanda`, `sp_relatorio_faturamento`, `sp_ajustar_estoque` e views `vw_comandas_abertas`, `vw_produtos_mais_vendidos` |
+| `03-constraints.sql` | Índices únicos `UX_COMANDA_MESA_ABERTA` (uma comanda aberta por mesa), `UX_CLIENTE_TELEFONE` e `UX_MESA_NUMERO`. Aborta com mensagem se existirem duplicatas |
+| `04-create-notifications.sql` | Tabela `NOTIFICACAO` e dois índices |
+
+A API chama `sp_relatorio_faturamento` e `sp_ajustar_estoque` e consulta as
+duas views. Ela não chama `sp_fechar_comanda`: o fechamento ocorre ao inserir
+`DETALHE_PAGAMENTO`, e o trigger `trg_fechar_comanda` fecha a comanda e libera
+a mesa.
 
 `CriarPedidoDTO` contém `idMesa`, `idCliente` e `itens`. No fluxo da interface,
 `RestaurantContext` envia a `POST /api/pedidos` apenas `idMesa` e `itens`, sem
@@ -357,31 +337,63 @@ executado pelo Compose.
 essa comanda. Se a API receber o pedido sem comanda aberta, valida o `idCliente`
 do DTO: cliente inexistente resulta em HTTP 400 (`CLIENTE_INVALIDO`), e cliente
 válido permite criar uma nova comanda. O endpoint separado `POST /api/comanda`
-tem sua própria regra para resolver o cliente padrão.
+tem sua própria regra: `idCliente` ≤ 0 resolve para o cliente "Consumidor".
 
 ## Backup e restauração
 
 `BACKUP_PATH` pode ser definido como variável de ambiente ou configuração. Sem
-ela, a API grava em `backups` sob `AppContext.BaseDirectory`. A geração inclui
-SQL, JSON de logs e configuração, compactados em ZIP. A restauração aceita um
-ZIP com exatamente um script `.sql`, aplica limites de tamanho e valida nomes
-de entrada, cria primeiro um backup de segurança e executa o SQL em transação.
+ela, a API grava em `backups` sob `AppContext.BaseDirectory`. `BACKUP_HMAC_KEY`
+(mínimo de 32 bytes) é necessária para gerar e para restaurar.
+
+**Geração** (`POST /api/backup/gerar`). Cria, em `BACKUP_PATH`, uma pasta
+`backup_<ddMMyyyy>_<HHmmss>` com:
+
+- `backup_banco_<ddMMyyyy>.sql`: `DELETE` e `INSERT` de todas as tabelas
+  mapeadas pelo EF Core (incluindo `NOTIFICACAO`), com `NOCHECK`/`CHECK` das
+  constraints;
+- `backup_logs_<ddMMyyyy>.json`: `LOG_SISTEMA` e `LOG_COMANDA`;
+- `backup_config_<ddMMyyyy>.json`: `appsettings.json` com senha da connection
+  string e `Jwt:SecretKey` ocultadas;
+- `backup_hmac.sha256`: assinatura HMAC-SHA256 do conteúdo.
+
+A pasta é compactada em `backup_<ddMMyyyy>_<HHmmss>.zip` no mesmo diretório.
+A pasta de trabalho não é removida depois da compactação; somente os arquivos
+`.zip` aparecem em `GET /api/backup/listar`.
+
+**Restauração** (`POST /api/backup/restore`, ZIP de até 100 MB). A API só aceita
+arquivo `.zip` com no máximo 10.000 entradas, 512 MB descompactados e exatamente
+um script `.sql` (até 256 MB); recusa caminhos absolutos, `..` e links
+simbólicos; e exige uma assinatura `backup_hmac.sha256` válida para a
+`BACKUP_HMAC_KEY` atual. Em seguida gera um backup de segurança do estado atual
+e executa o SQL em uma transação, registrando o evento `BACKUP` no log do
+sistema. Se qualquer etapa falhar, a transação é revertida.
+
 No Docker Compose, `BACKUP_PATH` aponta para `/app/backups`, persistido no
 volume nomeado `backup_data`; uma substituição deve ser um caminho absoluto
 dentro do container.
 
-## SignalR
+## Tempo real
 
-O front-end consome o hub autenticado `/hubs/cozinha`; eventos de pedido e
-comanda são usados para atualizar a interface. O `RestaurantContext` mantém
-sincronização periódica de contingência quando SignalR está habilitado, mas
-desconectado.
+A interface web usa o hub `/hubs/cozinha` para recarregar comandas e o hub
+`/hubs/notificacoes` para o sino de notificações. O app mobile usa
+`/hubs/notificacoes`. Eventos, payloads e destinatários estão em
+[API.md](API.md#tempo-real-signalr).
+
+Quando o SignalR está habilitado (sessão ativa) mas desconectado, o
+`RestaurantContext` da web consulta as comandas a cada 60 s como contingência.
+O sino da web e a central do mobile também consultam `GET /api/notificacoes` a
+cada 30 s.
 
 ## CI e testes
 
-Em push e pull request, `.github/workflows/ci.yml` executa build e testes .NET,
-auditoria das dependências de produção do front-end, lint, testes e build. Para
-executar as verificações localmente:
+Em push e pull request, `.github/workflows/ci.yml` executa, nesta ordem:
+varredura de segredos no histórico Git com gitleaks (usando `.gitleaksignore`),
+build da solução .NET e testes .NET em Release, instalação (`npm ci`),
+auditoria das dependências de produção (`npm audit --omit=dev
+--audit-level=high`), lint, testes e build do front-end. O mobile não faz
+parte do CI. O fluxo de CD está descrito em [DEPLOY.md](DEPLOY.md#cicd).
+
+Para executar as verificações localmente:
 
 ```powershell
 dotnet build systemic-pim.sln
@@ -394,17 +406,37 @@ npm test -- --run
 npm run build
 ```
 
+`systemic-pim.sln` contém apenas o projeto da API (`back-end`); o projeto de
+testes é executado diretamente por `tests/back-end.Tests.csproj`. Os testes de
+integração com SQL Server ficam desabilitados sem `RUN_INTEGRATION_TESTS=1`; as
+variáveis exigidas estão em [VARIAVEIS_AMBIENTE.md](VARIAVEIS_AMBIENTE.md#testes-automatizados).
+
+Verificações do mobile, a partir de `mobile/`: `npm run typecheck` e
+`npm run lint`.
+
 ## Limitações e operação
 
-- Não existe aplicativo mobile nem configuração de deploy em nuvem.
-- O Compose executa a API em Production e expõe os serviços em HTTP local. Como
-  o cookie JWT é `Secure` fora de Development, o login pelo navegador requer
-  HTTPS ou execução local da API em Development.
+- O repositório não faz deploy em nuvem. O CD publica imagens Docker no GitHub
+  Container Registry e roda um smoke test do Compose; o deploy em si fica por
+  conta de quem hospeda. Veja [DEPLOY.md](DEPLOY.md).
+- O Compose executa a API em Production e expõe os serviços em HTTP local. Para
+  autenticar pelo navegador sem TLS, defina `ALLOW_INSECURE_LOCAL_NETWORK=true`;
+  sem isso, o cookie JWT é `Secure` e o navegador não o devolve por HTTP.
 - `/api/healthcheck/database` é público; em falha, a resposta omite detalhes
   internos e a API registra esses detalhes no log.
 - A interface controla a navegação por perfil, mas não substitui a autorização
-  independente da API. Consulte as regras desta tabela de endpoints.
+  independente da API. Consulte a matriz em [API.md](API.md#endpoints).
 - A autenticação pressupõe front-end e API no mesmo site. Uma implantação em
   sites diferentes exige reavaliar `SameSite`, CORS e proteção CSRF.
 - O widget VLibras depende de recursos externos e permissões concedidas pelo
   iframe do fornecedor; sua disponibilidade não é garantida pela aplicação.
+- ⚠️ A CONFIRMAR: `DELETE /api/funcionario/{id}` define `STATUS_FUNCIONARIO =
+  'INATIVO'`, mas nenhum dos dois logins verifica esse status; a conta inativa
+  continua autenticando e só deixa de receber notificações. Confirme se esse é
+  o comportamento desejado.
+- ⚠️ A CONFIRMAR: `GET /api/faturamento` (resumo do dia) calcula o intervalo
+  com `DateTime.UtcNow.Date`, enquanto `DATA_FECHADA` e `DATA_PAGAMENTO` são
+  gravadas em horário de Brasília (trigger e `AppDbContext`). Perto da meia-noite,
+  o "dia" do resumo pode divergir do dia local.
+- Não há rotina de retenção: as pastas e os ZIPs de backup em `BACKUP_PATH`
+  permanecem até serem removidos manualmente.
