@@ -39,6 +39,7 @@ services:
         /opt/mssql-tools/bin/sqlcmd -I -b -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -i /scripts/02-procedures-views.sql
         /opt/mssql-tools/bin/sqlcmd -I -b -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -i /scripts/03-constraints.sql
         /opt/mssql-tools/bin/sqlcmd -I -b -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -i /scripts/04-create-notifications.sql
+        /opt/mssql-tools/bin/sqlcmd -I -b -S sqlserver -U "$${DB_USER}" -P "$${DB_PASSWORD}" -C -i /scripts/05-create-push-devices.sql
     restart: "no"
 
   api:

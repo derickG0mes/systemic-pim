@@ -13,15 +13,18 @@ public sealed class NotificationService : INotificationService
     private readonly AppDbContext _context;
     private readonly IHubContext<NotificationsHub> _hub;
     private readonly ILogger<NotificationService> _logger;
+    private readonly IPushNotificationSender _push;
 
     public NotificationService(
         AppDbContext context,
         IHubContext<NotificationsHub> hub,
-        ILogger<NotificationService> logger)
+        ILogger<NotificationService> logger,
+        IPushNotificationSender push)
     {
         _context = context;
         _hub = hub;
         _logger = logger;
+        _push = push;
     }
 
     public async Task NotifyAsync(
@@ -59,6 +62,17 @@ public sealed class NotificationService : INotificationService
 
             _context.Notifications.AddRange(notifications);
             await _context.SaveChangesAsync();
+
+            // Push remoto (funciona com o app fechado). Roda em segundo plano e não bloqueia a requisição.
+            _push.Enqueue(notifications
+                .Select(notification => new PushMessage(
+                    notification.EmployeeId,
+                    notification.Id,
+                    notification.Type,
+                    notification.Title,
+                    notification.Message,
+                    notification.Link))
+                .ToArray());
 
             foreach (var notification in notifications)
             {

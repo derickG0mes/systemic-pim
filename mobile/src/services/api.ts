@@ -122,6 +122,17 @@ export async function listNotifications() {
   }
   return result;
 }
+export const registerPushDevice = (token: string, plataforma: "android" | "ios") =>
+  request<void>("/notificacoes/dispositivos", {
+    method: "PUT",
+    body: JSON.stringify({ token, plataforma }),
+  });
+export const unregisterPushDevice = (token: string) =>
+  request<void>("/notificacoes/dispositivos", {
+    method: "DELETE",
+    body: JSON.stringify({ token }),
+    notifyUnauthorized: false,
+  });
 export const markNotificationRead = (id: number) =>
   request<void>(`/notificacoes/${id}/lida`, { method: "PATCH" });
 export const markAllNotificationsRead = () =>

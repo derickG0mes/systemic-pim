@@ -173,7 +173,9 @@ contraste**. A escolha vale para todas as telas e fica salva no dispositivo
 O aplicativo possui integração com o **SignalR** (`/hubs/notificacoes`) e **Expo Notifications** (`expo-notifications`):
 
 - **Conexão enquanto o app está em execução:** ao abrir as telas autenticadas, o cliente conecta ao Hub de Notificações (`withCredentials`, mesmo cookie da sessão) e escuta o evento `NotificationCreated`. Cada evento recebido vira uma notificação **local** do dispositivo e entra na central do app.
-- **Sem push remoto:** o app não usa FCM/APNs nem token de push. A notificação do sistema só é disparada quando o JavaScript do app está ativo e conectado. ⚠️ A CONFIRMAR: a entrega com o app totalmente fechado ou suspenso pelo sistema não é garantida pelo código e deve ser testada em aparelho físico.
+- **Push remoto (app fechado):** depois do login, o app pede permissão, obtém o token do Expo (`ExpoPushToken`) e o registra na API (`PUT /api/notificacoes/dispositivos`); no logout, remove-o. A API envia cada notificação também ao serviço de push do Expo, que entrega por FCM (Android) ou APNs (iOS), mesmo com o app fechado. Exige credenciais do Firebase/Apple no Expo e um build do EAS (não funciona no Expo Go para Android): veja [docs/PUSH_NOTIFICATIONS.md](../docs/PUSH_NOTIFICATIONS.md). Sem as credenciais, o registro falha com um aviso no log e o app continua usando SignalR e a consulta periódica.
+- **Sem duplicidade:** se a mesma notificação chega por SignalR e por push, o app mostra uma só vez (compara o `id`). Com o app em segundo plano e o push registrado, só o push é exibido.
+- **Toque na notificação:** funciona com o app aberto, em segundo plano ou iniciado pelo toque; abre a aba correspondente.
 - **Canal de Alta Importância no Android:** as notificações são exibidas nativamente na barra de status do Android através do canal `systemic-default`, com som e vibração habilitados e permissão `POST_NOTIFICATIONS` (Android 13+).
 - **Abertura da tela ao tocar:** ao clicar em qualquer notificação no sistema, o app realiza o roteamento automático:
   - Pedidos (`pedido_*`) direcionam para a aba **Pedidos**.
@@ -241,9 +243,11 @@ mobile/
   src/components/  Componentes de tela (AuthGate, NotificationsCenter, Panel...)
   src/contexts/    AuthContext e ThemeContext
   src/hooks/       useCachedResource e useSignalRNotifications
-  src/services/    api, http (CSRF, cookies, erros), cache SQLite e notificações
+  src/services/    api, http (CSRF, cookies, erros), cache SQLite, notificações locais
+                   e pushRegistration (registro do token de push na API)
   src/theme/       Cores dos três temas e estilos
-  app.config.js    Validação de EXPO_PUBLIC_API_URL nos builds EAS
+  app.config.js    Validação de EXPO_PUBLIC_API_URL nos builds EAS e inclusão do
+                   google-services.json (FCM) quando existir
   app.json         Identificação do app (Android: com.systemicpim.app) e permissões
   eas.json         Perfis de build: preview (APK) e production
 ```

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "300699228590",
+    "project_id": "systemic-177c7",
+    "storage_bucket": "systemic-177c7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:300699228590:android:114920eb139276e8d4903f",
+        "android_client_info": {
+          "package_name": "com.systemicpim.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCjraTP9mBmq_7LgziT6L5na7SETtugxYs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

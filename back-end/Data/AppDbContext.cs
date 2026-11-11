@@ -22,6 +22,7 @@ public class AppDbContext : DbContext
     public DbSet<LogComanda> LogsComanda { get; set; }
     public DbSet<LogSistema> LogsSistema { get; set; }
     public DbSet<Notification> Notifications { get; set; }
+    public DbSet<PushDevice> PushDevices { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -109,6 +110,12 @@ public class AppDbContext : DbContext
             .HasIndex(notification => new { notification.EmployeeId, notification.CreatedAt });
         modelBuilder.Entity<Notification>()
             .HasIndex(notification => new { notification.EmployeeId, notification.ReadAt });
+        modelBuilder.Entity<PushDevice>().ToTable("DISPOSITIVO_PUSH");
+        modelBuilder.Entity<PushDevice>()
+            .HasIndex(device => device.Token)
+            .IsUnique();
+        modelBuilder.Entity<PushDevice>()
+            .HasIndex(device => device.EmployeeId);
         modelBuilder.Entity<Comanda>()
             .ToTable("COMANDA", tb => tb.HasTrigger("trg_abrir_comanda")); // Nome correto da tabela no banco
 

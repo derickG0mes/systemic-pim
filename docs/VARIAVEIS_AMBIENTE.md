@@ -36,6 +36,7 @@ ou duplas ao redor do valor.
 | `FORWARDED_HEADERS_KNOWN_PROXIES` | Atrás de proxy | vazio | IPs (não hostnames) de proxies confiáveis, separados por vírgula. IP inválido impede a inicialização. Vazio mantém o padrão do ASP.NET Core (somente loopback). |
 | `LOGIN_RATE_LIMIT_PER_MINUTE` | Não | `60` | Requisições por minuto, por IP, nos endpoints de login. Inteiro maior que zero. |
 | `GLOBAL_RATE_LIMIT_PER_MINUTE` | Não | `600` | Requisições por minuto, por IP, em toda a API. Inteiro maior que zero. |
+| `EXPO_ACCESS_TOKEN` | Não | — | Token de acesso do Expo, enviado como `Authorization: Bearer` ao serviço de push. Só é necessário se a segurança reforçada de push estiver ativa no Expo. Veja [PUSH_NOTIFICATIONS.md](PUSH_NOTIFICATIONS.md). Nunca versione o valor. |
 | `ASPNETCORE_ENVIRONMENT` | Não | `Production` (padrão do ASP.NET Core) | `Development` habilita Swagger e o CORS local. O perfil `back-end` de `launchSettings.json` define `Development`; o Compose define `Production`. |
 
 A porta da API é fixa em `5050` (`ApiMetadata.Port`; escuta em `0.0.0.0`). A
@@ -70,6 +71,11 @@ isso `JWT_SECRET_KEY`, `JWT_EXPIRATION_MINUTES`, `BACKUP_HMAC_KEY` e
 |---|---|---|
 | `EXPO_PUBLIC_API_URL` | `mobile/.env` (desenvolvimento) ou variável do ambiente `preview`/`production` no Expo Services (build EAS) | URL base completa da API, terminando em `/api` (por exemplo `http://IP_DO_COMPUTADOR:8080/api`). `localhost` não serve no celular. |
 | `EAS_BUILD_PROFILE` | Definida pelo EAS Build | `app.config.js` valida `EXPO_PUBLIC_API_URL` nos perfis `preview` e `production` e exige HTTPS em `production`. O perfil `preview` também habilita tráfego HTTP em texto claro no Android (`usesCleartextTraffic`). |
+
+Para o push remoto no Android, `app.config.js` também usa o `google-services.json` do Firebase: ele lê a
+variável de ambiente do tipo arquivo `GOOGLE_SERVICES_JSON` (definida no EAS) ou, se ela não existir,
+o arquivo `mobile/google-services.json`. Sem nenhum dos dois, o build Android sai sem push remoto e o
+`app.config.js` imprime um aviso. Veja [PUSH_NOTIFICATIONS.md](PUSH_NOTIFICATIONS.md).
 
 No perfil `production` de `eas.json`, o valor atual é o placeholder
 `https://api.example.invalid/api` e precisa ser substituído antes de publicar.

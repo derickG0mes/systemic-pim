@@ -127,6 +127,17 @@ builder.Services.AddScoped<IProdutoService, ProdutoService>();
 builder.Services.AddScoped<IReservaService, ReservaService>();
 builder.Services.AddScoped<ILogService, LogService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IPushDeviceService, PushDeviceService>();
+builder.Services.AddHttpClient(ExpoPushSender.HttpClientName, client =>
+    {
+        client.BaseAddress = new Uri("https://exp.host/");
+        client.Timeout = TimeSpan.FromSeconds(15);
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
+    });
+builder.Services.AddSingleton<IPushNotificationSender, ExpoPushSender>();
 builder.Services.AddScoped<IFuncionarioService, FuncionarioService>();
 builder.Services.AddScoped<IAutenticacaoService, AutenticacaoService>();
 builder.Services.AddScoped<IDatabaseHealthService, DatabaseHealthService>();

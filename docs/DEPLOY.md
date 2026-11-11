@@ -105,36 +105,44 @@ A lista completa das variáveis está em
 
 ## Rede, TLS e proxy
 
-- O Nginx do `front-end` escuta apenas em HTTP (porta 80) e encaminha `/api/` e
-  `/hubs/` para `http://api:5050`. O nome `api` é fixo em `nginx.conf`: o
-  contêiner da API precisa ser alcançável por esse nome na mesma rede.
-- O arquivo `front-end/nginx.conf` traz um bloco `server` de HTTPS **comentado**,
-  como modelo (certificados em `/etc/nginx/certs`, HSTS apenas no bloco HTTPS).
-- A API e a interface devem ficar no **mesmo site**: o cookie de sessão usa
-  `SameSite=Lax` e o antiforgery `SameSite=Strict`.
-- Fora de Development, o cookie `systemic_auth` só é enviado por HTTPS (salvo
-  `ALLOW_INSECURE_LOCAL_NETWORK=true`). Com HTTPS terminado em um proxy, envie
-  `X-Forwarded-Proto: https` e liste o IP do proxy em
-  `FORWARDED_HEADERS_KNOWN_PROXIES`.
-- ⚠️ A CONFIRMAR: `nginx.conf` define `X-Forwarded-Proto` como `$scheme`. Se o
-  TLS for terminado por um proxy **antes** do Nginx do front-end, esse header
-  chega à API como `http`. Valide o comportamento de redirecionamento e de
-  cookies nesse desenho.
+O desenho adotado é o **Cenário A: o Nginx do front-end é a borda e termina o
+TLS**. É o mais adequado para este projeto porque a API e a interface precisam
+ficar no mesmo site (os cookies usam `SameSite=Lax`/`Strict`), e o Nginx já é o
+único ponto público do Compose.
+
+- Em desenvolvimento/local, o Nginx escuta em HTTP (porta 80, publicada como
+  8080) e encaminha `/api/` e `/hubs/` para `http://api:5050`, com
+  `X-Forwarded-Proto: $scheme`. O nome `api` é fixo em `nginx.conf`: o contêiner
+  da API precisa ser alcançável por esse nome na mesma rede.
+- Para produção, `front-end/nginx.conf` traz um bloco `server { listen 443 ssl }`
+  pronto (comentado) e um redirecionamento 80 → 443. Ao habilitá-lo:
+  1. Monte os certificados em `/etc/nginx/certs` (`fullchain.pem`, `privkey.pem`).
+  2. Descomente os blocos HTTPS e de redirecionamento e ajuste `server_name`.
+  3. Pare de servir o site em HTTP puro (deixe a porta 80 só para redirecionar).
+  O bloco HTTPS envia `X-Forwarded-Proto: https` (valor fixo, não `$scheme`) e
+  habilita HSTS. Com isso a API marca os cookies como `Secure` e aplica HSTS.
+- Informe o IP do contêiner do Nginx em `FORWARDED_HEADERS_KNOWN_PROXIES` na
+  API. Assim a API confia no `X-Forwarded-Proto`/`X-Forwarded-For` desse proxy.
+- Se, em vez do Cenário A, você colocar **outro** proxy/balanceador na frente
+  que termine o TLS antes do Nginx, aí sim o `X-Forwarded-Proto: $scheme` do
+  bloco HTTP chegaria como `http`; nesse caso use o balanceador como borda e
+  repasse o protocolo a partir dele.
 - O limitador de taxa usa o IP da conexão. Atrás do Nginx, a API só enxerga o IP
-  do contêiner do proxy, a menos que `FORWARDED_HEADERS_KNOWN_PROXIES` o liste.
+  do contêiner do proxy, a menos que `FORWARDED_HEADERS_KNOWN_PROXIES` o liste —
+  outro motivo para preencher essa variável em produção.
 - Os hubs SignalR usam WebSocket; o proxy deve repassar `Upgrade` e
   `Connection` (o Nginx do projeto já faz isso em `/hubs/`).
 
 ## Banco de dados
 
-- No Compose, o `db-init` aplica os scripts `01` a `04` automaticamente. Todos
+- No Compose, o `db-init` aplica os scripts `01` a `05` automaticamente. Todos
   são idempotentes.
-- Em um SQL Server próprio, aplique os quatro scripts manualmente, na ordem, e
+- Em um SQL Server próprio, aplique os cinco scripts manualmente, na ordem, e
   informe `DB_SERVER`, `DB_USER` e `DB_PASSWORD`. O nome do banco precisa ser
   `DB_RESTAURANTE`, porque os scripts usam o nome literal.
 - A API conecta com `TrustServerCertificate=true`.
-- Ao atualizar uma instalação antiga, execute `04-create-notifications.sql`
-  antes de subir a nova versão da API.
+- Ao atualizar uma instalação antiga, execute `04-create-notifications.sql` e
+  `05-create-push-devices.sql` antes de subir a nova versão da API.
 
 ## Persistência e backup
 
@@ -176,6 +184,18 @@ curl -i http://localhost:8080/api/healthcheck           # 200, confirma o proxy 
 
 Depois faça login pela interface, abra o sino de notificações (confirma o
 SignalR) e gere um backup de teste.
+
+## Push remoto (app mobile fechado)
+
+Para a notificação chegar com o app fechado, a implantação precisa de:
+
+- **Saída HTTPS da API para `https://exp.host`** (serviço de push do Expo). Sem isso o envio falha, com
+  aviso no log, e o resto do sistema segue normal.
+- **Credenciais no Expo**: chave de conta de serviço do FCM (Android) e chave de push da Apple (iOS), além
+  do `google-services.json` dentro do app. O passo a passo está em
+  [PUSH_NOTIFICATIONS.md](PUSH_NOTIFICATIONS.md).
+- **Script `05-create-push-devices.sql` aplicado** no banco.
+- Opcional: variável `EXPO_ACCESS_TOKEN` na API, se você ativar a segurança reforçada de push no Expo.
 
 ## App mobile
 

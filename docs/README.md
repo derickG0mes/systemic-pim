@@ -7,6 +7,8 @@
   execução local, autenticação, CSRF, CORS, banco de dados e scripts.
 - [Variáveis de ambiente](VARIAVEIS_AMBIENTE.md): todas as variáveis da API,
   do Compose, do mobile e dos testes.
+- [Notificações push com o app fechado](PUSH_NOTIFICATIONS.md): como funciona e onde
+  configurar as credenciais (Firebase/FCM, Apple/APNs, Expo).
 
 ## Referência técnica
 

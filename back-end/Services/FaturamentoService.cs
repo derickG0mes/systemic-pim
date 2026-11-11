@@ -20,7 +20,9 @@ public sealed class FaturamentoService : IFaturamentoService
     /// </summary>
     public IActionResult GetResumo()
     {
-        var inicio = DateTime.UtcNow.Date;
+        // As datas de fechamento e de despesa são gravadas no horário de Brasília
+        // (ver TimeZoneHelper e os triggers SQL); o "dia de hoje" deve usar o mesmo fuso.
+        var inicio = PIM3.API.Helpers.TimeZoneHelper.GetBrazilTime().Date;
         var fim = inicio.AddDays(1).AddTicks(-1);
 
         var receita = _context.ItensComanda

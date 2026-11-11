@@ -34,6 +34,11 @@ public sealed class FuncionarioService : IFuncionarioService
             return ApiServiceResults.Unauthorized(new { message = "CPF ou senha inválidos" });
         }
 
+        if (!string.Equals(funcionario.StatusFuncionario, "ATIVO", StringComparison.OrdinalIgnoreCase))
+        {
+            return ApiServiceResults.Unauthorized(new { message = "CPF ou senha inválidos" });
+        }
+
         if (funcionario.LockedUntil.HasValue && DateTime.UtcNow < funcionario.LockedUntil)
         {
             var minutosRestantes = (int)(funcionario.LockedUntil.Value - DateTime.UtcNow).TotalMinutes;

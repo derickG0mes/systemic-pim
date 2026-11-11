@@ -10,6 +10,7 @@ import {
 import { router } from "expo-router";
 import { clearCache } from "../services/cache";
 import { login as loginRequest, logout as logoutRequest, validateSession } from "../services/api";
+import { unregisterPushNotificationsAsync } from "../services/pushRegistration";
 import { setUnauthorizedHandler } from "../services/http";
 import type { AuthenticatedProfile } from "../types/api";
 
@@ -91,6 +92,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     setUser(null);
     setStartupError("");
+    // Deixa de receber push desta conta neste aparelho. Precisa ocorrer antes do logout no
+    // servidor (o endpoint exige a sessão). Falhas aqui não impedem o encerramento da sessão.
+    await unregisterPushNotificationsAsync().catch((error: unknown) => {
+      console.warn("Não foi possível remover o registro de push deste aparelho.", error);
+    });
     let logoutError: unknown;
     try {
       await logoutRequest();

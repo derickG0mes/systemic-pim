@@ -286,26 +286,34 @@ IF NOT EXISTS (SELECT 1 FROM dbo.FORMA_PAGAMENTO WHERE NOME_FORMA_PAGAMENTO = 'D
     INSERT INTO dbo.FORMA_PAGAMENTO (NOME_FORMA_PAGAMENTO) VALUES ('Dinheiro');
 GO
 
+-- Contas iniciais de DESENVOLVIMENTO. Senha de todas: Systemic@2026
+-- (hash PBKDF2-SHA256 v1, 600.000 iteracoes, validado contra PasswordHashService).
+-- Troque estas senhas no primeiro acesso e NAO use este seed em producao sem
+-- redefini-las. O INSERT so ocorre quando a conta ainda nao existe; bancos ja
+-- criados nao sao alterados (para eles, use UPDATE em dbo.FUNCIONARIO).
+DECLARE @SeedPasswordHash VARCHAR(255) =
+    'pbkdf2-sha256$v1$600000$TiB5Vjy08cmmh2KAkn5RfA==$oRQUjBzyoqAvmuhpxfiWQTIZ6XXuC80rSbu0cD9vQwE=';
+
 IF NOT EXISTS (SELECT 1 FROM dbo.FUNCIONARIO WHERE EMAIL_FUNCIONARIO = 'admin@restaurante.com')
     INSERT INTO dbo.FUNCIONARIO
         (NOME_FUNCIONARIO, EMAIL_FUNCIONARIO, CARGO_FUNCIONARIO, CPF_FUNCIONARIO, TELEFONE_FUNCIONARIO, PASSWORD_FUNCIONARIO, ROLE)
     VALUES
-        ('Administrador', 'admin@restaurante.com', 'Gerente', '12345678901', '11999999999', 'CGp2HzQssQ8F4pQmJOWcEYaspK9tMbPHKlSEg4FxFdu0yWoK', 'admin');
+        ('Administrador', 'admin@restaurante.com', 'Gerente', '12345678901', '11999999999', @SeedPasswordHash, 'admin');
 IF NOT EXISTS (SELECT 1 FROM dbo.FUNCIONARIO WHERE EMAIL_FUNCIONARIO = 'owner@restaurante.com')
     INSERT INTO dbo.FUNCIONARIO
         (NOME_FUNCIONARIO, EMAIL_FUNCIONARIO, CARGO_FUNCIONARIO, CPF_FUNCIONARIO, TELEFONE_FUNCIONARIO, PASSWORD_FUNCIONARIO, ROLE)
     VALUES
-        ('Proprietario', 'owner@restaurante.com', 'Proprietario', '99988877766', '11944444444', 'CGp2HzQssQ8F4pQmJOWcEYaspK9tMbPHKlSEg4FxFdu0yWoK', 'owner');
+        ('Proprietario', 'owner@restaurante.com', 'Proprietario', '99988877766', '11944444444', @SeedPasswordHash, 'owner');
 IF NOT EXISTS (SELECT 1 FROM dbo.FUNCIONARIO WHERE EMAIL_FUNCIONARIO = 'garcom@restaurante.com')
     INSERT INTO dbo.FUNCIONARIO
         (NOME_FUNCIONARIO, EMAIL_FUNCIONARIO, CARGO_FUNCIONARIO, CPF_FUNCIONARIO, TELEFONE_FUNCIONARIO, PASSWORD_FUNCIONARIO, ROLE)
     VALUES
-        ('Garçom', 'garcom@restaurante.com', 'Garçom', '09876543210', '11888888888', 'CGp2HzQssQ8F4pQmJOWcEYaspK9tMbPHKlSEg4FxFdu0yWoK', 'employee');
+        ('Garçom', 'garcom@restaurante.com', 'Garçom', '09876543210', '11888888888', @SeedPasswordHash, 'employee');
 IF NOT EXISTS (SELECT 1 FROM dbo.FUNCIONARIO WHERE EMAIL_FUNCIONARIO = 'cozinha@restaurante.com')
     INSERT INTO dbo.FUNCIONARIO
         (NOME_FUNCIONARIO, EMAIL_FUNCIONARIO, CARGO_FUNCIONARIO, CPF_FUNCIONARIO, TELEFONE_FUNCIONARIO, PASSWORD_FUNCIONARIO, ROLE)
     VALUES
-        ('Cozinheiro', 'cozinha@restaurante.com', 'Cozinha', '11122233344', '11877777777', 'CGp2HzQssQ8F4pQmJOWcEYaspK9tMbPHKlSEg4FxFdu0yWoK', 'employee');
+        ('Cozinheiro', 'cozinha@restaurante.com', 'Cozinha', '11122233344', '11877777777', @SeedPasswordHash, 'employee');
 GO
 
 IF NOT EXISTS (SELECT 1 FROM dbo.CLIENTE WHERE NOME_CLIENTE = 'Consumidor')

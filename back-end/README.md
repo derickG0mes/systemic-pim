@@ -54,7 +54,9 @@ cookies, CSRF, proxy e demais opções, consulte
   funcionários, mesas, pedidos, produtos e reservas (`pagina`, `tamanho` até 200
   e header `X-Total-Count`). Veja [API.md](../docs/API.md#paginação).
 - **Notificações:** a API grava uma notificação por funcionário ativo (tabela
-  `NOTIFICACAO`) e a entrega pelo hub `/hubs/notificacoes`. Rotas em
+  `NOTIFICACAO`) e a entrega pelo hub `/hubs/notificacoes` e, em segundo plano, por
+  push remoto via Expo para os aparelhos cadastrados (`ExpoPushSender`, tabela
+  `DISPOSITIVO_PUSH`; veja [PUSH_NOTIFICATIONS.md](../docs/PUSH_NOTIFICATIONS.md)). Rotas em
   `/api/notificacoes`.
 - **Fuso horário:** `TimeZoneHelper` usa o fuso `E. South America Standard Time`
   (Brasília) para datas de abertura e fechamento de comandas.
@@ -66,7 +68,7 @@ cookies, CSRF, proxy e demais opções, consulte
 
 ```text
 back-end/
-  Controllers/       Endpoints HTTP (14 controllers)
+  Controllers/       Endpoints HTTP (15 controllers)
     Backup/          DTO de upload da restauração
   Data/              AppDbContext e mapeamentos do EF Core
   DTOs/              Modelos de entrada e saída
@@ -89,6 +91,7 @@ back-end/
 | `02-procedures-views.sql` | Procedures e views |
 | `03-constraints.sql` | Índices únicos (comanda aberta por mesa, telefone de cliente, número de mesa) |
 | `04-create-notifications.sql` | Tabela `NOTIFICACAO` |
+| `05-create-push-devices.sql` | Tabela `DISPOSITIVO_PUSH` (tokens de push dos aparelhos) |
 | `seed-dados-testes.sql` | Dados de exemplo (execução manual, uma vez) |
 | `migration-cliente-consumidor.sql`, `migration-logs-sistema.sql` | Migrações para bancos antigos (já cobertas pelo script 01) |
 

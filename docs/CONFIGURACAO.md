@@ -38,8 +38,8 @@ docker compose up --build
 
 O Compose executa SQL Server, `db-init`, API e front-end. `db-init` aguarda o
 SQL Server e executa `01-create-database-idempotent.sql`,
-`02-procedures-views.sql`, `03-constraints.sql` e
-`04-create-notifications.sql` antes da API. Os volumes `sqlserver_data` e
+`02-procedures-views.sql`, `03-constraints.sql`,
+`04-create-notifications.sql` e `05-create-push-devices.sql` antes da API. Os volumes `sqlserver_data` e
 `backup_data` persistem o banco e os arquivos de backup, respectivamente; o
 volume externo preserva as chaves de proteção de dados para que os cookies
 antiforgery continuem válidos depois de recriar a API. `BACKUP_PATH` usa
@@ -84,9 +84,25 @@ legado e sem senha publicada neste repositório:
 | `garcom@restaurante.com` | `employee` |
 | `cozinha@restaurante.com` | `employee` |
 
-⚠️ A CONFIRMAR: a senha inicial dessas contas não consta no repositório. Se
-você não a conhece, defina uma nova com `PUT /api/funcionario/{id}` ou
-atualize o hash direto no banco.
+Em bancos **novos**, as quatro contas nascem com a senha **`Systemic@2026`**
+(hash PBKDF2-SHA256 versionado, validado contra o `PasswordHashService`). Essa
+senha é pública no repositório: use-a apenas em desenvolvimento e troque-a no
+primeiro acesso, com `PUT /api/funcionario/{id}` ou pela tela de usuários.
+Não suba o seed em produção sem redefinir essas senhas.
+
+Bancos **criados antes** dessa mudança continuam com o hash antigo, cuja senha
+não consta no repositório, porque o script 01 só insere contas que ainda não
+existem. Para esses bancos, execute uma vez:
+
+```sql
+UPDATE dbo.FUNCIONARIO
+SET PASSWORD_FUNCIONARIO = 'pbkdf2-sha256$v1$600000$TiB5Vjy08cmmh2KAkn5RfA==$oRQUjBzyoqAvmuhpxfiWQTIZ6XXuC80rSbu0cD9vQwE=',
+    LOGIN_ATTEMPTS = 0,
+    LOCKED_UNTIL = NULL
+WHERE EMAIL_FUNCIONARIO IN (
+    'admin@restaurante.com', 'owner@restaurante.com',
+    'garcom@restaurante.com', 'cozinha@restaurante.com');
+```
 
 O mesmo script cria o cliente padrão "Consumidor", as mesas 1 a 20 (capacidade
 4), as formas de pagamento PIX, Cartão de Crédito, Cartão de Débito e Dinheiro,
@@ -102,11 +118,15 @@ Aplique os scripts SQL, nesta ordem, no servidor (por exemplo, com `sqlcmd`):
 2. `back-end/Scripts/02-procedures-views.sql`
 3. `back-end/Scripts/03-constraints.sql`
 4. `back-end/Scripts/04-create-notifications.sql`
+5. `back-end/Scripts/05-create-push-devices.sql`
 
 Todos são idempotentes. Os scripts usam o banco `DB_RESTAURANTE` literalmente;
 se usar outro nome em `DB_NAME`, adapte os scripts. O script 04 cria a tabela
 `NOTIFICACAO` e seus índices; execute-o também em bancos já existentes antes de
-atualizar a API (sem ele, as notificações não são gravadas nem listadas).
+atualizar a API (sem ele, as notificações não são gravadas nem listadas). O
+script 05 cria a tabela `DISPOSITIVO_PUSH` (tokens de push dos aparelhos); execute-o
+também em bancos existentes antes de atualizar a API: sem ele, o cadastro de
+aparelhos falha e o push remoto não é enviado (as demais funções não são afetadas).
 
 `Program.cs` monta a connection string com `DB_SERVER`, `DB_NAME`, `DB_USER` e
 `DB_PASSWORD` (com `TrustServerCertificate=true`). `DB_NAME` assume
@@ -313,10 +333,10 @@ Auditoria) só para `admin` e `owner`.
 Banco: `DB_RESTAURANTE`. O esquema é evoluído por scripts SQL versionados; o
 projeto não usa migrations do Entity Framework Core.
 
-Os scripts definem 13 tabelas: `FUNCIONARIO`, `CLIENTE`, `MESA`,
+Os scripts definem 14 tabelas: `FUNCIONARIO`, `CLIENTE`, `MESA`,
 `FORMA_PAGAMENTO`, `PRODUTO`, `RESERVA`, `COMANDA`, `ITEM_COMANDA`,
 `DETALHE_PAGAMENTO`, `DESPESAS`, `LOG_COMANDA`, `LOG_SISTEMA` (script 01) e
-`NOTIFICACAO` (script 04). O modelo de dados está em
+`NOTIFICACAO` (script 04) e `DISPOSITIVO_PUSH` (script 05). O modelo de dados está em
 [ARQUITETURA.md](ARQUITETURA.md#modelo-de-dados).
 
 | Script | Conteúdo |
@@ -325,6 +345,7 @@ Os scripts definem 13 tabelas: `FUNCIONARIO`, `CLIENTE`, `MESA`,
 | `02-procedures-views.sql` | Procedures `sp_fechar_comanda`, `sp_relatorio_faturamento`, `sp_ajustar_estoque` e views `vw_comandas_abertas`, `vw_produtos_mais_vendidos` |
 | `03-constraints.sql` | Índices únicos `UX_COMANDA_MESA_ABERTA` (uma comanda aberta por mesa), `UX_CLIENTE_TELEFONE` e `UX_MESA_NUMERO`. Aborta com mensagem se existirem duplicatas |
 | `04-create-notifications.sql` | Tabela `NOTIFICACAO` e dois índices |
+| `05-create-push-devices.sql` | Tabela `DISPOSITIVO_PUSH` (token do Expo por aparelho), índice único no token e índice por funcionário |
 
 A API chama `sp_relatorio_faturamento` e `sp_ajustar_estoque` e consulta as
 duas views. Ela não chama `sp_fechar_comanda`: o fechamento ocorre ao inserir
@@ -349,7 +370,7 @@ ela, a API grava em `backups` sob `AppContext.BaseDirectory`. `BACKUP_HMAC_KEY`
 `backup_<ddMMyyyy>_<HHmmss>` com:
 
 - `backup_banco_<ddMMyyyy>.sql`: `DELETE` e `INSERT` de todas as tabelas
-  mapeadas pelo EF Core (incluindo `NOTIFICACAO`), com `NOCHECK`/`CHECK` das
+  mapeadas pelo EF Core (incluindo `NOTIFICACAO` e `DISPOSITIVO_PUSH`), com `NOCHECK`/`CHECK` das
   constraints;
 - `backup_logs_<ddMMyyyy>.json`: `LOG_SISTEMA` e `LOG_COMANDA`;
 - `backup_config_<ddMMyyyy>.json`: `appsettings.json` com senha da connection
@@ -383,6 +404,12 @@ Quando o SignalR está habilitado (sessão ativa) mas desconectado, o
 `RestaurantContext` da web consulta as comandas a cada 60 s como contingência.
 O sino da web e a central do mobile também consultam `GET /api/notificacoes` a
 cada 30 s.
+
+**Push remoto (app fechado).** A API também envia cada notificação ao serviço de push do
+Expo, que entrega pelo FCM (Android) e pelo APNs (iOS). Isso exige que a API alcance
+`https://exp.host` e que as credenciais do Firebase/Apple estejam configuradas no Expo; o
+passo a passo está em [PUSH_NOTIFICATIONS.md](PUSH_NOTIFICATIONS.md). Sem as credenciais,
+nada quebra: o app segue recebendo por SignalR e pela consulta periódica.
 
 ## CI e testes
 

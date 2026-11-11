@@ -1,6 +1,6 @@
 # Referência da API - Systemic PIM
 
-API REST em ASP.NET Core (.NET 10) com 72 ações HTTP em 14 controllers, mais
+API REST em ASP.NET Core (.NET 10) com 74 ações HTTP em 15 controllers, mais
 dois hubs SignalR. Este documento descreve o comportamento implementado em
 `back-end/Controllers` e `back-end/Services`.
 
@@ -250,6 +250,11 @@ Cada funcionário só enxerga e altera as próprias notificações.
 | `GET /api/notificacoes?limit=50` | `limit` de 1 a 100 (padrão 50); fora disso, 400 | Envelope; `dados`: `{items: [{id, type, title, message, href, createdAt, readAt}], unreadCount}` |
 | `PATCH /api/notificacoes/{id}/lida` | — | 204; 404 se não for do funcionário |
 | `POST /api/notificacoes/marcar-todas-lidas` | — | Envelope; `dados`: `{atualizadas}` |
+| `PUT /api/notificacoes/dispositivos` | `{token, plataforma}`; `token` no formato `ExponentPushToken[...]` ou `ExpoPushToken[...]`; `plataforma` `android` ou `ios` | 204; associa o token ao funcionário autenticado (se o token já existia, ele é transferido para este funcionário). Mantém no máximo 5 aparelhos por funcionário. 400 `TOKEN_PUSH_INVALIDO` ou `PLATAFORMA_INVALIDA` |
+| `DELETE /api/notificacoes/dispositivos` | `{token}` | 204 (idempotente); só remove o token se ele for do funcionário autenticado |
+
+Os dois últimos endpoints cadastram o aparelho para o push remoto; veja
+[PUSH_NOTIFICATIONS.md](PUSH_NOTIFICATIONS.md).
 
 ### Pedidos (`/api/pedidos`) — `employee`, `admin`, `owner`
 
@@ -358,10 +363,9 @@ O servidor transmite para **todos** os clientes conectados (`Clients.All`):
 A interface web reage a `PedidoNovo`, `PedidoEmPreparo`, `PedidoPronto` e
 `ComandaAtualizada` recarregando as comandas.
 
-O hub também expõe métodos invocáveis pelo cliente (`NotificarPedidoNovo`,
-`NotificarPedidoPronto`, `NotificarPedidoEmPreparo`, `AtualizarStatusComanda`)
-que retransmitem eventos equivalentes a todos os clientes. Qualquer usuário
-autenticado pode invocá-los.
+O hub não expõe métodos invocáveis pelo cliente: os eventos são publicados
+apenas pelo servidor (via `IHubContext`, a partir dos serviços de comanda e
+pedido). Os clientes somente escutam.
 
 ### `/hubs/notificacoes`
 
@@ -372,9 +376,11 @@ funcionário destinatário.
 ## Notificações
 
 A API grava uma notificação por funcionário **ativo** (`ATIVO`) cujo perfil
-esteja na lista do evento, na tabela `NOTIFICACAO`, e depois tenta entregá-la
-pelo SignalR. Se a entrega falha, a notificação continua disponível em
-`GET /api/notificacoes`.
+esteja na lista do evento, na tabela `NOTIFICACAO`, e depois a entrega por dois
+caminhos independentes: SignalR (clientes conectados) e push remoto pelo serviço
+do Expo (aparelhos cadastrados em `DISPOSITIVO_PUSH`, mesmo com o app fechado).
+O push é enviado em segundo plano; se qualquer entrega falhar, a notificação
+continua disponível em `GET /api/notificacoes`.
 
 | `type` | Destinatários | Origem | Link (`href`) |
 |---|---|---|---|
@@ -385,8 +391,12 @@ pelo SignalR. Se a entrega falha, a notificação continua disponível em
 | `reserva_criada` | `employee`, `admin`, `owner` | `POST /api/reserva` | `/reservations` |
 | `reserva_cancelada` | `employee`, `admin`, `owner` | `DELETE /api/reserva/{id}` | `/reservations` |
 
-Não há push remoto fora dos clientes: a web e o app recebem os eventos
-enquanto estão conectados e consultam a central periodicamente (a cada 30 s).
+A web recebe os eventos enquanto está conectada e consulta a central
+periodicamente (a cada 30 s). O app mobile recebe por SignalR enquanto está
+aberto, consulta a central a cada 30 s e, com o push configurado, também recebe
+a notificação com o app fechado. O payload do push leva `data: {id, type, link}`
+e usa o canal Android `systemic-default`. A configuração das credenciais está em
+[PUSH_NOTIFICATIONS.md](PUSH_NOTIFICATIONS.md).
 
 ## Códigos de erro
 
@@ -406,6 +416,8 @@ Valores de `codigoErro` encontrados no código:
 | `STATUS_INVALIDO` | 400 | `PUT /api/pedidos/{id}/status` |
 | `USE_PAGAMENTO` | 400 | `PUT /api/pedidos/{id}/status` com `FECHADA` |
 | `DATABASE_INDISPONIVEL` | 503 | `GET /api/healthcheck/database` |
+| `TOKEN_PUSH_INVALIDO` | 400 | `PUT /api/notificacoes/dispositivos` |
+| `PLATAFORMA_INVALIDA` | 400 | `PUT /api/notificacoes/dispositivos` |
 
 Falhas internas de backup e de comandas abertas respondem HTTP 500 com um
 `correlationId` que identifica a entrada correspondente no log da API.

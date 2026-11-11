@@ -14,7 +14,9 @@ instalada como PWA.
 - Faturamento, despesas e relatórios (admin e proprietário).
 - Cadastro de funcionários com três perfis: `employee`, `admin` e `owner`.
 - Auditoria (logs do sistema) e backup/restauração assinados por HMAC.
-- Notificações em tempo real (novos pedidos, pedido pronto, estoque, reservas).
+- Notificações em tempo real (novos pedidos, pedido pronto, estoque, reservas), com
+  push remoto no app mobile para quem está com o app fechado
+  ([como configurar](docs/PUSH_NOTIFICATIONS.md)).
 - Acessibilidade: widget VLibras e navegação por teclado na web; temas
   Claro, Escuro e Alto contraste no app.
 
@@ -65,7 +67,7 @@ docker compose up --build
 ```
 
 O Compose inicia o SQL Server, espera o health check, executa `db-init` e seus
-scripts SQL (`01` a `04`) e então inicia a API e a interface.
+scripts SQL (`01` a `05`) e então inicia a API e a interface.
 
 | Serviço | Endereço |
 |---|---|
@@ -96,6 +98,7 @@ Crie o banco e aplique, na ordem, os scripts:
 2. [`02-procedures-views.sql`](back-end/Scripts/02-procedures-views.sql)
 3. [`03-constraints.sql`](back-end/Scripts/03-constraints.sql)
 4. [`04-create-notifications.sql`](back-end/Scripts/04-create-notifications.sql)
+5. [`05-create-push-devices.sql`](back-end/Scripts/05-create-push-devices.sql)
 
 Defina `DB_SERVER`, `DB_NAME` (opcional; padrão `DB_RESTAURANTE`), `DB_USER`,
 `DB_PASSWORD`, `JWT_SECRET_KEY` e `BACKUP_HMAC_KEY`. Os scripts criam e usam o
@@ -194,6 +197,7 @@ estão no [README do mobile](mobile/README.md).
 - [Configuração, execução, segurança e backup](docs/CONFIGURACAO.md)
 - [Variáveis de ambiente](docs/VARIAVEIS_AMBIENTE.md)
 - [Referência da API (endpoints, SignalR, notificações)](docs/API.md)
+- [Notificações push com o app fechado e credenciais (Firebase, Apple, Expo)](docs/PUSH_NOTIFICATIONS.md)
 - [Arquitetura, módulos, dados e permissões](docs/ARQUITETURA.md)
 - [Guia de implantação e CI/CD](docs/DEPLOY.md)
 - [Exemplo TypeScript de integração com a API](docs/EXEMPLO_INTEGRACAO_REACT.ts)

@@ -63,6 +63,13 @@ public sealed class AutenticacaoService : IAutenticacaoService
             return InvalidCredentialsResult();
         }
 
+        if (!string.Equals(funcionario.StatusFuncionario, "ATIVO", StringComparison.OrdinalIgnoreCase))
+        {
+            PasswordHashService.VerifyDummyPassword(loginDTO.Senha);
+            _logger.LogWarning("Login rejected because the account is inactive.");
+            return InvalidCredentialsResult();
+        }
+
         if (!PasswordHashService.VerifyPassword(
                 loginDTO.Senha,
                 funcionario.PasswordFuncionario,
