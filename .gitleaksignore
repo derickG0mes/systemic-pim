@@ -19,3 +19,5 @@ b48afcbf4a9c66d87cf9c2abbbe01d75132b938a:tests/IntegrationTests/WorkflowIntegrat
 # Historical test-only fixtures; generated at runtime now and never used outside tests.
 9e9980c2b56b2ae8c29e9a41a8da4227ef8ce002:tests/IntegrationTests/WorkflowIntegrationTests.cs:generic-api-key:157
 b753a2d969ff67e8b0aa8045f5dae014c4a02e34:tests/IntegrationTests/WorkflowIntegrationTests.cs:generic-api-key:157
+# Firebase Android API key in google-services.json: public app identifier embedded in the APK, restricted by package name; not a secret.
+06247bf51a150c0026e44cc9f4487dca8ea55a0a:mobile/google-services.json:gcp-api-key:18
