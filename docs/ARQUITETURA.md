@@ -23,6 +23,9 @@ flowchart LR
     A -- "EF Core e rotinas SQL" --> D
     A -. "SignalR: cozinha e notificações" .-> W
     A -. "SignalR: notificações" .-> M
+    X["Expo Push Service (FCM e APNs)"]
+    A -- "push remoto (HTTPS)" --> X
+    X -. "notificação com o app fechado" .-> M
 ```
 
 O navegador e o app usam sempre a mesma origem do front-end (`/api` e
@@ -48,7 +51,7 @@ A porta 5050 também é publicada pelo Compose, mas serve apenas a diagnóstico.
 ```mermaid
 flowchart TB
     sqlserver["sqlserver (mssql/server:2022-latest)"]
-    dbinit["db-init (mssql-tools): executa os scripts 01 a 04"]
+    dbinit["db-init (mssql-tools): executa os scripts 01 a 05"]
     api["api (back-end/Dockerfile)"]
     front["front-end (Nginx + build do Vite)"]
     sqlserver -- "healthy" --> dbinit
@@ -68,7 +71,7 @@ detalhes: [CONFIGURACAO.md](CONFIGURACAO.md) e [DEPLOY.md](DEPLOY.md).
 
 ```text
 back-end/
-  Controllers/       Endpoints HTTP por domínio (14 controllers)
+  Controllers/       Endpoints HTTP por domínio (15 controllers)
     Backup/          DTO de upload da restauração
   Data/              AppDbContext e mapeamentos do EF Core
   DTOs/              Modelos de entrada e saída
@@ -151,9 +154,9 @@ preferência de tema no mesmo banco.
 
 ## API e persistência
 
-Os 14 controllers organizam autenticação, backups, clientes, comandas,
+Os 15 controllers organizam autenticação, backups, clientes, comandas,
 faturamento, formas de pagamento, funcionários, health checks, logs, mesas,
-notificações, pedidos, produtos e reservas. A lista de rotas, métodos,
+notificações, dispositivos de push, pedidos, produtos e reservas. A lista de rotas, métodos,
 parâmetros e respostas está em [API.md](API.md).
 
 Os controllers delegam a regra de negócio a serviços injetados por interface
@@ -162,15 +165,17 @@ aceitam paginação opcional por `pagina` e `tamanho`.
 
 ### Modelo de dados
 
-O banco `DB_RESTAURANTE` tem 13 tabelas: `FUNCIONARIO`, `CLIENTE`, `MESA`,
+O banco `DB_RESTAURANTE` tem 14 tabelas: `FUNCIONARIO`, `CLIENTE`, `MESA`,
 `FORMA_PAGAMENTO`, `PRODUTO`, `RESERVA`, `COMANDA`, `ITEM_COMANDA`,
-`DETALHE_PAGAMENTO`, `DESPESAS`, `LOG_COMANDA`, `LOG_SISTEMA` e `NOTIFICACAO`.
+`DETALHE_PAGAMENTO`, `DESPESAS`, `LOG_COMANDA`, `LOG_SISTEMA`, `NOTIFICACAO` e
+`DISPOSITIVO_PUSH`.
 
 ```mermaid
 erDiagram
     FUNCIONARIO ||--o{ DETALHE_PAGAMENTO : registra
     FUNCIONARIO ||--o{ LOG_COMANDA : gera
     FUNCIONARIO ||--o{ NOTIFICACAO : recebe
+    FUNCIONARIO ||--o{ DISPOSITIVO_PUSH : cadastra
     CLIENTE ||--o{ RESERVA : faz
     CLIENTE ||--o{ COMANDA : possui
     MESA ||--o{ RESERVA : recebe
@@ -228,6 +233,12 @@ erDiagram
         int ID_RESERVA PK
         datetime DATA_RESERVA
         string STATUS_RESERVA "DISPONIVEL, CANCELADA"
+    }
+    DISPOSITIVO_PUSH {
+        int ID_DISPOSITIVO_PUSH PK
+        string TOKEN UK "ExponentPushToken[...]"
+        string PLATAFORMA "android, ios"
+        datetime ATUALIZADO_EM
     }
     NOTIFICACAO {
         int ID_NOTIFICACAO PK
@@ -290,6 +301,7 @@ sequenceDiagram
     participant A as API
     participant D as SQL Server
     participant H as Hubs SignalR
+    participant X as Expo Push Service
     U->>A: POST /api/pedidos {idMesa, itens}
     A->>D: valida mesa, produtos, status e estoque
     A->>D: insere ITEM_COMANDA (STATUS_ITEM = PREPARAR) e baixa QTD_ESTOQUE
@@ -297,6 +309,7 @@ sequenceDiagram
     A->>H: CozinhaHub: PedidoNovo e ComandaAtualizada (todos os clientes)
     A->>D: grava NOTIFICACAO (pedido_novo, e estoque_baixo se cruzar o mínimo)
     A->>H: NotificationsHub: NotificationCreated (por funcionário)
+    A-)X: push remoto ao Expo (em segundo plano), para os aparelhos cadastrados
     A-->>U: 200 ou 201 com o pedido
     U->>A: PUT /api/pedidos/{id}/status {status: in_progress | completed}
     A->>D: atualiza STATUS_ITEM de todos os itens
@@ -326,6 +339,8 @@ bloqueio (5 falhas, 15 minutos). Detalhes de configuração estão em
 - `/hubs/cozinha` (autenticado): transmite a todos os clientes os eventos
   `PedidoNovo`, `PedidoEmPreparo`, `PedidoPronto` e `ComandaAtualizada`. A web
   recarrega as comandas ao recebê-los.
+- Push remoto (app mobile fechado): a API envia cada notificação também ao Expo Push
+  Service, que entrega por FCM ou APNs. Veja [PUSH_NOTIFICATIONS.md](PUSH_NOTIFICATIONS.md).
 - `/hubs/notificacoes` (autenticado): cada conexão entra no grupo do próprio
   funcionário e recebe `NotificationCreated`. Web e mobile usam este hub.
 
